@@ -18,7 +18,8 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && session && personnel) {
-      router.replace("/dashboard");
+      const isAdmin = personnel.role === "admin" || personnel.role === "supervisor";
+      router.replace(isAdmin ? "/yonetici" : "/dashboard");
     }
   }, [loading, session, personnel, router]);
 

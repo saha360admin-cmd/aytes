@@ -3,6 +3,7 @@
 import { useState, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 
 const deptConfig: Record<string, { name: string; desc: string; icon: string; iconBg: string }> = {
@@ -40,7 +41,18 @@ function AuthForm() {
         setIsRegister(false);
       } else {
         await signIn(form.email, form.password);
-        router.replace("/dashboard");
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const { data: p } = await supabase
+            .from("personnel")
+            .select("role")
+            .eq("auth_id", user.id)
+            .single();
+          const isAdmin = p?.role === "admin" || p?.role === "supervisor";
+          router.replace(isAdmin ? "/yonetici" : "/dashboard");
+        } else {
+          router.replace("/dashboard");
+        }
       }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Bir hata oluştu");
