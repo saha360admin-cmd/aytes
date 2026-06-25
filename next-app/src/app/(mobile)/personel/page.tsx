@@ -4,6 +4,19 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
+function toTitleCase(value: string) {
+  return value
+    .split(" ")
+    .map((word, i) => {
+      if (word.length === 0) return word;
+      // Sadece ilk harf büyük, geri kalanı olduğu gibi bırak
+      const first = word[0];
+      const upper = first === "i" ? "İ" : first === "ı" ? "I" : first.toLocaleUpperCase("tr-TR");
+      return upper + word.slice(1);
+    })
+    .join(" ");
+}
+
 interface Person {
   id: string;
   full_name: string;
@@ -236,7 +249,7 @@ export default function PersonelPage() {
                     className="w-full pl-12 pr-4 py-md bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all"
                     placeholder="Ahmet Yılmaz"
                     value={form.full_name}
-                    onChange={(e) => setForm({ ...form, full_name: e.target.value })}
+                    onChange={(e) => setForm({ ...form, full_name: toTitleCase(e.target.value) })}
                     required
                   />
                 </div>
