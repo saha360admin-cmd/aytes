@@ -12,6 +12,12 @@ const departments = [
   { slug: "temizlik", label: "Temizlik Giriş", desc: "Hijyen ve Stok Takibi", icon: "cleaning_services", hoverBorder: "hover:border-primary-container/50", iconBg: "bg-primary-fixed-dim", iconColor: "text-on-primary-fixed", hoverIconBg: "group-hover:bg-primary-container group-hover:text-on-primary", titleColor: "text-primary-container", chevronHover: "group-hover:text-primary-container" },
 ];
 
+const adminDepts = [
+  { slug: "guvenlik", label: "Güvenlik Yönetici", icon: "shield_person", color: "text-secondary" },
+  { slug: "teknik",   label: "Teknik Yönetici",   icon: "build_circle",  color: "text-tertiary" },
+  { slug: "temizlik", label: "Temizlik Yönetici", icon: "verified_user",  color: "text-primary-container" },
+];
+
 export default function HomePage() {
   const { session, personnel, loading } = useAuth();
   const router = useRouter();
@@ -70,7 +76,29 @@ export default function HomePage() {
           </button>
         ))}
 
-        <div className="mt-md text-center">
+        {/* Yönetici Girişleri */}
+        <div className="mt-sm">
+          <div className="flex items-center gap-sm mb-sm">
+            <div className="flex-1 h-px bg-outline-variant/40" />
+            <span className="font-label-sm text-label-sm text-outline">Yönetici Girişi</span>
+            <div className="flex-1 h-px bg-outline-variant/40" />
+          </div>
+          <div className="flex flex-col gap-xs">
+            {adminDepts.map(({ slug, label, icon, color }) => (
+              <button
+                key={`admin-${slug}`}
+                onClick={() => router.push(`/auth?dept=${slug}`)}
+                className="w-full flex items-center gap-sm px-md py-sm bg-surface-container-lowest/60 border border-outline-variant/20 rounded-lg hover:bg-surface-container-low active:scale-95 transition-all text-left"
+              >
+                <span className={`material-symbols-outlined text-[18px] ${color}`} style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
+                <span className={`font-label-md text-label-md ${color}`}>{label}</span>
+                <span className="material-symbols-outlined text-[16px] text-outline-variant ml-auto">chevron_right</span>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="mt-xs text-center">
           <a className="inline-flex items-center gap-xs font-label-md text-primary hover:underline" href="#">
             <span className="material-symbols-outlined text-sm">help</span>
             Giriş yapamıyor musunuz? Destek alın
