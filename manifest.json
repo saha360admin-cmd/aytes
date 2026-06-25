@@ -1,0 +1,22 @@
+{
+  "name": "AYTES Personel Yönetim Sistemi",
+  "short_name": "AYTES",
+  "description": "Personel Yönetim Sistemi",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#f8f9ff",
+  "theme_color": "#0058be",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>ShieldGuard - Vardiyalar</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;family=Quicksand:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-background": "#191c20",
+                    "inverse-primary": "#adc6ff",
+                    "outline": "#727785",
+                    "primary-container": "#0058be",
+                    "surface-container-highest": "#e1e2e8",
+                    "on-primary": "#ffffff",
+                    "surface-container": "#eceef3",
+                    "on-tertiary-container": "#ffcb8f",
+                    "outline-variant": "#c2c6d5",
+                    "on-surface": "#0b1c30",
+                    "surface-container-lowest": "#ffffff",
+                    "secondary-fixed-dim": "#81d8ad",
+                    "error-container": "#ffdad6",
+                    "primary-fixed-dim": "#adc6ff",
+                    "tertiary-fixed-dim": "#fcba66",
+                    "on-surface-variant": "#424753",
+                    "inverse-surface": "#2e3135",
+                    "on-secondary-fixed": "#002113",
+                    "background": "#f8f9ff",
+                    "surface-tint": "#085ac0",
+                    "tertiary": "#623c00",
+                    "surface": "#f8f9ff",
+                    "on-error": "#ffffff",
+                    "surface-dim": "#d8dae0",
+                    "surface-container-high": "#e7e8ee",
+                    "primary-fixed": "#d8e2ff",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "on-secondary": "#ffffff",
+                    "tertiary-fixed": "#ffddb8",
+                    "primary": "#004191",
+                    "on-tertiary-fixed": "#2a1700",
+                    "surface-bright": "#f8f9ff",
+                    "secondary-fixed": "#9df4c8",
+                    "inverse-on-surface": "#eff0f6",
+                    "surface-container-low": "#f2f3f9",
+                    "on-secondary-fixed-variant": "#005236",
+                    "tertiary-container": "#825100",
+                    "on-secondary-container": "#0c714d",
+                    "on-primary-container": "#c4d5ff",
+                    "on-primary-fixed": "#001a42",
+                    "on-primary-fixed-variant": "#004395",
+                    "on-error-container": "#93000a",
+                    "on-tertiary": "#ffffff",
+                    "surface-variant": "#e1e2e8",
+                    "secondary": "#006c49",
+                    "error": "#ba1a1a",
+                    "secondary-container": "#9af2c5"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "md": "16px",
+                    "container-max": "1280px",
+                    "xxl": "48px",
+                    "base": "4px",
+                    "xl": "32px",
+                    "lg": "24px",
+                    "sm": "8px",
+                    "margin-mobile": "24px",
+                    "gutter": "24px",
+                    "xs": "4px"
+            },
+            "fontFamily": {
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-lg-mobile": ["Quicksand"],
+                    "display": ["Quicksand"],
+                    "label-md": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Quicksand"],
+                    "body-lg": ["Quicksand"],
+                    "headline-md": ["Quicksand"],
+                    "body-md": ["Quicksand"]
+            },
+            "fontSize": {
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "500"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body {
+            font-family: 'Quicksand', sans-serif;
+            background-color: #f8f9ff;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        .active-day-shadow {
+            box-shadow: 0 4px 14px 0 rgba(0, 65, 145, 0.3);
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background text-on-background min-h-screen flex flex-col items-center">
+<!-- TopAppBar -->
+<header class="w-full top-0 sticky z-40 bg-surface shadow-sm px-margin-mobile h-16 flex items-center justify-between">
+<div class="flex items-center gap-4">
+<button class="active:scale-95 transition-transform p-2 -ml-2 rounded-full hover:bg-surface-container-high">
+<span class="material-symbols-outlined text-primary">arrow_back</span>
+</button>
+<h1 class="font-headline-md text-headline-md font-bold text-primary">Vardiyalar</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="active:scale-95 transition-transform p-2 rounded-full hover:bg-surface-container-high">
+<span class="material-symbols-outlined text-primary">calendar_month</span>
+</button>
+<img class="w-8 h-8 rounded-full border-2 border-primary-container object-cover" data-alt="Close-up portrait of a professional security officer with a friendly expression, wearing a clean navy blue uniform with a visible badge. The lighting is bright and optimistic, reflecting a modern corporate environment. Shallow depth of field with a blurred office background." src="https://lh3.googleusercontent.com/aida-public/AB6AXuAoAfmmNOS_f6bMoYw0oFujqzEL0S4yHGFxLyKGWdhTZ22Atg5iD6ZDPhVy66g6F3-XQs1xVH0JWK4YkE2Iu1B3LrvndH76wiY2uz5mL1V3SnCtoIyZeR-F4jO13emXEGWhsw3BizQ52X-1U7oWgONyJqquYoab4VJt2IWm_Ea0oahP7W7GXNjREl4dgQi_-ComreGVPwldqjFbI6Ra9d4sIJOOaFkml_WSDBkaf5qLsVrbKGp8n-ArhqmW-ejPcdzxvNrAbhy8_mHC"/>
+</div>
+</header>
+<main class="w-full max-w-container-max flex-1 px-margin-mobile pb-32 pt-6 flex flex-col gap-8">
+<!-- Weekly Calendar View -->
+<section class="flex flex-col gap-4">
+<div class="flex justify-between items-end">
+<h2 class="font-headline-md text-headline-md text-on-surface">Bu Hafta</h2>
+<span class="font-label-md text-label-md text-on-surface-variant">Ekim 2023</span>
+</div>
+<div class="flex gap-3 overflow-x-auto no-scrollbar py-2 -mx-2 px-2">
+<!-- Days of the week -->
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high cursor-pointer">
+<span class="font-label-sm text-label-sm">Pzt</span>
+<span class="font-headline-md text-headline-md">16</span>
+<span class="font-label-sm text-label-sm text-primary/60">T211</span></div>
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high cursor-pointer">
+<span class="font-label-sm text-label-sm">Sal</span>
+<span class="font-headline-md text-headline-md">17</span>
+<span class="font-label-sm text-label-sm text-primary/60">3</span></div>
+<!-- Active Day -->
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-primary text-on-primary active-day-shadow transition-all scale-105 cursor-default">
+<span class="font-label-sm text-label-sm">Çar</span>
+<span class="font-headline-md text-headline-md">18</span>
+<span class="font-label-sm text-label-sm text-on-primary/80">2</span></div>
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high cursor-pointer">
+<span class="font-label-sm text-label-sm">Per</span>
+<span class="font-headline-md text-headline-md">19</span>
+<span class="font-label-sm text-label-sm text-primary/60">1</span></div>
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high cursor-pointer">
+<span class="font-label-sm text-label-sm">Cum</span>
+<span class="font-headline-md text-headline-md">20</span>
+<span class="font-label-sm text-label-sm text-primary/60">1</span></div>
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high cursor-pointer">
+<span class="font-label-sm text-label-sm">Cmt</span>
+<span class="font-headline-md text-headline-md">21</span>
+</div>
+<div class="flex flex-col items-center justify-center min-w-[56px] h-20 rounded-xl bg-surface-container text-on-surface-variant transition-all hover:bg-surface-container-high cursor-pointer">
+<span class="font-label-sm text-label-sm">Paz</span>
+<span class="font-headline-md text-headline-md">22</span>
+</div>
+</div>
+</section>
+<!-- Shift Details Card -->
+<section class="flex flex-col gap-4">
+<h2 class="font-headline-md text-headline-md text-on-surface">Vardiya Detayları</h2>
+<div class="bg-surface-container-lowest rounded-xl shadow-lg p-lg border-l-[8px] border-primary-container flex flex-col gap-md relative overflow-hidden">
+<!-- Background visual touch -->
+<div class="absolute -right-12 -top-12 w-40 h-40 bg-primary/5 rounded-full blur-3xl"></div>
+<div class="flex justify-between items-start">
+<div>
+<div class="flex items-center gap-2 mb-1">
+<span class="material-symbols-outlined text-primary text-[20px]">light_mode</span>
+<span class="font-body-lg text-body-lg font-bold text-on-surface">Gündüz Vardiyası</span>
+</div>
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-outline text-[18px]">schedule</span>
+<span class="font-body-md text-body-md text-on-surface-variant">08:00 - 16:00</span>
+</div>
+</div>
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-sm text-label-sm">Aktif</span>
+</div>
+<div class="flex flex-col gap-3 pt-4 border-t border-outline-variant">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center">
+<span class="material-symbols-outlined text-primary">location_on</span>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline">Konum</p>
+<p class="font-body-md text-body-md font-medium">A Blok - Ana Giriş</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Professional headshot of a smiling security guard colleague, mid-30s, wearing a grey tactical uniform. The background is a brightly lit, clean office lobby with warm wooden accents and glass surfaces, reinforcing a safe and premium corporate atmosphere." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDu-baMiJraJSjaY0T28Mt7a2uYaua47jOCaNgrk2sD0pChAYaGrXzZJnd5F_4Ql7afeCAPCaqI33yW3_qJ-UgbhzwLTiM0HWLoZe14Sw9ubqcnRFE1OveYpt0sbsiYiz4wqfnGKRn8vwQylRynoi2vJjXpjJXieskW85sJZ81jSSWY9gKvj-himfa3JH2qr67hb8tlAKKbT9fj0VcTCQD1BTVddz5MxF7FF0wljsw9dG4-74FMSpfIDCYpHPVp1lyXpJfae0_a-Hg2"/>
+</div>
+<div>
+<p class="font-label-sm text-label-sm text-outline">Birlikte Çalışanlar</p>
+<p class="font-body-md text-body-md font-medium">Ahmet Y.</p>
+</div>
+<button class="ml-auto w-10 h-10 rounded-full border border-primary text-primary flex items-center justify-center active:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">call</span>
+</button>
+</div><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden"><img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBi7FbfOka-1zF9VKAXnCjNcfTWbSIz2_dtEbDL_QUbBgiiec1viBZDMsmxSpvKUr4sO1ykmG9lFATG-4uyKC6W5sNfuevwjAATKfD63pQvGwuVTP9boSkL8qI32gh6HpcnjmdsEngv288S0JuYit5Q-xoJ2NSqN-khoIkjTNOcHGVigCIpPDZ5hl1Y_1EdZjpLvajeVGJaf81YwIk3Zs-wB4KlubF3_9bMxmNFFuSDw5EcqhjFEweIgF6sdWi3cYeYg4i1ErOkarSE"/></div><div><p class="font-label-sm text-label-sm text-outline">Birlikte Çalışanlar</p><p class="font-body-md text-body-md font-medium">Mehmet D.</p></div><button class="ml-auto w-10 h-10 rounded-full border border-primary text-primary flex items-center justify-center active:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">call</span>
+</button></div><div class="flex items-center gap-3"><div class="w-10 h-10 rounded-full bg-surface-container flex items-center justify-center overflow-hidden"><img class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDaIgNQArA5Vp64kAtAjPTQ7JT7FlsJGp54QR2Xre-R9qtkVNIIRqvxrQKmozHJ6yTz5993MLcuL_Xny15-lY0S5ceIC1I06TfqHwiUZDUTW6fPCncpzN8cSFSMy9tmIAo9tWeUpCg2CDCXe0LN0G9astLnqmM9RDB477u1hIwqCcpCg2KCCpiTll1vlQj-QGkIWOCVqu78Ruu8HYnF7tcunPX_lM2ayRRbbZgjAWvKb_F0_yJEkUXvH440qqrmHxkmBSHvRObueyn_"/></div><div><p class="font-label-sm text-label-sm text-outline">Birlikte Çalışanlar</p><p class="font-body-md text-body-md font-medium">Canan K.</p></div><button class="ml-auto w-10 h-10 rounded-full border border-primary text-primary flex items-center justify-center active:bg-primary/10 transition-colors">
+<span class="material-symbols-outlined text-[20px]">call</span>
+</button></div>
+</div>
+<div class="mt-2 bg-tertiary-fixed text-on-tertiary-fixed-variant p-md rounded-lg flex items-start gap-3">
+<span class="material-symbols-outlined text-[20px]">info</span>
+<p class="font-label-md text-label-md">Bugün saat 14:00'te bina yönetimi ile kısa bir denetim toplantısı yapılacak.</p>
+</div>
+</div>
+</section>
+<!-- Monthly Summary Section -->
+<section class="flex flex-col gap-4"><h2 class="font-headline-md text-headline-md text-on-surface">Aylık Özet</h2>
+<div class="grid grid-cols-3 gap-2">
+<div class="bg-surface-container-lowest rounded-xl shadow-md p-2 flex flex-col items-center justify-center gap-2 border-b-4 border-secondary">
+<span class="material-symbols-outlined text-secondary text-[24px]">timer</span>
+<span class="font-display text-headline-md text-secondary">152</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-center">Toplam Saat</span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl shadow-md p-2 flex flex-col items-center justify-center gap-2 border-b-4 border-primary">
+<span class="material-symbols-outlined text-primary text-[24px]">event_repeat</span>
+<span class="font-display text-headline-md text-primary">12</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-center">Gelecek Vardiya</span>
+</div>
+<div class="bg-surface-container-lowest rounded-xl shadow-md p-2 flex flex-col items-center justify-center gap-2 border-b-4 border-tertiary">
+<span class="material-symbols-outlined text-tertiary text-[24px]">more_time</span>
+<span class="font-display text-headline-md text-tertiary">24</span>
+<span class="font-label-sm text-label-sm text-on-surface-variant text-center">Fazla Mesai</span>
+</div>
+</div>
+<div class="bg-surface-container-high rounded-xl p-md flex items-center justify-between mt-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-on-primary">event_busy</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Ücretsiz İzin</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Bu yıl toplam</p>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-primary">5 Gün</span>
+</div>
+<div class="bg-surface-container-high rounded-xl p-md flex items-center justify-between mt-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-primary flex items-center justify-center shadow-md shadow-primary/20">
+<span class="material-symbols-outlined text-on-primary">calendar_today</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Yıllık İzin</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Kalan bakiye</p>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-primary">14 Gün</span>
+</div>
+<div class="bg-surface-container-high rounded-xl p-md flex items-center justify-between mt-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-error flex items-center justify-center shadow-md shadow-error/20">
+<span class="material-symbols-outlined text-on-error">medical_information</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Doktor Raporu</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Bu yıl toplam</p>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-error">3 Gün</span>
+</div>
+<div class="bg-surface-container-high rounded-xl p-md flex items-center justify-between mt-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-tertiary flex items-center justify-center shadow-md shadow-tertiary/20">
+<span class="material-symbols-outlined text-on-tertiary">work_history</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Yapılan Mesai</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Yıllık toplam</p>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-tertiary">186 Saat</span>
+</div>
+<div class="bg-surface-container-high rounded-xl p-md flex items-center justify-between mt-4">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-secondary flex items-center justify-center shadow-md shadow-secondary/20">
+<span class="material-symbols-outlined text-on-secondary">verified</span>
+</div>
+<div>
+<p class="font-body-md text-body-md font-bold">Performans Puanı</p>
+<p class="font-label-sm text-label-sm text-on-surface-variant">Hedefin %15 üzerinde</p>
+</div>
+</div>
+<span class="font-headline-md text-headline-md text-secondary">4.9/5</span>
+</div></section>
+</main>
+<!-- BottomNavBar -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-4 py-3 bg-surface-container-lowest shadow-[0_-2px_10px_rgba(0,0,0,0.05)] rounded-t-lg md:max-w-md">
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1 transition-all active:scale-90">
+<span class="material-symbols-outlined">schedule</span>
+<span class="font-label-sm text-label-sm">Vardiyalar</span>
+</button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1 transition-all active:scale-90"><span class="material-symbols-outlined">request_quote</span><span class="font-label-sm text-label-sm">Talepler</span></button>
+<button class="flex flex-col items-center justify-center text-on-surface-variant px-5 py-1 transition-all active:scale-90">
+<span class="material-symbols-outlined">assignment</span>
+<span class="font-label-sm text-label-sm">Raporlar</span>
+</button>
+<button class="flex flex-col items-center justify-center text-error px-5 py-1 transition-all active:scale-90">
+<span class="material-symbols-outlined">emergency</span>
+<span class="font-label-sm text-label-sm">Acil</span>
+</button>
+</nav>
+<!-- Floating Action Button (Optional Contextual Action) -->
+<button class="fixed bottom-24 right-6 w-14 h-14 bg-primary text-on-primary rounded-xl shadow-xl flex items-center justify-center active:scale-90 transition-transform z-40">
+<span class="material-symbols-outlined text-[28px]">add</span>
+</button>
+<script>
+        // Micro-interactions for horizontal scroll
+        const scrollContainer = document.querySelector('.no-scrollbar');
+        let isDown = false;
+        let startX;
+        let scrollLeft;
+
+        scrollContainer.addEventListener('mousedown', (e) => {
+            isDown = true;
+            startX = e.pageX - scrollContainer.offsetLeft;
+            scrollLeft = scrollContainer.scrollLeft;
+        });
+        scrollContainer.addEventListener('mouseleave', () => {
+            isDown = false;
+        });
+        scrollContainer.addEventListener('mouseup', () => {
+            isDown = false;
+        });
+        scrollContainer.addEventListener('mousemove', (e) => {
+            if (!isDown) return;
+            e.preventDefault();
+            const x = e.pageX - scrollContainer.offsetLeft;
+            const walk = (x - startX) * 2;
+            scrollContainer.scrollLeft = scrollLeft - walk;
+        });
+
+        // Day click animation
+        document.querySelectorAll('.no-scrollbar > div').forEach(day => {
+            day.addEventListener('click', function() {
+                document.querySelectorAll('.no-scrollbar > div').forEach(d => {
+                    d.classList.remove('bg-primary', 'text-on-primary', 'active-day-shadow', 'scale-105', 'cursor-default');
+                    d.classList.add('bg-surface-container', 'text-on-surface-variant', 'hover:bg-surface-container-high', 'cursor-pointer');
+                });
+                this.classList.remove('bg-surface-container', 'text-on-surface-variant', 'hover:bg-surface-container-high', 'cursor-pointer');
+                this.classList.add('bg-primary', 'text-on-primary', 'active-day-shadow', 'scale-105', 'cursor-default');
+            });
+        });
+    </script>
+</body></html>

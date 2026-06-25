@@ -1,0 +1,45 @@
+import type { Metadata, Viewport } from "next";
+import { Quicksand, Plus_Jakarta_Sans } from "next/font/google";
+import { AuthProvider } from "@/context/AuthContext";
+import "./globals.css";
+
+const quicksand = Quicksand({
+  variable: "--font-quicksand",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
+const jakarta = Plus_Jakarta_Sans({
+  variable: "--font-jakarta",
+  subsets: ["latin"],
+  weight: ["400", "600"],
+});
+
+export const metadata: Metadata = {
+  title: "AYTES",
+  description: "Personel Yönetim Sistemi",
+  manifest: "/manifest.json",
+  appleWebApp: { capable: true, statusBarStyle: "black-translucent", title: "AYTES" },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#0058be",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="tr" className={`${quicksand.variable} ${jakarta.variable} h-full`}>
+      <head>
+        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+      </head>
+      <body className="min-h-full font-quicksand bg-gray-100 flex items-start justify-center">
+        <div className="w-full max-w-[430px] min-h-screen bg-background text-on-surface shadow-2xl relative mx-auto">
+          <AuthProvider>{children}</AuthProvider>
+        </div>
+      </body>
+    </html>
+  );
+}

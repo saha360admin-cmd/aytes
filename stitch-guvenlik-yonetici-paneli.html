@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<title>AYTES - Güvenlik Yönetim Paneli</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&family=Quicksand:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "surface-container-low": "#f2f3f9",
+                    "surface-container-highest": "#e1e2e8",
+                    "outline": "#727785",
+                    "on-surface-variant": "#424753",
+                    "background": "#f8f9ff",
+                    "on-surface": "#0b1c30",
+                    "surface-dim": "#cbdbf5",
+                    "surface-bright": "#f8f9ff",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "on-error-container": "#93000a",
+                    "on-secondary-fixed": "#002113",
+                    "surface-container": "#eceef3",
+                    "on-secondary": "#ffffff",
+                    "primary-container": "#0058be",
+                    "surface-container-high": "#e7e8ee",
+                    "tertiary-fixed": "#ffddb8",
+                    "secondary-fixed-dim": "#81d8ad",
+                    "outline-variant": "#c2c6d5",
+                    "surface": "#f8f9ff",
+                    "on-primary": "#ffffff",
+                    "primary-fixed": "#d8e2ff",
+                    "on-primary-fixed-variant": "#004395",
+                    "tertiary-container": "#825100",
+                    "secondary-fixed": "#9df4c8",
+                    "on-secondary-container": "#0c714d",
+                    "surface-tint": "#085ac0",
+                    "on-background": "#191c20",
+                    "on-tertiary-fixed": "#2a1700",
+                    "primary-fixed-dim": "#adc6ff",
+                    "error-container": "#ffdad6",
+                    "on-error": "#ffffff",
+                    "surface-container-lowest": "#ffffff",
+                    "on-primary-fixed": "#001a42",
+                    "secondary-container": "#9af2c5",
+                    "primary": "#004191",
+                    "on-tertiary": "#ffffff",
+                    "error": "#ba1a1a",
+                    "inverse-primary": "#adc6ff",
+                    "on-primary-container": "#c4d5ff",
+                    "inverse-surface": "#2e3135",
+                    "on-tertiary-container": "#ffcb8f",
+                    "on-secondary-fixed-variant": "#005236",
+                    "tertiary-fixed-dim": "#fcba66",
+                    "tertiary": "#623c00",
+                    "surface-variant": "#e1e2e8",
+                    "secondary": "#006c49",
+                    "inverse-on-surface": "#eff0f6"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "sm": "8px",
+                    "md": "16px",
+                    "margin-mobile": "24px",
+                    "container-max": "1280px",
+                    "xl": "32px",
+                    "gutter": "24px",
+                    "xs": "4px",
+                    "lg": "24px",
+                    "xxl": "48px",
+                    "base": "4px"
+            },
+            "fontFamily": {
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "label-md": ["Plus Jakarta Sans"],
+                    "headline-lg-mobile": ["Quicksand"],
+                    "display": ["Quicksand"],
+                    "body-md": ["Quicksand"],
+                    "headline-md": ["Quicksand"],
+                    "headline-lg": ["Quicksand"],
+                    "body-lg": ["Quicksand"]
+            },
+            "fontSize": {
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "600"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "500"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+      .material-symbols-outlined {
+        font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        vertical-align: middle;
+      }
+      body {
+        -webkit-tap-highlight-color: transparent;
+      }
+      .custom-shadow {
+        box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.05);
+      }
+      .progress-ring__circle {
+        transition: stroke-dashoffset 0.35s;
+        transform: rotate(-90deg);
+        transform-origin: 50% 50%;
+      }
+    </style>
+</head>
+<body class="bg-background font-body-md text-on-surface selection:bg-primary-container selection:text-on-primary-container">
+<!-- TopAppBar Section -->
+<header class="fixed top-0 w-full z-50 bg-surface-container-low dark:bg-surface-container shadow-sm flex justify-between items-center px-margin-mobile h-16 w-full">
+<div class="flex items-center gap-3">
+<img alt="Logo" class="w-8 h-8 object-contain" src="https://lh3.googleusercontent.com/aida/AP1WRLtrkY4qz7yDKlpo649ppa2uPy9LnvxS8k3QJREDBKgND_QMjlrdF4ftEbFWWRGLtCyAg_XOSHes-j7u46yYGLTdC0UYeGFrSgFDFddD0yI7FW0GKCme5RKz0zYP7-XvYbv2IEihsekJ0wBSFQIdxBOzwhzhida57qaJxlt9jKU2mLfS0qJCU7mPh2KmYsUx-e_eM2Yr2LX70f9vZCLK7IVEgfUhyO-zTcB9495uVhQIao5Fjrz-80oYmWA1"/>
+<h1 class="font-display text-headline-lg-mobile font-bold text-primary dark:text-primary-fixed">AYTES</h1>
+</div>
+<div class="flex items-center gap-2">
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">security</span>
+</button>
+<button class="p-2 rounded-full hover:bg-surface-container-high transition-colors active:scale-95 duration-200">
+<span class="material-symbols-outlined text-primary dark:text-primary-fixed">notifications</span>
+</button>
+</div>
+</header>
+<main class="pt-20 pb-32 px-margin-mobile max-w-container-max mx-auto space-y-lg">
+<!-- Welcome & Status -->
+<section class="space-y-sm">
+<h2 class="font-headline-md text-headline-md text-on-surface">Hoş Geldin, Ahmet Yılmaz</h2>
+<div class="flex items-center gap-2">
+<span class="flex h-2 w-2 rounded-full bg-secondary"></span>
+<p class="text-on-surface-variant font-label-md text-label-md">Sistem Aktif • 12 Personel Görevde</p>
+</div>
+</section>
+<!-- Stats Grid -->
+<section class="grid grid-cols-2 gap-md">
+<!-- Stat Card 1 -->
+<div class="bg-surface-container-lowest p-md rounded-xl custom-shadow space-y-xs active:scale-95 transition-transform duration-150">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary text-xl">pending_actions</span>
+<span class="text-label-sm font-label-sm text-on-surface-variant">+2 Yeni</span>
+</div>
+<div>
+<p class="text-headline-md font-headline-md">08</p>
+<p class="text-label-sm font-label-sm text-outline">Bekleyen Talepler</p>
+</div>
+</div>
+<!-- Stat Card 2 -->
+<div class="bg-surface-container-lowest p-md rounded-xl custom-shadow space-y-xs active:scale-95 transition-transform duration-150">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary text-xl">assignment_late</span>
+</div>
+<div>
+<p class="text-headline-md font-headline-md">03</p>
+<p class="text-label-sm font-label-sm text-outline">Açık Raporlar</p>
+</div>
+</div>
+<!-- Stat Card 3 -->
+<div class="bg-surface-container-lowest p-md rounded-xl custom-shadow space-y-xs active:scale-95 transition-transform duration-150">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary text-xl">map</span>
+</div>
+<div>
+<p class="text-headline-md font-headline-md">05</p>
+<p class="text-label-sm font-label-sm text-outline">Aktif Devriyeler</p>
+</div>
+</div>
+<!-- Stat Card 4 -->
+<div class="bg-surface-container-lowest p-md rounded-xl custom-shadow space-y-xs active:scale-95 transition-transform duration-150">
+<div class="flex justify-between items-start">
+<span class="material-symbols-outlined text-primary text-xl">schedule</span>
+</div>
+<div>
+<p class="text-headline-md font-headline-md">24</p>
+<p class="text-label-sm font-label-sm text-outline">Bugünkü Vardiyalar</p>
+</div>
+</div>
+</section>
+<!-- Shift Status Section -->
+<section class="bg-surface-container-lowest p-lg rounded-xl custom-shadow">
+<h3 class="font-headline-md text-headline-md mb-md">Vardiya Durumu</h3>
+<div class="flex items-center gap-lg">
+<div class="relative w-24 h-24 flex items-center justify-center">
+<svg class="w-full h-full" viewbox="0 0 100 100">
+<circle class="text-surface-container stroke-current" cx="50" cy="50" fill="transparent" r="40" stroke-width="10"></circle>
+<circle class="text-primary-container stroke-current progress-ring__circle" cx="50" cy="50" fill="transparent" r="40" stroke-linecap="round" stroke-width="10" style="stroke-dasharray: 251.2; stroke-dashoffset: 62.8;"></circle>
+</svg>
+<div class="absolute inset-0 flex flex-col items-center justify-center">
+<span class="font-headline-md text-headline-md">%75</span>
+</div>
+</div>
+<div class="flex-1 space-y-sm">
+<div>
+<p class="text-label-md font-label-md text-on-surface">Mevcut Doluluk</p>
+<p class="text-body-md text-on-surface-variant">9/12 Personel Aktif</p>
+</div>
+<div class="pt-xs border-t border-outline-variant">
+<p class="text-label-sm font-label-sm text-outline">Sonraki Değişim</p>
+<p class="text-body-md font-semibold text-primary">02s 14dk kaldı</p>
+</div>
+</div>
+</div>
+</section>
+<!-- Recent Activities List -->
+<section class="space-y-md">
+<div class="flex justify-between items-end">
+<h3 class="font-headline-md text-headline-md">Son Aktiviteler</h3>
+<button class="text-primary font-label-md text-label-md">Tümünü Gör</button>
+</div>
+<div class="space-y-sm">
+<!-- Activity Item 1 -->
+<div class="bg-surface-container-lowest p-md rounded-xl flex items-center gap-md active:bg-surface-container-high transition-all">
+<div class="w-10 h-10 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">assignment</span>
+</div>
+<div class="flex-1">
+<p class="text-label-md font-label-md text-on-surface">Yeni Olay Raporu</p>
+<p class="text-label-sm font-label-sm text-outline">Bora Soylu • 5 dk önce</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<!-- Activity Item 2 -->
+<div class="bg-surface-container-lowest p-md rounded-xl flex items-center gap-md active:bg-surface-container-high transition-all">
+<div class="w-10 h-10 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">sync_alt</span>
+</div>
+<div class="flex-1">
+<p class="text-label-md font-label-md text-on-surface">Vardiya Değişim Talebi</p>
+<p class="text-label-sm font-label-sm text-outline">Cansu Demir • 14 dk önce</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+<!-- Activity Item 3 -->
+<div class="bg-surface-container-lowest p-md rounded-xl flex items-center gap-md active:bg-surface-container-high transition-all">
+<div class="w-10 h-10 rounded-full bg-primary-fixed flex items-center justify-center text-on-primary-fixed">
+<span class="material-symbols-outlined text-[20px]" style="font-variation-settings: 'FILL' 1;">person_check</span>
+</div>
+<div class="flex-1">
+<p class="text-label-md font-label-md text-on-surface">Personel Girişi</p>
+<p class="text-label-sm font-label-sm text-outline">Mehmet Ak • 22 dk önce</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant">chevron_right</span>
+</div>
+</div>
+</section>
+</main>
+<!-- FAB for Quick Actions (Contextual Add) -->
+<button class="fixed bottom-24 right-margin-mobile w-14 h-14 bg-primary text-on-primary rounded-xl shadow-lg flex items-center justify-center active:scale-90 transition-transform z-40">
+<span class="material-symbols-outlined text-[28px]">add</span>
+</button>
+<!-- Bottom Navigation Section -->
+<nav class="fixed bottom-0 left-0 w-full z-50 bg-surface-container-lowest dark:bg-surface-container-low border-t border-outline-variant px-4 py-3 pb-safe flex justify-around items-center shadow-lg rounded-t-lg">
+<!-- Dashboard (Active) -->
+<a class="flex flex-col items-center justify-center bg-primary-container text-on-primary-container rounded-full px-4 py-1 active:scale-90 duration-150 transition-all" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</a>
+<!-- Personel -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high active:scale-90 duration-150 transition-all rounded-full p-1" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="font-label-sm text-label-sm">Personel</span>
+</a>
+<!-- Vardiyalar -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high active:scale-90 duration-150 transition-all rounded-full p-1" href="#">
+<span class="material-symbols-outlined">schedule</span>
+<span class="font-label-sm text-label-sm">Vardiyalar</span>
+</a>
+<!-- Raporlar -->
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high active:scale-90 duration-150 transition-all rounded-full p-1" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="font-label-sm text-label-sm">Raporlar</span>
+</a>
+</nav>
+<script>
+        // Simple micro-interaction for cards
+        document.querySelectorAll('.active\\:scale-95').forEach(card => {
+            card.addEventListener('touchstart', () => {
+                card.style.transform = 'scale(0.97)';
+            });
+            card.addEventListener('touchend', () => {
+                card.style.transform = 'scale(1)';
+            });
+        });
+
+        // Dynamic Greeting (optional)
+        const hour = new Date().getHours();
+        const greetingEl = document.querySelector('h2');
+        if (hour < 12) greetingEl.innerText = "Günaydın, Ahmet Yılmaz";
+        else if (hour < 18) greetingEl.innerText = "İyi Günler, Ahmet Yılmaz";
+        else greetingEl.innerText = "İyi Akşamlar, Ahmet Yılmaz";
+    </script>
+</body></html>

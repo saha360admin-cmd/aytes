@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@600&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed": "#001a42",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#f2f3f9",
+                    "on-surface": "#191c20",
+                    "surface": "#f8f9ff",
+                    "surface-container": "#eceef3",
+                    "primary": "#004191",
+                    "tertiary-container": "#825100",
+                    "inverse-surface": "#2e3135",
+                    "primary-fixed": "#d8e2ff",
+                    "background": "#f8f9ff",
+                    "surface-container-highest": "#e1e2e8",
+                    "secondary": "#006c49",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-high": "#e7e8ee",
+                    "primary-container": "#0058be",
+                    "outline": "#727785",
+                    "secondary-fixed-dim": "#81d8ad",
+                    "on-tertiary-fixed": "#2a1700",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "outline-variant": "#c2c6d5",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "tertiary": "#623c00",
+                    "surface-bright": "#f8f9ff",
+                    "on-primary": "#ffffff",
+                    "on-secondary-fixed": "#002113",
+                    "secondary-container": "#9af2c5",
+                    "on-tertiary-container": "#ffcb8f",
+                    "on-primary-fixed-variant": "#004395",
+                    "on-surface-variant": "#424753",
+                    "on-secondary-container": "#0c714d",
+                    "tertiary-fixed": "#ffddb8",
+                    "on-secondary-fixed-variant": "#005236",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-fixed": "#9df4c8",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#c4d5ff",
+                    "inverse-on-surface": "#eff0f6",
+                    "surface-tint": "#085ac0",
+                    "inverse-primary": "#adc6ff",
+                    "tertiary-fixed-dim": "#fcba66",
+                    "error": "#ba1a1a",
+                    "surface-variant": "#e1e2e8",
+                    "on-background": "#191c20",
+                    "primary-fixed-dim": "#adc6ff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xxl": "48px",
+                    "margin-mobile": "24px",
+                    "lg": "24px",
+                    "xs": "4px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "base": "4px",
+                    "gutter": "24px",
+                    "xl": "32px",
+                    "container-max": "1280px"
+            },
+            "fontFamily": {
+                    "display": ["Quicksand"],
+                    "body-md": ["Quicksand"],
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-md": ["Quicksand"],
+                    "headline-lg-mobile": ["Quicksand"],
+                    "body-lg": ["Quicksand"],
+                    "label-md": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Quicksand"]
+            },
+            "fontSize": {
+                    "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "500"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+            text-transform: none;
+            letter-spacing: normal;
+            word-wrap: normal;
+            white-space: nowrap;
+            direction: ltr;
+        }
+        
+        .blob-bg {
+            filter: blur(80px);
+            z-index: -1;
+        }
+
+        .touch-ripple {
+            position: relative;
+            overflow: hidden;
+        }
+
+        .department-card:active {
+            transform: scale(0.96);
+            transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+        }
+    </style>
+<style>
+        body {
+            min-height: max(884px, 100dvh);
+        }
+    </style>
+</head>
+<body class="bg-background text-on-background font-body-md min-h-screen flex flex-col overflow-x-hidden">
+<!-- Background Decorative Elements -->
+<div class="fixed inset-0 overflow-hidden pointer-events-none">
+<div class="blob-bg absolute -top-[10%] -right-[10%] w-[80vw] h-[80vw] rounded-full bg-primary-fixed/30"></div>
+<div class="blob-bg absolute top-[40%] -left-[20%] w-[70vw] h-[70vw] rounded-full bg-secondary-container/20"></div>
+<div class="blob-bg absolute -bottom-[10%] right-[10%] w-[60vw] h-[60vw] rounded-full bg-tertiary-fixed/20"></div>
+</div>
+<!-- Header Section -->
+<header class="w-full pt-xxl pb-xl px-margin-mobile flex flex-col items-center justify-center text-center">
+<div class="w-24 h-24 bg-surface-container-lowest rounded-lg shadow-sm flex items-center justify-center mb-md">
+<!-- Brand Logo Placeholder -->
+<div class="w-16 h-16 bg-primary rounded-full flex items-center justify-center">
+<span class="material-symbols-outlined text-on-primary text-[40px]" data-weight="fill">shield_person</span>
+</div>
+</div>
+<h1 class="font-display text-headline-lg-mobile text-primary tracking-tight">AYTES Personel</h1>
+<p class="font-body-md text-on-surface-variant mt-sm px-md">Hoş Geldiniz, lütfen departman seçiniz.</p>
+</header>
+<!-- Main Department Selection -->
+<main class="flex-grow px-margin-mobile pb-xxl flex flex-col gap-md max-w-md mx-auto w-full">
+<!-- Admin Login Button -->
+<button class="department-card group relative w-full bg-surface-container-lowest p-md rounded-lg shadow-sm flex items-center gap-md border border-outline-variant/30 text-left transition-all hover:border-primary/50">
+<div class="w-14 h-14 rounded-full bg-primary-fixed flex items-center justify-center text-primary transition-colors group-hover:bg-primary group-hover:text-on-primary">
+<span class="material-symbols-outlined text-[28px]">admin_panel_settings</span>
+</div>
+<div class="flex-grow">
+<h2 class="font-headline-md text-primary text-body-lg">İdari İşler Giriş</h2>
+<p class="font-label-sm text-on-surface-variant">Yönetim ve İK Modülleri</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary transition-colors">chevron_right</span>
+</button>
+<!-- Security Login Button -->
+<button class="department-card group relative w-full bg-surface-container-lowest p-md rounded-lg shadow-sm flex items-center gap-md border border-outline-variant/30 text-left transition-all hover:border-secondary/50">
+<div class="w-14 h-14 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container transition-colors group-hover:bg-secondary group-hover:text-on-secondary">
+<span class="material-symbols-outlined text-[28px]">security</span>
+</div>
+<div class="flex-grow">
+<h2 class="font-headline-md text-secondary text-body-lg">Güvenlik Giriş</h2>
+<p class="font-label-sm text-on-surface-variant">Nöbet ve Devriye Kontrol</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-secondary transition-colors">chevron_right</span>
+</button>
+<!-- Technical Login Button -->
+<button class="department-card group relative w-full bg-surface-container-lowest p-md rounded-lg shadow-sm flex items-center gap-md border border-outline-variant/30 text-left transition-all hover:border-tertiary/50">
+<div class="w-14 h-14 rounded-full bg-tertiary-fixed flex items-center justify-center text-on-tertiary-fixed-variant transition-colors group-hover:bg-tertiary group-hover:text-on-tertiary">
+<span class="material-symbols-outlined text-[28px]">engineering</span>
+</div>
+<div class="flex-grow">
+<h2 class="font-headline-md text-tertiary text-body-lg">Teknik Giriş</h2>
+<p class="font-label-sm text-on-surface-variant">Bakım ve Onarım Talepleri</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-tertiary transition-colors">chevron_right</span>
+</button>
+<!-- Cleaning Login Button -->
+<button class="department-card group relative w-full bg-surface-container-lowest p-md rounded-lg shadow-sm flex items-center gap-md border border-outline-variant/30 text-left transition-all hover:border-primary-container/50">
+<div class="w-14 h-14 rounded-full bg-primary-fixed-dim flex items-center justify-center text-on-primary-fixed transition-colors group-hover:bg-primary-container group-hover:text-on-primary">
+<span class="material-symbols-outlined text-[28px]">cleaning_services</span>
+</div>
+<div class="flex-grow">
+<h2 class="font-headline-md text-primary-container text-body-lg">Temizlik Giriş</h2>
+<p class="font-label-sm text-on-surface-variant">Hijyen ve Stok Takibi</p>
+</div>
+<span class="material-symbols-outlined text-outline-variant group-hover:text-primary-container transition-colors">chevron_right</span>
+</button>
+<!-- Support Link -->
+<div class="mt-md text-center">
+<a class="inline-flex items-center gap-xs font-label-md text-primary hover:underline" href="#">
+<span class="material-symbols-outlined text-sm">help</span>
+                Giriş yapamıyor musunuz? Destek alın
+            </a>
+</div>
+</main>
+<!-- Footer Identity -->
+<footer class="w-full pb-lg px-margin-mobile text-center">
+<p class="font-label-sm text-outline">© 2024 AYTES Tesis Yönetim Çözümleri</p>
+<div class="flex justify-center gap-md mt-sm">
+<div class="w-1 h-1 bg-outline-variant rounded-full"></div>
+<div class="w-1 h-1 bg-outline-variant rounded-full"></div>
+<div class="w-1 h-1 bg-outline-variant rounded-full"></div>
+</div>
+</footer>
+<!-- Interactive script for button effects -->
+<script>
+        document.querySelectorAll('.department-card').forEach(button => {
+            button.addEventListener('touchstart', () => {
+                button.classList.add('scale-95');
+            });
+            button.addEventListener('touchend', () => {
+                button.classList.remove('scale-95');
+            });
+        });
+
+        // Subtle animation for background blobs
+        const blobs = document.querySelectorAll('.blob-bg');
+        let tick = 0;
+        function animateBlobs() {
+            tick += 0.005;
+            blobs.forEach((blob, i) => {
+                const x = Math.sin(tick + i) * 20;
+                const y = Math.cos(tick + i) * 20;
+                blob.style.transform = `translate(${x}px, ${y}px)`;
+            });
+            requestAnimationFrame(animateBlobs);
+        }
+        animateBlobs();
+    </script>
+</body></html>

@@ -1,0 +1,9 @@
+# Screenshots
+ss-*.png
+
+# Next.js
+next-app/node_modules/
+next-app/.next/
+next-app/.env*
+next-app/next-env.d.ts
+next-app/*.tsbuildinfo

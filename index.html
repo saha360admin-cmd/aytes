@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0, viewport-fit=cover" name="viewport"/>
+<meta name="theme-color" content="#0058be"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+<title>AYTES</title>
+<link rel="manifest" href="manifest.json"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<script>
+tailwind.config = {
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        "tertiary-fixed":"#ffddb8","secondary-container":"#9af2c5","on-secondary-container":"#0c714d",
+        "on-error":"#ffffff","surface-bright":"#f8f9ff","secondary-fixed-dim":"#81d8ad",
+        "surface-dim":"#cbdbf5","surface-container-highest":"#e1e2e8","surface-container-lowest":"#ffffff",
+        "surface-container":"#e5eeff","on-tertiary-fixed":"#2a1700","surface-variant":"#e1e2e8",
+        "on-secondary-fixed-variant":"#005236","on-primary":"#ffffff","on-primary-fixed-variant":"#004395",
+        "outline-variant":"#c2c6d5","tertiary":"#623c00","on-surface-variant":"#424753",
+        "outline":"#727785","on-error-container":"#93000a","inverse-surface":"#2e3135",
+        "on-secondary":"#ffffff","tertiary-fixed-dim":"#fcba66","on-primary-container":"#c4d5ff",
+        "primary":"#004191","inverse-on-surface":"#eff0f6","surface":"#f8f9ff",
+        "primary-fixed-dim":"#adc6ff","on-tertiary":"#ffffff","on-surface":"#0b1c30",
+        "on-secondary-fixed":"#002113","on-tertiary-container":"#ffcb8f","background":"#f8f9ff",
+        "surface-tint":"#085ac0","surface-container-high":"#e7e8ee","error-container":"#ffdad6",
+        "on-background":"#191c20","tertiary-container":"#825100","primary-fixed":"#d8e2ff",
+        "on-primary-fixed":"#001a42","inverse-primary":"#adc6ff","surface-container-low":"#f2f3f9",
+        "secondary-fixed":"#9df4c8","on-tertiary-fixed-variant":"#653e00","secondary":"#006c49",
+        "error":"#ba1a1a","primary-container":"#0058be"
+      },
+      borderRadius: { DEFAULT:"1rem", lg:"2rem", xl:"3rem", full:"9999px" },
+      spacing: {
+        "container-max":"1280px","gutter":"24px","xxl":"48px","xs":"4px","base":"4px",
+        "lg":"24px","md":"16px","margin-mobile":"24px","xl":"32px","sm":"8px"
+      },
+      fontFamily: {
+        "label-sm":["Plus Jakarta Sans"],"body-md":["Quicksand"],"body-lg":["Quicksand"],
+        "display":["Quicksand"],"headline-md":["Quicksand"],"label-md":["Plus Jakarta Sans"],
+        "headline-lg":["Quicksand"],"headline-lg-mobile":["Quicksand"]
+      },
+      fontSize: {
+        "label-sm":["12px",{lineHeight:"16px",letterSpacing:"0.04em",fontWeight:"600"}],
+        "body-md":["16px",{lineHeight:"24px",fontWeight:"400"}],
+        "body-lg":["18px",{lineHeight:"28px",fontWeight:"500"}],
+        "display":["48px",{lineHeight:"56px",letterSpacing:"-0.02em",fontWeight:"700"}],
+        "headline-md":["24px",{lineHeight:"32px",fontWeight:"600"}],
+        "label-md":["14px",{lineHeight:"20px",letterSpacing:"0.01em",fontWeight:"600"}],
+        "headline-lg":["32px",{lineHeight:"40px",fontWeight:"700"}],
+        "headline-lg-mobile":["24px",{lineHeight:"32px",fontWeight:"700"}]
+      }
+    }
+  }
+}
+</script>
+<style>
+  body { min-height: 100dvh; }
+  .btn-hover:hover { transform: translateY(-2px); box-shadow: 0 10px 20px -10px rgba(0,88,190,0.5); }
+  .btn-hover:active { transform: scale(0.97); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .animate-spin { animation: spin 1s linear infinite; }
+  @keyframes fadeUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+  .fade-up { animation: fadeUp 0.5s ease-out; }
+</style>
+</head>
+<body class="bg-background min-h-screen font-body-md text-on-background overflow-x-hidden">
+
+<!-- Toast -->
+<div id="toast" class="hidden fixed top-4 left-1/2 -translate-x-1/2 px-lg py-sm rounded-full text-label-md font-label-md z-[100]"></div>
+
+<!-- ============ EKRAN 1: GİRİŞ PANELİ ============ -->
+<div id="login" class="screen min-h-screen flex flex-col">
+  <header class="w-full flex items-center justify-center py-md px-margin-mobile">
+    <div class="flex items-center gap-sm">
+      <span class="material-symbols-outlined text-primary text-[32px]" style="font-variation-settings:'FILL' 1;">hub</span>
+      <h1 class="font-display text-display font-bold text-primary">AYTES</h1>
+    </div>
+  </header>
+
+  <main class="flex-grow flex items-center justify-center px-margin-mobile py-xl relative">
+    <div class="absolute -top-24 -left-24 w-96 h-96 bg-primary-fixed-dim opacity-20 blur-[100px] rounded-full"></div>
+    <div class="absolute -bottom-24 -right-24 w-96 h-96 bg-secondary-fixed opacity-20 blur-[100px] rounded-full"></div>
+
+    <div class="w-full max-w-[480px] bg-surface-container-lowest shadow-md rounded-xl p-lg md:p-xl flex flex-col gap-xl relative z-10 fade-up">
+      <div class="text-center space-y-sm">
+        <h2 class="font-headline-lg text-headline-lg text-on-surface">Hoş Geldiniz</h2>
+        <p class="font-body-md text-on-surface-variant">Lütfen giriş yapmak istediğiniz departmanı seçin.</p>
+      </div>
+
+      <div class="flex flex-col gap-md">
+        <button onclick="selectDepartment('idari')" class="group flex items-center gap-md bg-primary-container text-white px-lg py-md rounded-full btn-hover transition-all duration-300 w-full">
+          <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">admin_panel_settings</span>
+          </div>
+          <span class="font-label-md text-label-md grow text-left text-white">İdari İşler Giriş</span>
+          <span class="material-symbols-outlined opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">chevron_right</span>
+        </button>
+
+        <button onclick="selectDepartment('guvenlik')" class="group flex items-center gap-md bg-secondary text-white px-lg py-md rounded-full btn-hover transition-all duration-300 w-full">
+          <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">security</span>
+          </div>
+          <span class="font-label-md text-label-md grow text-left text-white">Güvenlik Giriş</span>
+          <span class="material-symbols-outlined opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">chevron_right</span>
+        </button>
+
+        <button onclick="selectDepartment('teknik')" class="group flex items-center gap-md bg-tertiary-container text-white px-lg py-md rounded-full btn-hover transition-all duration-300 w-full">
+          <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">engineering</span>
+          </div>
+          <span class="font-label-md text-label-md grow text-left text-white">Teknik Giriş</span>
+          <span class="material-symbols-outlined opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">chevron_right</span>
+        </button>
+
+        <button onclick="selectDepartment('temizlik')" class="group flex items-center gap-md bg-primary text-white px-lg py-md rounded-full btn-hover transition-all duration-300 w-full">
+          <div class="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center group-hover:scale-110 transition-transform">
+            <span class="material-symbols-outlined text-white" style="font-variation-settings:'FILL' 1;">cleaning_services</span>
+          </div>
+          <span class="font-label-md text-label-md grow text-left text-white">Temizlik Giriş</span>
+          <span class="material-symbols-outlined opacity-50 group-hover:opacity-100 group-hover:translate-x-1 transition-all">chevron_right</span>
+        </button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- ============ EKRAN 2: AUTH (Login/Register) ============ -->
+<div id="auth-screen" class="screen hidden min-h-screen flex flex-col">
+  <header class="w-full flex items-center px-margin-mobile py-md gap-md">
+    <button onclick="showScreen('login')" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-colors">
+      <span class="material-symbols-outlined text-on-surface">arrow_back</span>
+    </button>
+    <h2 id="dept-title" class="font-headline-md text-headline-md text-on-surface"></h2>
+  </header>
+
+  <main class="flex-grow flex items-center justify-center px-margin-mobile py-xl">
+    <div class="w-full max-w-[420px] bg-surface-container-lowest shadow-md rounded-xl p-lg flex flex-col gap-lg fade-up">
+
+      <!-- Login Form -->
+      <form id="login-form" onsubmit="handleLogin(event)" class="flex flex-col gap-md">
+        <div class="text-center space-y-xs mb-sm">
+          <h3 class="font-headline-md text-headline-md text-on-surface">Giriş Yap</h3>
+          <p class="text-body-md text-on-surface-variant">E-posta ve şifrenizle giriş yapın</p>
+        </div>
+        <div class="space-y-xs">
+          <label class="text-label-sm font-label-sm text-on-surface-variant">E-posta</label>
+          <input id="login-email" type="email" required placeholder="ornek@aytes.com"
+            class="w-full px-md py-sm rounded-full bg-surface-container-low border-0 focus:ring-2 focus:ring-primary text-body-md"/>
+        </div>
+        <div class="space-y-xs">
+          <label class="text-label-sm font-label-sm text-on-surface-variant">Şifre</label>
+          <input id="login-password" type="password" required placeholder="••••••••" minlength="6"
+            class="w-full px-md py-sm rounded-full bg-surface-container-low border-0 focus:ring-2 focus:ring-primary text-body-md"/>
+        </div>
+        <button type="submit" class="flex items-center justify-center gap-sm bg-primary-container text-white px-lg py-md rounded-full btn-hover transition-all duration-300 mt-sm">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">login</span> Giriş Yap
+        </button>
+      </form>
+
+      <!-- Register Form -->
+      <form id="register-form" onsubmit="handleRegister(event)" class="hidden flex flex-col gap-md">
+        <div class="text-center space-y-xs mb-sm">
+          <h3 class="font-headline-md text-headline-md text-on-surface">Kayıt Ol</h3>
+          <p class="text-body-md text-on-surface-variant">Yeni hesap oluşturun</p>
+        </div>
+        <div class="space-y-xs">
+          <label class="text-label-sm font-label-sm text-on-surface-variant">Ad Soyad</label>
+          <input id="reg-name" type="text" required placeholder="Ad Soyad"
+            class="w-full px-md py-sm rounded-full bg-surface-container-low border-0 focus:ring-2 focus:ring-primary text-body-md"/>
+        </div>
+        <div class="space-y-xs">
+          <label class="text-label-sm font-label-sm text-on-surface-variant">E-posta</label>
+          <input id="reg-email" type="email" required placeholder="ornek@aytes.com"
+            class="w-full px-md py-sm rounded-full bg-surface-container-low border-0 focus:ring-2 focus:ring-primary text-body-md"/>
+        </div>
+        <div class="space-y-xs">
+          <label class="text-label-sm font-label-sm text-on-surface-variant">Şifre</label>
+          <input id="reg-password" type="password" required placeholder="••••••••" minlength="6"
+            class="w-full px-md py-sm rounded-full bg-surface-container-low border-0 focus:ring-2 focus:ring-primary text-body-md"/>
+        </div>
+        <button type="submit" class="flex items-center justify-center gap-sm bg-primary-container text-white px-lg py-md rounded-full btn-hover transition-all duration-300 mt-sm">
+          <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">person_add</span> Kayıt Ol
+        </button>
+      </form>
+
+      <p id="auth-toggle-text" class="text-center text-label-sm text-on-surface-variant">
+        Hesabınız yok mu? <button onclick="toggleAuthMode()" class="text-primary font-semibold">Kayıt Ol</button>
+      </p>
+    </div>
+  </main>
+</div>
+
+<!-- ============ EKRAN 3: DASHBOARD ============ -->
+<div id="dashboard" class="screen hidden min-h-screen flex flex-col pb-[80px]">
+  <header class="sticky top-0 z-50 bg-background/80 backdrop-blur-lg w-full flex items-center justify-between px-margin-mobile py-md">
+    <div>
+      <h2 class="font-headline-md text-headline-md text-on-surface">Merhaba, <span id="dash-name"></span></h2>
+      <p class="text-label-sm text-on-surface-variant"><span id="dash-dept"></span> · <span id="dash-role"></span></p>
+    </div>
+    <button onclick="signOut()" class="w-10 h-10 rounded-full flex items-center justify-center hover:bg-surface-container-high transition-colors">
+      <span class="material-symbols-outlined text-on-surface-variant">logout</span>
+    </button>
+  </header>
+
+  <main class="flex-grow px-margin-mobile space-y-lg">
+    <!-- İstatistikler -->
+    <div class="grid grid-cols-3 gap-md">
+      <div class="bg-surface-container-lowest rounded-xl p-md text-center shadow-sm">
+        <span class="material-symbols-outlined text-primary text-[28px]" style="font-variation-settings:'FILL' 1;">groups</span>
+        <p id="stat-personnel" class="font-headline-md text-headline-md text-on-surface mt-xs">0</p>
+        <p class="text-label-sm text-on-surface-variant">Personel</p>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-md text-center shadow-sm">
+        <span class="material-symbols-outlined text-tertiary text-[28px]" style="font-variation-settings:'FILL' 1;">task</span>
+        <p id="stat-tasks" class="font-headline-md text-headline-md text-on-surface mt-xs">0</p>
+        <p class="text-label-sm text-on-surface-variant">Görev</p>
+      </div>
+      <div class="bg-surface-container-lowest rounded-xl p-md text-center shadow-sm">
+        <span class="material-symbols-outlined text-secondary text-[28px]" style="font-variation-settings:'FILL' 1;">check_circle</span>
+        <p id="stat-attendance" class="font-headline-md text-headline-md text-on-surface mt-xs">0</p>
+        <p class="text-label-sm text-on-surface-variant">Yoklama</p>
+      </div>
+    </div>
+
+    <!-- Hızlı Giriş -->
+    <button onclick="handleCheckIn()" class="w-full flex items-center justify-center gap-sm bg-secondary text-on-secondary px-lg py-md rounded-full btn-hover transition-all duration-300 shadow-sm">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">fingerprint</span>
+      <span class="font-label-md">Giriş Kaydı Oluştur</span>
+    </button>
+
+    <!-- Görevler -->
+    <div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm">
+      <div class="flex items-center justify-between mb-md">
+        <h3 class="font-headline-md text-on-surface flex items-center gap-sm">
+          <span class="material-symbols-outlined text-tertiary" style="font-variation-settings:'FILL' 1;">task_alt</span>
+          Görevler
+        </h3>
+      </div>
+      <div id="tasks-list" class="space-y-sm">
+        <p class="text-on-surface-variant text-center py-lg">Yükleniyor...</p>
+      </div>
+    </div>
+
+    <!-- Duyurular -->
+    <div class="bg-surface-container-lowest rounded-xl p-lg shadow-sm">
+      <div class="flex items-center justify-between mb-md">
+        <h3 class="font-headline-md text-on-surface flex items-center gap-sm">
+          <span class="material-symbols-outlined text-primary" style="font-variation-settings:'FILL' 1;">campaign</span>
+          Duyurular
+        </h3>
+      </div>
+      <div id="announcements-list" class="space-y-sm">
+        <p class="text-on-surface-variant text-center py-lg">Yükleniyor...</p>
+      </div>
+    </div>
+  </main>
+
+  <!-- Bottom Nav -->
+  <nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-margin-mobile py-sm bg-surface-container-lowest shadow-[0_-2px_10px_rgba(0,0,0,0.05)] rounded-t-lg safe-area-bottom">
+    <button class="flex flex-col items-center justify-center text-primary p-sm rounded-lg">
+      <span class="material-symbols-outlined" style="font-variation-settings:'FILL' 1;">dashboard</span>
+      <span class="font-label-sm text-label-sm">Ana Sayfa</span>
+    </button>
+    <button class="flex flex-col items-center justify-center text-on-surface-variant p-sm rounded-lg">
+      <span class="material-symbols-outlined">groups</span>
+      <span class="font-label-sm text-label-sm">Personel</span>
+    </button>
+    <button class="flex flex-col items-center justify-center text-on-surface-variant p-sm rounded-lg">
+      <span class="material-symbols-outlined">task</span>
+      <span class="font-label-sm text-label-sm">Görevler</span>
+    </button>
+    <button class="flex flex-col items-center justify-center text-on-surface-variant p-sm rounded-lg">
+      <span class="material-symbols-outlined">settings</span>
+      <span class="font-label-sm text-label-sm">Ayarlar</span>
+    </button>
+  </nav>
+</div>
+
+<script src="js/supabase-config.js"></script>
+<script src="js/auth.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

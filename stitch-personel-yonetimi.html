@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+
+<html lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>PersonelPro - Personel Yönetimi</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@100..900&family=Quicksand:wght@100..900&display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "background": "#f8f9ff",
+                    "surface-dim": "#cbdbf5",
+                    "secondary": "#006c49",
+                    "on-tertiary": "#ffffff",
+                    "primary": "#004191",
+                    "error": "#ba1a1a",
+                    "surface-tint": "#085ac0",
+                    "error-container": "#ffdad6",
+                    "surface-variant": "#e1e2e8",
+                    "outline-variant": "#c2c6d5",
+                    "tertiary-fixed": "#ffddb8",
+                    "on-primary-fixed-variant": "#004395",
+                    "surface-container": "#eceef3",
+                    "on-surface-variant": "#424753",
+                    "on-surface": "#0b1c30",
+                    "secondary-container": "#9af2c5",
+                    "secondary-fixed": "#9df4c8",
+                    "primary-container": "#0058be",
+                    "on-tertiary-container": "#ffcb8f",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "on-secondary-fixed": "#002113",
+                    "on-tertiary-fixed": "#2a1700",
+                    "surface": "#f8f9ff",
+                    "on-error": "#ffffff",
+                    "surface-container-highest": "#e1e2e8",
+                    "tertiary-fixed-dim": "#fcba66",
+                    "tertiary": "#623c00",
+                    "surface-container-lowest": "#ffffff",
+                    "primary-fixed-dim": "#adc6ff",
+                    "surface-container-low": "#f2f3f9",
+                    "on-error-container": "#93000a",
+                    "on-background": "#191c20",
+                    "surface-container-high": "#e7e8ee",
+                    "secondary-fixed-dim": "#81d8ad",
+                    "on-primary": "#ffffff",
+                    "inverse-primary": "#adc6ff",
+                    "on-secondary": "#ffffff",
+                    "on-secondary-container": "#0c714d",
+                    "on-primary-fixed": "#001a42",
+                    "inverse-surface": "#2e3135",
+                    "outline": "#727785",
+                    "primary-fixed": "#d8e2ff",
+                    "on-primary-container": "#c4d5ff",
+                    "inverse-on-surface": "#eff0f6",
+                    "on-secondary-fixed-variant": "#005236",
+                    "tertiary-container": "#825100",
+                    "surface-bright": "#f8f9ff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "margin-mobile": "24px",
+                    "md": "16px",
+                    "lg": "24px",
+                    "xxl": "48px",
+                    "gutter": "24px",
+                    "container-max": "1280px",
+                    "xs": "4px",
+                    "xl": "32px",
+                    "base": "4px",
+                    "sm": "8px"
+            },
+            "fontFamily": {
+                    "display": ["Quicksand"],
+                    "label-md": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Quicksand"],
+                    "body-md": ["Quicksand"],
+                    "headline-md": ["Quicksand"],
+                    "body-lg": ["Quicksand"],
+                    "headline-lg-mobile": ["Quicksand"],
+                    "label-sm": ["Plus Jakarta Sans"]
+            },
+            "fontSize": {
+                    "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "500"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "600"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        body { font-family: 'Quicksand', sans-serif; }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #e1e2e8; border-radius: 10px; }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+  </head>
+<body class="bg-background text-on-surface min-h-screen pb-32">
+<!-- Top App Bar (Shared Component Logic) -->
+<header class="w-full top-0 sticky bg-background dark:bg-background shadow-sm z-40">
+<div class="flex items-center justify-between px-margin-mobile py-md w-full bg-surface-container-low">
+<div class="flex items-center gap-md">
+<div class="w-10 h-10 rounded-full overflow-hidden bg-surface-variant border-2 border-primary">
+<img class="w-full h-full object-cover" data-alt="A professional studio portrait of a security manager in a navy blue uniform, set against a clean minimalist corporate background with soft, high-key lighting. The style is modern and polished, reflecting a high-end enterprise security dashboard environment with a focus on trust and authority." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDAYfg8SPiiIa6xQeSvzuK6mUwYAJBmsBsPCsfGplBIeEnzG9tu5T-ThVOiEAQAUcwA6ceYCZkIJWKruD83BO0lk41xT_4M4CWFDHqiVcAw7GI65hADFHwzne2tIqxfCGuWS1I_S74hsRVOQYH7fAvk9ujn5SouYlcD6_JzEnjsfYZ6eSzvEJlheGE6kNttMeoLZCAdPYw4AIXhpZX5FAnP8rXZ4ZSshCc5xLDNGH2CuqGxq81s8mWMR8IcG3iXRc1sGaSVmEqR7iwB"/>
+</div>
+<h1 class="font-display text-headline-md-mobile text-primary">PersonnelPro</h1>
+</div>
+<button class="w-10 h-10 flex items-center justify-center rounded-full hover:bg-surface-container-highest transition-colors active:scale-95 transition-transform text-on-surface-variant">
+<span class="material-symbols-outlined">notifications</span>
+</button>
+</div>
+</header>
+<main class="px-margin-mobile pt-lg space-y-lg">
+<!-- Section Title & Search -->
+<div class="space-y-md">
+<h2 class="font-headline-lg-mobile text-headline-lg-mobile text-on-surface">Personel Yönetimi</h2>
+<div class="relative">
+<span class="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">search</span>
+<input class="w-full pl-12 pr-4 py-4 bg-surface-container-lowest border-none shadow-sm rounded-lg font-body-md focus:ring-2 focus:ring-primary transition-all placeholder:text-outline" placeholder="Personel ara..." type="text"/>
+</div>
+</div>
+<!-- Personnel List -->
+<div class="space-y-md">
+<!-- Card 1 -->
+<div class="bg-surface-container-lowest p-md rounded-lg shadow-sm border border-outline-variant flex flex-col gap-md">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Close-up portrait of a security officer named Ahmet Yılmaz, wearing a professional grey polo shirt with a security badge. He is smiling warmly in an office setting with soft daylight and vibrant blue accents consistent with the PersonnelPro UI design system. High resolution, high-end photography." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCKJXzOujvDKjQb68Hlka2ZFRjE1_0VLOg2-CesT3d3VmIHYuoAfHJK-52YxyVM31z7F20BsuNckhQm2vt8Sp8FG9IyHr2AC0S5w5gFS3nEf0uL5yJC3GhSpKZg2fB8xgmcFbv0zMmBek4RA3uYpHwLjp3RdSkYDWz_VByexuvMs5qbpuTWa6SkrraSKxppMI9KHGLNG9W-JU64ASXp32zmr4GqxBkt0k48cVY-pgo9Z2HRoo4S_hWI1HRAfd9pZ9GTYpH0NPib7i8i"/>
+</div>
+<div>
+<h3 class="font-headline-md text-body-lg font-bold text-on-surface">Ahmet Yılmaz</h3>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<p class="font-body-md text-label-md">A Blok - Ana Giriş</p>
+</div>
+</div>
+<div class="ml-auto">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-sm text-label-sm">Aktif</span>
+</div>
+</div>
+<div class="flex gap-sm pt-xs">
+<button class="flex-1 bg-surface-container-highest text-on-surface-variant py-2.5 rounded-full font-label-md text-label-md hover:bg-error-container hover:text-on-error-container transition-colors active:scale-95">
+                        Yetkiyi Kapat
+                    </button>
+<button class="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors active:scale-95">
+                        Arşive Al
+                    </button>
+</div>
+</div>
+<!-- Card 2 -->
+<div class="bg-surface-container-lowest p-md rounded-lg shadow-sm border border-outline-variant flex flex-col gap-md">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="Headshot of a female security guard named Zeynep Kaya with a focused yet friendly expression. She is in a corporate lobby with architectural glass elements. The lighting is bright and modern, emphasizing the clean electric blue color palette of the brand. High-end commercial aesthetic." src="https://lh3.googleusercontent.com/aida-public/AB6AXuCZ09AnJ1p2JfjajfCMBYQpOQ-N9OT5VV0eu_WmMutlfWNW_ZB6vTyR4V8HFzsL244HqiKxPA9SUpLOfCxpTmfFWOdOR3GIMB20swqXCMyrgd4y2YKZUjaPtbd90870II5YAN_3RO-gcK5ofb0T2BUnwE1iIQfMS441G3QMfckgPVjh0zNeqPr0Rvk2OMa_p5oFUhqSl7KlbUJDAFSGngmE22X7cihCHJQxd70w0qBSNxgBu_n3AxBo_VOcO0sTUZumeqsZ7n5mI4OS"/>
+</div>
+<div>
+<h3 class="font-headline-md text-body-lg font-bold text-on-surface">Zeynep Kaya</h3>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<p class="font-body-md text-label-md">B Blok - Otopark</p>
+</div>
+</div>
+<div class="ml-auto">
+<span class="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full font-label-sm text-label-sm">Aktif</span>
+</div>
+</div>
+<div class="flex gap-sm pt-xs">
+<button class="flex-1 bg-surface-container-highest text-on-surface-variant py-2.5 rounded-full font-label-md text-label-md hover:bg-error-container hover:text-on-error-container transition-colors active:scale-95">
+                        Yetkiyi Kapat
+                    </button>
+<button class="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors active:scale-95">
+                        Arşive Al
+                    </button>
+</div>
+</div>
+<!-- Card 3 -->
+<div class="bg-surface-container-lowest p-md rounded-lg shadow-sm border border-outline-variant flex flex-col gap-md opacity-75">
+<div class="flex items-center gap-md">
+<div class="w-14 h-14 rounded-full overflow-hidden grayscale">
+<img class="w-full h-full object-cover" data-alt="Portrait of an older security professional, Mehmet Can, in a formal uniform. The image is clean and professional with a bright, airy corporate environment in the background. The aesthetic is sophisticated with soft shadows and high-key lighting consistent with a playful corporate UI." src="https://lh3.googleusercontent.com/aida-public/AB6AXuDhywn8cH5r8ECJopobF1MKI6poz_0svhBW45Uz5y_e8ED3g4zINgf1miTXNa0sO5sMJr4RWhK76QYstjOd_9yO66VrUtNvky2PsGwcSx01aLoQRubllh8N0S1XNRHVKfuvyiz_wXshdZJTZ9XLCcPdUaA2Mqr7rWL_sM05RBPHjnLmxM9awppW-adKAjF1CfqUimvM6DPA3enWx5Mxdjwz2gdVa5lfaoT5lpiSIjWDclZ2roFRyI9bhHXjncqbfhgp6vER_S9r3iaP"/>
+</div>
+<div>
+<h3 class="font-headline-md text-body-lg font-bold text-on-surface">Mehmet Can</h3>
+<div class="flex items-center gap-xs text-on-surface-variant">
+<span class="material-symbols-outlined text-[18px]">location_on</span>
+<p class="font-body-md text-label-md">C Blok - Teknik Giriş</p>
+</div>
+</div>
+<div class="ml-auto">
+<span class="bg-surface-container-highest text-on-surface-variant px-3 py-1 rounded-full font-label-sm text-label-sm">Pasif</span>
+</div>
+</div>
+<div class="flex gap-sm pt-xs">
+<button class="flex-1 bg-primary text-on-primary py-2.5 rounded-full font-label-md text-label-md active:scale-95">
+                        Yetkiyi Aç
+                    </button>
+<button class="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full font-label-md text-label-md hover:bg-surface-container-high transition-colors active:scale-95">
+                        Arşive Al
+                    </button>
+</div>
+</div>
+</div>
+</main>
+<!-- FAB -->
+<button class="fixed bottom-28 right-6 bg-primary text-on-primary w-14 h-14 rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-all z-40" onclick="toggleModal(true)">
+<span class="material-symbols-outlined" style="font-variation-settings: 'wght' 600;">add</span>
+</button>
+<!-- Add Personnel Modal -->
+<div class="fixed inset-0 z-[60] hidden" id="addPersonnelModal">
+<div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="toggleModal(false)"></div>
+<div class="absolute bottom-0 w-full bg-surface-container-lowest rounded-t-xl p-lg shadow-2xl animate-slide-up">
+<div class="w-12 h-1.5 bg-outline-variant rounded-full mx-auto mb-xl"></div>
+<div class="flex justify-between items-center mb-lg">
+<h2 class="font-headline-md text-on-surface">Yeni Personel Ekle</h2>
+<button class="text-on-surface-variant" onclick="toggleModal(false)">
+<span class="material-symbols-outlined">close</span>
+</button>
+</div>
+<form class="space-y-lg">
+<div class="space-y-sm">
+<label class="font-label-md text-on-surface-variant ml-2">İsim Soyisim</label>
+<input class="w-full px-4 py-4 rounded-lg bg-surface-container-low border-outline-variant focus:ring-primary focus:border-primary" placeholder="Örn: Can Demir" type="text"/>
+</div>
+<div class="space-y-sm">
+<label class="font-label-md text-on-surface-variant ml-2">Telefon Numarası</label>
+<input class="w-full px-4 py-4 rounded-lg bg-surface-container-low border-outline-variant focus:ring-primary focus:border-primary" placeholder="05XX XXX XX XX" type="tel"/>
+</div>
+<div class="space-y-sm">
+<label class="font-label-md text-on-surface-variant ml-2">Çalışacağı Bölge</label>
+<select class="w-full px-4 py-4 rounded-lg bg-surface-container-low border-outline-variant focus:ring-primary focus:border-primary appearance-none">
+<option value="">Bölge Seçiniz</option>
+<option value="a-blok">A Blok - Giriş</option>
+<option value="b-blok">B Blok - Otopark</option>
+<option value="c-blok">C Blok - Teknik</option>
+<option value="depo">Depo Alanı</option>
+</select>
+</div>
+<button class="w-full bg-primary text-on-primary py-4 rounded-full font-headline-md text-body-lg shadow-md active:scale-95 transition-transform mt-xl" onclick="toggleModal(false)" type="button">
+                    Kaydet
+                </button>
+</form>
+</div>
+</div>
+<!-- Bottom Navigation (Shared Component Logic) -->
+<nav class="fixed bottom-0 w-full z-50 flex justify-around items-center px-sm py-md pb-8 bg-surface-container-lowest shadow-[0_-4px_12px_rgba(0,0,0,0.05)] rounded-t-lg">
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high rounded-full px-4 py-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="font-label-sm text-label-sm">Dashboard</span>
+</a>
+<a class="flex flex-col items-center justify-center bg-secondary-container text-on-secondary-container rounded-full px-4 py-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">badge</span>
+<span class="font-label-sm text-label-sm">Personel</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high rounded-full px-4 py-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">schedule</span>
+<span class="font-label-sm text-label-sm">Vardiyalar</span>
+</a>
+<a class="flex flex-col items-center justify-center text-on-surface-variant hover:bg-surface-container-high rounded-full px-4 py-1 active:scale-90 transition-all duration-200" href="#">
+<span class="material-symbols-outlined">assessment</span>
+<span class="font-label-sm text-label-sm">Raporlar</span>
+</a>
+</nav>
+<script>
+        function toggleModal(show) {
+            const modal = document.getElementById('addPersonnelModal');
+            if (show) {
+                modal.classList.remove('hidden');
+                document.body.style.overflow = 'hidden';
+            } else {
+                modal.classList.add('hidden');
+                document.body.style.overflow = 'auto';
+            }
+        }
+
+        // Add some basic interaction feedback
+        document.querySelectorAll('button').forEach(btn => {
+            btn.addEventListener('touchstart', function() {
+                this.classList.add('opacity-80');
+            });
+            btn.addEventListener('touchend', function() {
+                this.classList.remove('opacity-80');
+            });
+        });
+    </script>
+<style>
+        @keyframes slide-up {
+            from { transform: translateY(100%); }
+            to { transform: translateY(0); }
+        }
+        .animate-slide-up {
+            animation: slide-up 0.3s ease-out forwards;
+        }
+    </style>
+</body></html>

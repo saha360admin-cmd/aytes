@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+
+<html class="light" lang="tr"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AYTES Personel - Güvenlik Girişi</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&amp;family=Plus+Jakarta+Sans:wght@400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<!-- Shared Style Guidance & Tailwind Config -->
+<script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                    "on-primary-fixed": "#001a42",
+                    "error-container": "#ffdad6",
+                    "surface-container-low": "#f2f3f9",
+                    "on-surface": "#191c20",
+                    "surface": "#f8f9ff",
+                    "surface-container": "#eceef3",
+                    "primary": "#004191",
+                    "tertiary-container": "#825100",
+                    "inverse-surface": "#2e3135",
+                    "primary-fixed": "#d8e2ff",
+                    "background": "#f8f9ff",
+                    "surface-container-highest": "#e1e2e8",
+                    "secondary": "#006c49",
+                    "on-tertiary": "#ffffff",
+                    "surface-container-high": "#e7e8ee",
+                    "primary-container": "#0058be",
+                    "outline": "#727785",
+                    "secondary-fixed-dim": "#81d8ad",
+                    "on-tertiary-fixed": "#2a1700",
+                    "on-error-container": "#93000a",
+                    "surface-container-lowest": "#ffffff",
+                    "outline-variant": "#c2c6d5",
+                    "on-tertiary-fixed-variant": "#653e00",
+                    "tertiary": "#623c00",
+                    "surface-bright": "#f8f9ff",
+                    "on-primary": "#ffffff",
+                    "on-secondary-fixed": "#002113",
+                    "secondary-container": "#9af2c5",
+                    "on-secondary-container": "#0c714d",
+                    "tertiary-fixed": "#ffddb8",
+                    "on-secondary-fixed-variant": "#005236",
+                    "surface-dim": "#cbdbf5",
+                    "secondary-fixed": "#9df4c8",
+                    "on-secondary": "#ffffff",
+                    "on-primary-container": "#c4d5ff",
+                    "inverse-on-surface": "#eff0f6",
+                    "surface-tint": "#085ac0",
+                    "inverse-primary": "#adc6ff",
+                    "tertiary-fixed-dim": "#fcba66",
+                    "error": "#ba1a1a",
+                    "surface-variant": "#e1e2e8",
+                    "on-background": "#191c20",
+                    "primary-fixed-dim": "#adc6ff",
+                    "on-error": "#ffffff"
+            },
+            "borderRadius": {
+                    "DEFAULT": "1rem",
+                    "lg": "2rem",
+                    "xl": "3rem",
+                    "full": "9999px"
+            },
+            "spacing": {
+                    "xxl": "48px",
+                    "margin-mobile": "24px",
+                    "lg": "24px",
+                    "xs": "4px",
+                    "sm": "8px",
+                    "md": "16px",
+                    "base": "4px",
+                    "gutter": "24px",
+                    "xl": "32px",
+                    "container-max": "1280px"
+            },
+            "fontFamily": {
+                    "display": ["Quicksand"],
+                    "body-md": ["Quicksand"],
+                    "label-sm": ["Plus Jakarta Sans"],
+                    "headline-md": ["Quicksand"],
+                    "headline-lg-mobile": ["Quicksand"],
+                    "body-lg": ["Quicksand"],
+                    "label-md": ["Plus Jakarta Sans"],
+                    "headline-lg": ["Quicksand"]
+            },
+            "fontSize": {
+                    "display": ["48px", {"lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "700"}],
+                    "body-md": ["16px", {"lineHeight": "24px", "fontWeight": "400"}],
+                    "label-sm": ["12px", {"lineHeight": "16px", "letterSpacing": "0.04em", "fontWeight": "600"}],
+                    "headline-md": ["24px", {"lineHeight": "32px", "fontWeight": "600"}],
+                    "headline-lg-mobile": ["24px", {"lineHeight": "32px", "fontWeight": "700"}],
+                    "body-lg": ["18px", {"lineHeight": "28px", "fontWeight": "500"}],
+                    "label-md": ["14px", {"lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "600"}],
+                    "headline-lg": ["32px", {"lineHeight": "40px", "fontWeight": "700"}]
+            }
+          },
+        },
+      }
+    </script>
+<style>
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+        }
+        body {
+            background-color: #f8f9ff;
+            font-family: 'Quicksand', sans-serif;
+        }
+    </style>
+<style>
+    body {
+      min-height: max(884px, 100dvh);
+    }
+  </style>
+</head>
+<body class="bg-background min-h-screen flex flex-col justify-center items-center p-margin-mobile">
+<!-- Atmosferik Arkaplan Öğesi -->
+<div class="fixed inset-0 z-0 pointer-events-none overflow-hidden">
+<div class="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px]"></div>
+<div class="absolute bottom-[5%] right-[5%] w-[30%] h-[30%] rounded-full bg-secondary-container/10 blur-[100px]"></div>
+</div>
+<!-- Ana İçerik Tuvali -->
+<main class="relative z-10 w-full max-w-md animate-fade-in">
+<!-- Logo ve Markalama -->
+<div class="flex flex-col items-center mb-xl">
+<div class="w-16 h-16 bg-primary-container rounded-2xl flex items-center justify-center mb-md shadow-sm">
+<span class="material-symbols-outlined text-on-primary-container text-[40px]" data-icon="security" style="font-variation-settings: 'FILL' 1;">security</span>
+</div>
+<h1 class="font-display text-headline-lg-mobile text-primary mb-xs">AYTES Personel</h1>
+<p class="font-label-md text-on-surface-variant">Güvenlik Personeli Giriş Paneli</p>
+</div>
+<!-- Giriş Kartı -->
+<section class="bg-surface-container-lowest rounded-lg shadow-sm p-lg w-full flex flex-col gap-xl">
+<form class="flex flex-col gap-md">
+<!-- Kullanıcı Adı Girişi -->
+<div class="space-y-sm">
+<label class="font-label-md text-on-surface-variant px-xs" for="username">Kullanıcı Adı</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-md text-outline" data-icon="person">person</span>
+<input class="w-full pl-[48px] pr-md py-md rounded-md border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-surface font-body-md text-on-surface placeholder:text-outline/50" id="username" placeholder="kullanıcı_adı" type="text"/>
+</div>
+</div>
+<!-- Şifre Girişi -->
+<div class="space-y-sm">
+<label class="font-label-md text-on-surface-variant px-xs" for="password">Şifre</label>
+<div class="relative flex items-center">
+<span class="material-symbols-outlined absolute left-md text-outline" data-icon="lock">lock</span>
+<input class="w-full pl-[48px] pr-md py-md rounded-md border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-surface font-body-md text-on-surface placeholder:text-outline/50" id="password" placeholder="••••••••" type="password"/>
+<button class="absolute right-md text-outline hover:text-primary transition-colors" type="button">
+<span class="material-symbols-outlined" data-icon="visibility">visibility</span>
+</button>
+</div>
+</div>
+<!-- Hatırla ve Unuttum Satırı -->
+<div class="flex items-center justify-between mt-xs px-xs">
+<label class="flex items-center gap-sm cursor-pointer group">
+<div class="relative flex items-center">
+<input class="peer appearance-none w-5 h-5 rounded-sm border-2 border-outline-variant checked:bg-primary checked:border-primary transition-all cursor-pointer" type="checkbox"/>
+<span class="material-symbols-outlined absolute opacity-0 peer-checked:opacity-100 text-white text-sm left-[3px]" data-icon="check">check</span>
+</div>
+<span class="font-label-md text-on-surface-variant group-hover:text-primary transition-colors">Beni Hatırla</span>
+</label>
+<a class="font-label-md text-primary hover:underline underline-offset-4" href="#">Şifremi Unuttum</a>
+</div>
+<!-- Giriş Butonu -->
+<button class="w-full mt-md bg-primary hover:bg-primary-container text-on-primary font-display font-bold py-md rounded-full shadow-md active:scale-95 transition-all duration-200 flex items-center justify-center gap-sm" type="submit">
+                    Giriş Yap
+                    <span class="material-symbols-outlined text-body-lg" data-icon="login">login</span>
+</button>
+</form>
+<!-- İkincil Eylemler -->
+<div class="border-t border-outline-variant/30 pt-md flex flex-col items-center gap-md">
+<p class="font-label-sm text-outline">Yardıma mı ihtiyacınız var?</p>
+<a class="flex items-center gap-sm px-lg py-sm rounded-full border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant font-label-md" href="#">
+<span class="material-symbols-outlined" data-icon="help_center">help_center</span>
+                    Destek Merkezi
+                </a>
+</div>
+</section>
+<!-- Alt Bilgi / Kimlik -->
+<footer class="mt-xl text-center">
+<div class="flex justify-center gap-md mb-md">
+<div class="w-8 h-8 rounded-full overflow-hidden grayscale hover:grayscale-0 transition-all cursor-pointer">
+<img alt="Temiz, modern bir kurumsal ofis ortamında profesyonel bir güvenlik görevlisi portresi." class="w-full h-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA6pGWn5lDunqcd6Q-AaSFckeyJg7ahs1IWck8s2UeVd9fLfsV7hLd7xC3Ji_E3j7MHRZx4xyA-8FBiKd6vOe23gEKrZZG9j6XgiOWzBg6b-ckL3BBXOCd2oiBvsniyI2a1XJfE1RkfIlt88ICywsrasybX_SfPc7WiJQXtRmuEPEp20petbj4HNvifTZXNQ-Z6-LH9EOzCPqbtTw5skNVzHq2hyoWHl7omEHQigaGvQEIQQNPnWrxpLvg5s-AUpQGCC_0BU8D6n0AZ"/>
+</div>
+</div>
+<p class="font-label-sm text-outline">AYTES Yönetim Sistemi v2.4.0</p>
+<p class="font-label-sm text-outline-variant mt-xs">© 2024 Tüm Hakları Saklıdır</p>
+</footer>
+</main>
+<!-- Etkileşim Betiği -->
+<script>
+        document.querySelectorAll('input').forEach(input => {
+            input.addEventListener('focus', () => {
+                input.parentElement.parentElement.querySelector('label').style.color = 'var(--tw-color-primary)';
+            });
+            input.addEventListener('blur', () => {
+                input.parentElement.parentElement.querySelector('label').style.color = '';
+            });
+        });
+
+        // Form gönderim animasyonu simülasyonu
+        document.querySelector('form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const btn = e.target.querySelector('button[type="submit"]');
+            const originalContent = btn.innerHTML;
+            btn.innerHTML = '<span class="animate-spin material-symbols-outlined" data-icon="progress_activity">progress_activity</span>';
+            btn.disabled = true;
+            
+            setTimeout(() => {
+                btn.innerHTML = originalContent;
+                btn.disabled = false;
+            }, 1500);
+        });
+    </script>
+</body></html>
