@@ -37,6 +37,10 @@ interface Person {
   email: string;
   role: string;
   status: string;
+  avatar_url: string | null;
+  phone: string | null;
+  location: string | null;
+  position: string | null;
 }
 
 const roleLabel: Record<string, string> = {
@@ -76,7 +80,7 @@ export default function PersonelPage() {
     if (!personnel) return;
     supabase
       .from("personnel")
-      .select("id, full_name, email, role, status")
+      .select("id, full_name, email, role, status, avatar_url, phone, location, position")
       .eq("department_id", personnel.department_id)
       .order("full_name")
       .then(({ data }) => setPeople(data || []));
@@ -120,6 +124,8 @@ export default function PersonelPage() {
     const { error } = await supabase.from("personnel").insert({
       full_name: form.full_name,
       phone: form.phone,
+      position: form.position,
+      location: form.location || null,
       role,
       department_id: personnel.department_id,
       status: "active",
@@ -131,7 +137,7 @@ export default function PersonelPage() {
     if (!error) {
       const { data } = await supabase
         .from("personnel")
-        .select("id, full_name, email, role, status")
+        .select("id, full_name, email, role, status, avatar_url, phone, location, position")
         .eq("department_id", personnel.department_id)
         .order("full_name");
       setPeople(data || []);
@@ -144,6 +150,10 @@ export default function PersonelPage() {
 
   function getInitials(name: string) {
     return name.split(" ").slice(0, 2).map((n) => n[0]).join("").toUpperCase();
+  }
+
+  function getPositionLabel(pos: string | null) {
+    return POSITIONS.find((p) => p.value === pos)?.label ?? null;
   }
 
   const isAdmin = personnel?.role === "admin" || personnel?.role === "supervisor";
@@ -179,12 +189,26 @@ export default function PersonelPage() {
               return (
                 <div key={p.id} className={`bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant flex flex-col gap-md ${!isActive ? "opacity-75" : ""}`}>
                   <div className="flex items-center gap-md">
-                    <div className="w-14 h-14 rounded-full bg-primary-fixed flex items-center justify-center text-primary font-bold text-lg flex-shrink-0">
-                      {getInitials(p.full_name)}
+                    <div className="w-14 h-14 rounded-full bg-primary-fixed flex-shrink-0 overflow-hidden">
+                      {p.avatar_url ? (
+                        <img src={p.avatar_url} alt={p.full_name} className="w-full h-full object-cover" />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-primary font-bold text-lg">
+                          {getInitials(p.full_name)}
+                        </div>
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <h3 className="font-semibold text-on-surface text-[16px] truncate">{p.full_name}</h3>
-                      <p className="text-label-sm font-label-sm text-on-surface-variant">{roleLabel[p.role] || p.role}</p>
+                      <p className="text-label-sm font-label-sm text-on-surface-variant">
+                        {getPositionLabel(p.position) || roleLabel[p.role] || p.role}
+                      </p>
+                      {p.location && (
+                        <p className="text-label-sm font-label-sm text-outline flex items-center gap-xs mt-0.5">
+                          <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>location_on</span>
+                          {p.location}
+                        </p>
+                      )}
                     </div>
                     <span className={`px-3 py-1 rounded-full text-label-sm font-label-sm flex-shrink-0 ${
                       isActive ? "bg-secondary-container text-on-secondary-container"

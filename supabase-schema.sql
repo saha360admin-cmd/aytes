@@ -30,6 +30,8 @@ CREATE TABLE personnel (
     role TEXT NOT NULL DEFAULT 'personel' CHECK (role IN ('admin', 'supervisor', 'personel')),
     status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'on_leave')),
     avatar_url TEXT,
+    position TEXT,
+    location TEXT,
     hired_at DATE DEFAULT CURRENT_DATE,
     created_at TIMESTAMPTZ DEFAULT now(),
     updated_at TIMESTAMPTZ DEFAULT now()
@@ -104,6 +106,10 @@ CREATE TABLE locations (
     description TEXT,
     created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- Mevcut tabloya kolon eklemek için (tablo zaten varsa)
+-- ALTER TABLE personnel ADD COLUMN IF NOT EXISTS position TEXT;
+-- ALTER TABLE personnel ADD COLUMN IF NOT EXISTS location TEXT;
 
 -- Row Level Security (RLS)
 ALTER TABLE departments ENABLE ROW LEVEL SECURITY;
