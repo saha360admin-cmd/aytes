@@ -94,33 +94,39 @@ export default function TaleplerPage() {
         </div>
       )}
 
-      <header className="w-full sticky top-0 z-50 bg-[#f8f9ff] shadow-sm flex items-center justify-between px-6 h-16">
+      <header className="w-full sticky top-0 z-50 flex items-center justify-between px-6 h-16"
+        style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
         <div className="flex items-center gap-3">
-          <button onClick={() => router.push("/dashboard")} className="active:scale-95 transition-transform p-2 -ml-2 rounded-full hover:bg-gray-200">
-            <span className="material-symbols-outlined text-blue-800">arrow_back</span>
+          <button onClick={() => router.push("/dashboard")} className="active:scale-95 transition-transform w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25">
+            <span className="material-symbols-outlined text-white">arrow_back</span>
           </button>
-          <span className="text-2xl font-bold text-blue-800">Talepler</span>
+          <span className="text-lg font-bold text-white">Talepler</span>
         </div>
       </header>
 
-      <main className="px-6 pt-6">
+      <main className="px-6 pt-6 bg-[#f0f2ff] min-h-screen">
         <div className="mb-8">
-          <h1 className="text-2xl font-bold text-blue-800 mb-1">Talep Oluştur</h1>
-          <p className="text-base text-gray-500">Lütfen oluşturmak istediğiniz talep türünü seçin ve detayları girin.</p>
+          <h1 className="text-xl font-bold text-gray-800 mb-1">Talep Oluştur</h1>
+          <p className="text-sm text-gray-500">Lütfen oluşturmak istediğiniz talep türünü seçin ve detayları girin.</p>
         </div>
 
         <section className="mb-6">
           <div className="grid grid-cols-3 gap-3">
-            {requestTypes.map(t => (
-              <button key={t.id} onClick={() => setSelectedType(t.id)}
-                className={`flex flex-col items-center justify-center p-3 rounded-xl border h-24 transition-all active:scale-90 ${
-                  selectedType === t.id ? "bg-blue-700 text-white border-blue-700 shadow-lg" : "bg-white text-gray-700 border-gray-200 shadow-sm"
-                }`}>
-                <span className={`material-symbols-outlined text-2xl mb-1 ${selectedType === t.id ? "text-white" : "text-blue-800"}`}
-                  style={selectedType === t.id ? { fontVariationSettings: "'FILL' 1" } : undefined}>{t.icon}</span>
-                <span className="text-[11px] font-semibold text-center leading-tight">{t.label}</span>
-              </button>
-            ))}
+            {requestTypes.map((t, idx) => {
+              const accentColors = ["#3949AB","#00897B","#EF5350","#9C27B0","#FF9800"];
+              const accent = accentColors[idx % accentColors.length];
+              const isSel = selectedType === t.id;
+              return (
+                <button key={t.id} onClick={() => setSelectedType(t.id)}
+                  className={`flex flex-col items-center justify-center p-3 rounded-xl h-24 transition-all active:scale-90 shadow-sm ${isSel ? "shadow-md" : "bg-white"}`}
+                  style={isSel ? { backgroundColor: accent + "20", borderWidth: 2, borderColor: accent } : { border: "2px solid transparent" }}>
+                  <span className="material-symbols-outlined text-2xl mb-1"
+                    style={{ color: isSel ? accent : "#6B7280", fontVariationSettings: isSel ? "'FILL' 1" : undefined }}>{t.icon}</span>
+                  <span className={`text-[11px] font-bold text-center leading-tight ${isSel ? "" : "text-gray-600"}`}
+                    style={isSel ? { color: accent } : undefined}>{t.label}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -180,7 +186,8 @@ export default function TaleplerPage() {
           )}
 
           <button onClick={handleSubmit} disabled={sending || !details || (isMedical && photos.length === 0)}
-            className="w-full bg-blue-700 text-white text-2xl font-semibold py-4 rounded-full shadow-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+            className="w-full text-white text-base font-bold py-4 rounded-2xl shadow-lg active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+            style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
             {sending ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : <span className="material-symbols-outlined">send</span>}
             {sending ? "Gönderiliyor..." : "Talebi Gönder"}
           </button>

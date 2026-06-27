@@ -45,8 +45,9 @@ export default function BottomNav() {
             key={href}
             href={href}
             className={`flex flex-col items-center justify-center px-2 py-1 rounded-2xl active:scale-90 transition-all duration-200 ${
-              active ? "bg-blue-700 text-white" : "text-gray-500 hover:bg-gray-100"
+              active ? "text-white" : "text-gray-500 hover:bg-gray-100"
             }`}
+            style={active ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}
           >
             <span
               className="material-symbols-outlined"

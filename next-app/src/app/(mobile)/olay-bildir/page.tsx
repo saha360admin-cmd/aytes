@@ -8,17 +8,17 @@ import type { Department } from "@/lib/types";
 import { Suspense } from "react";
 
 const incidentTypes = [
-  { id: "fire", label: "Yangın", icon: "local_fire_department", bg: "bg-red-100", color: "text-red-600" },
-  { id: "theft", label: "Hırsızlık", icon: "lock_person", bg: "bg-blue-50", color: "text-blue-700" },
-  { id: "suspicious", label: "Şüpheli Durum", icon: "visibility", bg: "bg-amber-100", color: "text-amber-700" },
-  { id: "maintenance", label: "Teknik Arıza", icon: "build", bg: "bg-green-100", color: "text-green-700" },
-  { id: "other", label: "Diğer", icon: "more_horiz", bg: "bg-blue-50", color: "text-blue-700" },
+  { id: "fire", label: "Yangın", icon: "local_fire_department", bg: "bg-red-100", color: "text-red-600", selectedBg: "#FEE2E2", selectedBorder: "#EF4444" },
+  { id: "theft", label: "Hırsızlık", icon: "lock_person", bg: "bg-indigo-100", color: "text-indigo-700", selectedBg: "#E0E7FF", selectedBorder: "#4F46E5" },
+  { id: "suspicious", label: "Şüpheli Durum", icon: "visibility", bg: "bg-amber-100", color: "text-amber-700", selectedBg: "#FEF3C7", selectedBorder: "#F59E0B" },
+  { id: "maintenance", label: "Teknik Arıza", icon: "build", bg: "bg-emerald-100", color: "text-emerald-700", selectedBg: "#D1FAE5", selectedBorder: "#10B981" },
+  { id: "other", label: "Diğer", icon: "more_horiz", bg: "bg-purple-100", color: "text-purple-700", selectedBg: "#EDE9FE", selectedBorder: "#7C3AED" },
 ];
 
 const severities = [
-  { id: "low", label: "Düşük", active: "bg-green-100 text-green-800 ring-2 ring-green-500" },
-  { id: "medium", label: "Orta", active: "bg-amber-100 text-amber-800 ring-2 ring-amber-500" },
-  { id: "high", label: "Yüksek", active: "bg-red-100 text-red-800 ring-2 ring-red-500" },
+  { id: "low", label: "Düşük", active: "bg-emerald-600 text-white shadow-md shadow-emerald-200", icon: "arrow_downward" },
+  { id: "medium", label: "Orta", active: "bg-amber-500 text-white shadow-md shadow-amber-200", icon: "remove" },
+  { id: "high", label: "Yüksek", active: "bg-red-600 text-white shadow-md shadow-red-200", icon: "arrow_upward" },
 ];
 
 function OlayBildirForm() {
@@ -94,7 +94,7 @@ function OlayBildirForm() {
   const deptIcons: Record<string, string> = { idari: "admin_panel_settings", guvenlik: "security", teknik: "engineering", temizlik: "cleaning_services" };
 
   return (
-    <div className="bg-[#f8f9ff] min-h-screen pb-32 relative">
+    <div className="bg-[#f0f2ff] min-h-screen pb-32 relative">
       {toast && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 bg-green-800 text-white px-6 py-4 rounded-full shadow-xl z-[60] flex items-center gap-2 animate-fade-up">
           <span className="material-symbols-outlined">check_circle</span>
@@ -102,12 +102,13 @@ function OlayBildirForm() {
         </div>
       )}
 
-      <header className="bg-gray-50 shadow-sm sticky top-0 z-50 flex justify-between items-center px-6 h-16 w-full">
+      <header className="sticky top-0 z-50 flex justify-between items-center px-6 h-16 w-full"
+        style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
         <div className="flex items-center gap-4">
-          <button onClick={() => router.back()} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 active:scale-90 transition-all">
-            <span className="material-symbols-outlined text-blue-800">arrow_back</span>
+          <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 active:scale-90 transition-all">
+            <span className="material-symbols-outlined text-white">arrow_back</span>
           </button>
-          <h1 className="text-2xl font-semibold text-blue-800">Olay Bildir</h1>
+          <h1 className="text-lg font-bold text-white">Olay Bildir</h1>
         </div>
       </header>
 
@@ -115,15 +116,24 @@ function OlayBildirForm() {
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Olay Türü Seçin</h2>
           <div className="grid grid-cols-2 gap-4">
-            {incidentTypes.map(t => (
-              <button key={t.id} onClick={() => setSelectedType(t.id)}
-                className={`flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border-2 transition-all group ${selectedType === t.id ? "border-blue-700 bg-blue-50" : "border-transparent hover:border-blue-300"}`}>
-                <div className={`w-12 h-12 ${t.bg} ${t.color} rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
-                  <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>{t.icon}</span>
-                </div>
-                <span className="text-sm font-semibold">{t.label}</span>
-              </button>
-            ))}
+            {incidentTypes.map(t => {
+              const isSel = selectedType === t.id;
+              return (
+                <button key={t.id} onClick={() => setSelectedType(t.id)}
+                  className={`flex flex-col items-center justify-center p-6 rounded-2xl shadow-sm border-2 transition-all group relative overflow-hidden ${isSel ? "border-transparent shadow-md" : "border-transparent bg-white hover:shadow-md"}`}
+                  style={isSel ? { backgroundColor: t.selectedBg, borderColor: t.selectedBorder } : undefined}>
+                  {isSel && (
+                    <span className="absolute top-2 right-2 w-5 h-5 rounded-full flex items-center justify-center" style={{ backgroundColor: t.selectedBorder }}>
+                      <span className="material-symbols-outlined text-white text-[12px]">check</span>
+                    </span>
+                  )}
+                  <div className={`w-12 h-12 ${t.bg} ${t.color} rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform`}>
+                    <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>{t.icon}</span>
+                  </div>
+                  <span className="text-sm font-semibold">{t.label}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -182,7 +192,8 @@ function OlayBildirForm() {
           <div className="flex gap-2">
             {severities.map(s => (
               <button key={s.id} onClick={() => setSeverity(s.id)}
-                className={`flex-1 py-4 rounded-full text-sm font-semibold text-center transition-all ${severity === s.id ? s.active : "bg-white border border-gray-200 hover:bg-gray-50"}`}>
+                className={`flex-1 py-4 rounded-2xl text-sm font-bold text-center transition-all flex items-center justify-center gap-1 ${severity === s.id ? s.active : "bg-white border border-gray-200 text-gray-500 hover:bg-gray-50"}`}>
+                {severity === s.id && <span className="material-symbols-outlined text-[16px]">{s.icon}</span>}
                 {s.label}
               </button>
             ))}
@@ -223,10 +234,11 @@ function OlayBildirForm() {
         </section>
       </main>
 
-      <div className="sticky bottom-0 w-full bg-white px-6 pt-4 pb-6 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] rounded-t-2xl z-50 mt-4">
+      <div className="sticky bottom-0 w-full bg-white px-6 pt-4 pb-6 shadow-[0_-10px_20px_rgba(0,0,0,0.08)] rounded-t-2xl z-50 mt-4">
         <button onClick={handleSubmit} disabled={sending || !selectedType || !severity || !description}
-          className="w-full py-4 bg-blue-800 text-white rounded-full text-2xl font-semibold shadow-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50">
-          {sending ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : <span className="material-symbols-outlined">send</span>}
+          className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
+          style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+          {sending ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>}
           {sending ? "Gönderiliyor..." : "Raporu Gönder"}
         </button>
       </div>

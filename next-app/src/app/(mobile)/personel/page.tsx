@@ -204,10 +204,12 @@ export default function PersonelPage() {
           {activeFiltered.length === 0 ? (
             <p className="text-center text-on-surface-variant py-xxl">Personel bulunamadı</p>
           ) : (
-            activeFiltered.map((p) => {
+            activeFiltered.map((p, idx) => {
               const isActive = p.status === "active";
+              const accentColors = ["#3949AB","#00BCD4","#43A047","#FF9800","#9C27B0","#EF5350","#00897B","#FB8C00"];
+              const accent = accentColors[idx % accentColors.length];
               return (
-                <div key={p.id} className={`bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant flex flex-col gap-md ${!isActive ? "opacity-75" : ""}`}>
+                <div key={p.id} className={`bg-white p-md rounded-xl shadow-sm border-l-4 flex flex-col gap-md ${!isActive ? "opacity-75" : ""}`} style={{ borderLeftColor: accent }}>
                   <div className="flex items-center gap-md">
                     <div className="w-14 h-14 rounded-full bg-primary-fixed flex-shrink-0 overflow-hidden">
                       {p.avatar_url ? (
@@ -230,10 +232,10 @@ export default function PersonelPage() {
                         </p>
                       )}
                     </div>
-                    <span className={`px-3 py-1 rounded-full text-label-sm font-label-sm flex-shrink-0 ${
-                      isActive ? "bg-secondary-container text-on-secondary-container"
-                      : p.status === "on_leave" ? "bg-tertiary-fixed text-on-tertiary-fixed"
-                      : "bg-surface-container-highest text-on-surface-variant"
+                    <span className={`px-3 py-1 rounded-full text-[11px] font-bold flex-shrink-0 ${
+                      isActive ? "bg-emerald-100 text-emerald-700"
+                      : p.status === "on_leave" ? "bg-amber-100 text-amber-700"
+                      : "bg-gray-100 text-gray-500"
                     }`}>
                       {statusLabel[p.status] || p.status}
                     </span>

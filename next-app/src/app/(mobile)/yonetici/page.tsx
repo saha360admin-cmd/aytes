@@ -98,8 +98,8 @@ export default function YoneticiPage() {
         label: inc.title || "Olay Raporu",
         sub: `${inc.reporter?.full_name || "Bilinmiyor"} • ${ago}`,
         icon: "assignment",
-        iconBg: "bg-secondary-container",
-        iconColor: "text-on-secondary-container",
+        iconBg: "bg-red-100",
+        iconColor: "text-red-600",
       });
     });
 
@@ -110,8 +110,8 @@ export default function YoneticiPage() {
         label: req.type || "Talep",
         sub: `${req.requester?.full_name || "Bilinmiyor"} • ${ago}`,
         icon: "sync_alt",
-        iconBg: "bg-tertiary-fixed",
-        iconColor: "text-on-tertiary-fixed",
+        iconBg: "bg-emerald-100",
+        iconColor: "text-emerald-600",
       });
     });
 
@@ -150,26 +150,19 @@ export default function YoneticiPage() {
 
   return (
     <div className="bg-background min-h-screen pb-32">
-      {/* Header */}
-      <header className="fixed top-0 w-full z-50 bg-surface-container-low shadow-sm flex justify-between items-center px-lg h-16">
+      {/* Gradyan Header */}
+      <header className="fixed top-0 w-full z-50 flex justify-between items-center px-lg h-16"
+        style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
         <div className="flex items-center gap-3">
-          <span
-            className="material-symbols-outlined text-primary text-[28px]"
-            style={{ fontVariationSettings: "'FILL' 1" }}
-          >
-            shield
-          </span>
-          <h1 className="font-display text-headline-lg-mobile font-bold text-primary">AYTES</h1>
+          <span className="material-symbols-outlined text-white text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield</span>
+          <h1 className="font-display text-headline-lg-mobile font-bold text-white">AYTES</h1>
         </div>
         <div className="flex items-center gap-1">
-          <Link
-            href="/personel"
-            className="p-2 rounded-full hover:bg-surface-container-high transition-colors active:scale-95 duration-200"
-          >
-            <span className="material-symbols-outlined text-primary">group</span>
+          <Link href="/personel" className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
+            <span className="material-symbols-outlined text-white">group</span>
           </Link>
-          <button className="p-2 rounded-full hover:bg-surface-container-high transition-colors active:scale-95 duration-200">
-            <span className="material-symbols-outlined text-primary">notifications</span>
+          <button className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
+            <span className="material-symbols-outlined text-white">notifications</span>
           </button>
         </div>
       </header>
@@ -178,10 +171,10 @@ export default function YoneticiPage() {
         {/* Karşılama */}
         <section className="space-y-xs">
           <h2 className="font-headline-md text-headline-md text-on-surface">
-            Hoş Geldin, {name.split(" ")[0]}
+            Hoş Geldin, {name.split(" ")[0]} 👋
           </h2>
           <div className="flex items-center gap-2">
-            <span className="flex h-2 w-2 rounded-full bg-secondary" />
+            <span className="flex h-2 w-2 rounded-full bg-emerald-500" />
             <p className="text-on-surface-variant font-label-md text-label-md">
               Sistem Aktif • {shiftFill.active} Personel Görevde
             </p>
@@ -196,41 +189,49 @@ export default function YoneticiPage() {
               value: String(stats.pendingRequests).padStart(2, "0"),
               label: "Bekleyen Talepler",
               badge: stats.pendingRequests > 0 ? `+${stats.pendingRequests} Yeni` : null,
+              accent: "#FF9800",
+              iconBg: "bg-orange-100",
+              iconColor: "text-orange-600",
             },
             {
               icon: "assignment_late",
               value: String(stats.openIncidents).padStart(2, "0"),
               label: "Açık Raporlar",
               badge: null,
+              accent: "#EF5350",
+              iconBg: "bg-red-100",
+              iconColor: "text-red-600",
             },
             {
               icon: "map",
               value: String(stats.activePatrols).padStart(2, "0"),
               label: "Aktif Devriyeler",
               badge: null,
+              accent: "#00BCD4",
+              iconBg: "bg-teal-100",
+              iconColor: "text-teal-600",
             },
             {
               icon: "schedule",
               value: String(stats.todayShifts).padStart(2, "0"),
               label: "Toplam Vardiyalar",
               badge: null,
+              accent: "#9C27B0",
+              iconBg: "bg-purple-100",
+              iconColor: "text-purple-600",
             },
           ].map((s) => (
             <div
               key={s.label}
-              className="bg-surface-container-lowest p-md rounded-xl shadow-sm space-y-xs active:scale-95 transition-transform duration-150"
+              className="bg-white p-md rounded-xl shadow-sm space-y-xs active:scale-95 transition-transform duration-150 border-l-4"
+              style={{ borderLeftColor: s.accent }}
             >
               <div className="flex justify-between items-start">
-                <span
-                  className="material-symbols-outlined text-primary"
-                  style={{ fontSize: "22px" }}
-                >
-                  {s.icon}
-                </span>
+                <div className={`w-9 h-9 rounded-lg ${s.iconBg} flex items-center justify-center`}>
+                  <span className={`material-symbols-outlined ${s.iconColor}`} style={{ fontSize: "20px" }}>{s.icon}</span>
+                </div>
                 {s.badge && (
-                  <span className="text-label-sm font-label-sm text-on-surface-variant">
-                    {s.badge}
-                  </span>
+                  <span className="text-[10px] font-bold bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full">{s.badge}</span>
                 )}
               </div>
               <div>
@@ -242,7 +243,7 @@ export default function YoneticiPage() {
         </section>
 
         {/* Vardiya Durumu */}
-        <section className="bg-surface-container-lowest p-lg rounded-xl shadow-sm">
+        <section className="bg-white p-lg rounded-xl shadow-sm border border-gray-100">
           <h3 className="font-headline-md text-headline-md mb-md">Personel Durumu</h3>
           <div className="flex items-center gap-lg">
             <div className="relative w-24 h-24 flex items-center justify-center flex-shrink-0">
@@ -256,19 +257,25 @@ export default function YoneticiPage() {
                   strokeWidth="10"
                 />
                 <circle
-                  className="text-primary stroke-current"
                   cx="50"
                   cy="50"
                   r="40"
                   fill="transparent"
                   strokeWidth="10"
                   strokeLinecap="round"
+                  stroke="url(#gaugeGradient)"
                   style={{
                     strokeDasharray: circumference,
                     strokeDashoffset: offset,
                     transition: "stroke-dashoffset 0.5s ease",
                   }}
                 />
+                <defs>
+                  <linearGradient id="gaugeGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#00BCD4" />
+                    <stop offset="100%" stopColor="#3949AB" />
+                  </linearGradient>
+                </defs>
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <span className="font-headline-md text-headline-md">%{percent}</span>
@@ -306,7 +313,7 @@ export default function YoneticiPage() {
               activities.map((a) => (
                 <div
                   key={a.id}
-                  className="bg-surface-container-lowest p-md rounded-xl flex items-center gap-md active:bg-surface-container-high transition-all"
+                  className="bg-white p-md rounded-xl flex items-center gap-md active:bg-gray-50 transition-all shadow-sm border border-gray-100"
                 >
                   <div
                     className={`w-10 h-10 rounded-full ${a.iconBg} ${a.iconColor} flex items-center justify-center flex-shrink-0`}

@@ -54,75 +54,96 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="bg-[#f8f9ff] min-h-screen pb-8">
-      <header className="sticky top-0 w-full z-40 bg-[#f8f9ff] shadow-sm h-16 flex justify-between items-center px-6">
+    <div className="bg-[#f0f2ff] min-h-screen pb-8">
+      {/* Gradyan Header */}
+      <header className="sticky top-0 w-full z-40 h-16 flex justify-between items-center px-6"
+        style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full border-2 border-blue-600 bg-blue-100 flex items-center justify-center text-blue-700">
-            <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+          <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
+            <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield_person</span>
           </div>
-          <h1 className="text-2xl font-semibold text-blue-800">Güvenlik Paneli</h1>
+          <h1 className="text-lg font-bold text-white">Güvenlik Paneli</h1>
         </div>
-        <button className="w-10 h-10 flex items-center justify-center rounded-full bg-gray-200 text-gray-600 hover:bg-gray-300 transition-colors">
-          <span className="material-symbols-outlined">notifications</span>
+        <button className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
+          <span className="material-symbols-outlined text-[20px]">notifications</span>
         </button>
       </header>
 
-      <main className="px-6 space-y-6 mt-4">
-        <section>
-          <h2 className="text-2xl font-bold">Merhaba, <span className="text-blue-800">{name}</span></h2>
-          <p className="text-base text-gray-500">{dept} • {role}</p>
-        </section>
+      {/* Karşılama bandı */}
+      <div className="px-6 py-4" style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
+        <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
+        <p className="text-sm text-white/70 mt-0.5">{dept} • {role}</p>
+      </div>
+      {/* Dalga ayırıcı */}
+      <div className="h-4 rounded-t-3xl -mt-1 bg-[#f0f2ff]" />
 
+      <main className="px-6 space-y-6">
         {/* Status Cards */}
-        <section className="space-y-4">
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-blue-100 rounded-xl text-blue-700"><span className="material-symbols-outlined">schedule</span></div>
-              <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs font-semibold">Aktif</span>
+        <section className="space-y-3 -mt-2">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#3949AB] flex items-center gap-4">
+            <div className="p-3 bg-indigo-100 rounded-xl text-indigo-700 flex-shrink-0">
+              <span className="material-symbols-outlined">schedule</span>
             </div>
-            <h3 className="text-sm font-semibold text-gray-500">Aktif Vardiya</h3>
-            <p className="text-2xl font-semibold mt-1">{shift ? `${shift.start_time.slice(0, 5)} - ${shift.end_time.slice(0, 5)}` : "—"}</p>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Aktif Vardiya</p>
+              <p className="text-xl font-bold text-gray-800 mt-0.5">{shift ? `${shift.start_time.slice(0, 5)} – ${shift.end_time.slice(0, 5)}` : "—"}</p>
+            </div>
+            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">Aktif</span>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-green-100 rounded-xl text-green-700"><span className="material-symbols-outlined">route</span></div>
-              <span className="text-green-700 font-bold text-2xl">{patrolText}</span>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#00BCD4]">
+            <div className="flex justify-between items-start mb-3">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-teal-100 rounded-xl text-teal-700"><span className="material-symbols-outlined">route</span></div>
+                <div>
+                  <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Devriye Durumu</p>
+                  <p className="text-xl font-bold text-gray-800">{patrolText}</p>
+                </div>
+              </div>
             </div>
-            <h3 className="text-sm font-semibold text-gray-500">Devriye Durumu</h3>
-            <div className="w-full bg-gray-200 h-2 rounded-full mt-2">
-              <div className="bg-green-600 h-2 rounded-full transition-all" style={{ width: `${patrolPercent}%` }} />
+            <div className="w-full bg-gray-100 h-2.5 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all" style={{ width: `${patrolPercent}%`, background: "linear-gradient(to right, #00BCD4, #3949AB)" }} />
             </div>
           </div>
 
-          <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-start mb-4">
-              <div className="p-3 bg-amber-100 rounded-xl text-amber-700"><span className="material-symbols-outlined">report_problem</span></div>
-              <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-semibold">{pendingIncidents} Bekliyor</span>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#FF9800] flex items-center gap-4">
+            <div className="p-3 bg-amber-100 rounded-xl text-amber-600 flex-shrink-0">
+              <span className="material-symbols-outlined">report_problem</span>
             </div>
-            <h3 className="text-sm font-semibold text-gray-500">Bekleyen Raporlar</h3>
-            <p className="text-2xl font-semibold mt-1">Olay Kayıtları</p>
+            <div className="flex-1">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Bekleyen Raporlar</p>
+              <p className="text-xl font-bold text-gray-800">Olay Kayıtları</p>
+            </div>
+            {pendingIncidents > 0 && (
+              <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold">{pendingIncidents} Yeni</span>
+            )}
           </div>
         </section>
 
         {/* Quick Actions */}
         <section className="space-y-3">
-          <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Hızlı İşlemler</h3>
+          <h3 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Hızlı İşlemler</h3>
           <div className="space-y-3">
-            <Link href="/devriye" className="bg-blue-800 text-white py-4 px-6 rounded-full flex items-center justify-center gap-3 text-sm font-semibold hover:opacity-90 active:scale-95 transition-all">
-              <span className="material-symbols-outlined">play_circle</span>
+            <Link href="/devriye"
+              className="flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold text-white active:scale-95 transition-all shadow-md shadow-indigo-200"
+              style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
               {patrolStatus.hasActive ? "Devriyeye Devam Et" : "Devriye Başlat"}
             </Link>
-            <Link href="/olay-bildir" className="w-full bg-gray-200 text-gray-600 py-4 px-6 rounded-full flex items-center justify-center gap-3 text-sm font-semibold hover:bg-gray-300 active:scale-95 transition-all">
-              <span className="material-symbols-outlined">edit_document</span>
+            <Link href="/olay-bildir"
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 active:scale-95 transition-all">
+              <span className="material-symbols-outlined text-amber-600">edit_document</span>
               Olay Bildir
             </Link>
-            <button className="w-full bg-red-600 text-white py-4 px-6 rounded-full flex items-center justify-center gap-3 text-sm font-semibold hover:opacity-90 active:scale-95 transition-all shadow-md ring-4 ring-red-200">
-              <span className="material-symbols-outlined">emergency_share</span>
+            <button
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold text-white active:scale-95 transition-all shadow-md shadow-rose-200 ring-4 ring-rose-100"
+              style={{ background: "linear-gradient(135deg, #C62828, #E53935)" }}>
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
               Yardım Çağır
             </button>
-            <Link href="/vardiyalar" className="w-full bg-gray-200 text-gray-600 py-4 px-6 rounded-full flex items-center justify-center gap-3 text-sm font-semibold hover:bg-gray-300 active:scale-95 transition-all">
-              <span className="material-symbols-outlined">calendar_today</span>
+            <Link href="/vardiyalar"
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 active:scale-95 transition-all">
+              <span className="material-symbols-outlined text-emerald-600">calendar_month</span>
               Vardiyam
             </Link>
           </div>

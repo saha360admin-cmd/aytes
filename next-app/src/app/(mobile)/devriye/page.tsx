@@ -253,8 +253,8 @@ export default function DevriyePage() {
               <span className="text-gray-500">Tamamlanma Oranı</span>
               <span className="text-blue-800">{completed} / {total} Nokta</span>
             </div>
-            <div className="w-full bg-gray-200 h-3 rounded-full overflow-hidden">
-              <div className="bg-blue-800 h-full rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
+            <div className="w-full bg-gray-100 h-3 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-500" style={{ width: `${progress}%`, background: "linear-gradient(to right, #00BCD4, #3949AB)" }} />
             </div>
           </div>
         </section>
@@ -318,8 +318,8 @@ export default function DevriyePage() {
             {checkpoints.map(cp => (
               <div key={cp.id}>
                 {cp.status === "completed" && (
-                  <div className="flex items-center gap-4 p-4 bg-green-50 rounded-2xl border border-green-200">
-                    <div className="w-10 h-10 rounded-full bg-green-600 text-white flex items-center justify-center">
+                  <div className="flex items-center gap-4 p-4 bg-white rounded-2xl border-l-4 border-l-[#43A047] shadow-sm">
+                    <div className="w-10 h-10 rounded-full bg-emerald-500 text-white flex items-center justify-center">
                       <span className="material-symbols-outlined">check_circle</span>
                     </div>
                     <div className="flex-1">
@@ -339,7 +339,9 @@ export default function DevriyePage() {
                         <p className="text-xs font-semibold text-gray-500">Hedefe ulaşıldı, lütfen okutun</p>
                       </div>
                     </div>
-                    <button onClick={scanCheckpoint} className="w-full py-4 bg-blue-800 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg">
+                    <button onClick={scanCheckpoint}
+                      className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
+                      style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
                       <span className="material-symbols-outlined">nfc</span>
                       OKUT (NFC / QR)
                     </button>
