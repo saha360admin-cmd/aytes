@@ -65,7 +65,7 @@ function OlayBildirForm() {
     setSending(false);
     if (!error) {
       setToast(true);
-      setTimeout(() => { setToast(false); router.push("/dashboard"); }, 2000);
+      setTimeout(() => { setToast(false); router.push(patrolId ? "/devriye" : "/dashboard"); }, 2000);
     }
   }
 
