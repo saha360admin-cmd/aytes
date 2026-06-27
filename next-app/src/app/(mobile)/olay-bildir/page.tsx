@@ -32,7 +32,7 @@ function OlayBildirForm() {
   const [selectedDept, setSelectedDept] = useState<string | null>(null);
   const [severity, setSeverity] = useState<string | null>(null);
   const [description, setDescription] = useState("");
-  const [location, setLocation] = useState("B Blok - 2. Kat");
+  const [location, setLocation] = useState("");
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(false);
 
@@ -118,16 +118,17 @@ function OlayBildirForm() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Konum Bilgisi</h2>
-          <div className="bg-white p-4 rounded-2xl shadow-sm flex items-center justify-between">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center">
-                <span className="material-symbols-outlined">location_on</span>
-              </div>
-              <div>
-                <p className="text-lg font-medium">{location}</p>
-                <p className="text-xs font-semibold text-gray-400">Otomatik olarak algılandı</p>
-              </div>
+          <div className="relative">
+            <div className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center pointer-events-none">
+              <span className="material-symbols-outlined">location_on</span>
             </div>
+            <input
+              type="text"
+              value={location}
+              onChange={(e) => setLocation(e.target.value)}
+              placeholder="Örn: A Blok - 3. Kat, Güvenlik Odası..."
+              className="w-full pl-16 pr-4 py-4 bg-white border border-gray-200 rounded-2xl shadow-sm focus:ring-2 focus:ring-blue-700 focus:border-blue-700 transition-all text-base placeholder:text-gray-400"
+            />
           </div>
         </section>
 
