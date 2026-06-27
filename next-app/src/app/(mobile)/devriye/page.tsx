@@ -11,6 +11,73 @@ const defaultCheckpoints = [
   "Depo Bölgesi", "C Blok Yanı", "Teknik Oda", "Ana Giriş (Dönüş)",
 ];
 
+const patrolTips = [
+  {
+    emoji: "🎯",
+    badge: "Taktik İpucu",
+    title: "Düzeni Kır!",
+    text: "Sürekli aynı yönde ve aynı hızda devriye atma. Düzenli hareket tahmin edilebilir olur — seni izleyen biri varsa fark eder.",
+    gradient: "from-blue-600 to-indigo-700",
+    badgeBg: "bg-white/20",
+  },
+  {
+    emoji: "👁️",
+    badge: "Kör Nokta Uyarısı",
+    title: "Köşelere Dikkat!",
+    text: "Otopark gibi açık alanlarda araçların arasını ve kör köşeleri mutlaka kontrol et. Tehdit her zaman görünür yerden gelmez.",
+    gradient: "from-slate-700 to-gray-800",
+    badgeBg: "bg-yellow-400/30",
+  },
+  {
+    emoji: "💡",
+    badge: "Çevre Taraması",
+    title: "Aydınlatmayı Kontrol Et!",
+    text: "Yanmayan lambalar, kırık kameralar, açık kalmış kapılar — bunlar küçük detay gibi görünse de büyük açıkların habercisidir. Rapor et!",
+    gradient: "from-amber-500 to-orange-600",
+    badgeBg: "bg-white/20",
+  },
+  {
+    emoji: "🌿",
+    badge: "Açık Alan Taraması",
+    title: "Arka Bahçe Sessizce Konuşur",
+    text: "Dış alanlar gece en riskli bölgelerdir. Alışılmadık sesler, hareket veya yabancı objeler gördüğünde durma — önce değerlendir.",
+    gradient: "from-emerald-600 to-teal-700",
+    badgeBg: "bg-white/20",
+  },
+  {
+    emoji: "🔒",
+    badge: "Güvenlik Kontrolü",
+    title: "Kilitleri İki Kez Kontrol Et!",
+    text: "Depo kapıları güvenlik zincirinin en zayıf halkasıdır. Kilit var ama kapı kilitli mi? Her zaman fiziksel olarak dene.",
+    gradient: "from-rose-600 to-red-700",
+    badgeBg: "bg-white/20",
+  },
+  {
+    emoji: "🧠",
+    badge: "Psikoloji",
+    title: "Kararlı Dur, Caydır!",
+    text: "Birileriyle göz teması kur, dimdik yürü. Kararlı duruş tek başına güçlü bir caydırıcıdır — güvensizlik davranışları yansıtma.",
+    gradient: "from-violet-600 to-purple-700",
+    badgeBg: "bg-white/20",
+  },
+  {
+    emoji: "⚡",
+    badge: "Teknik Bölge",
+    title: "Teknik Oda Risk Noktası!",
+    text: "Elektrik panoları, sunucu odaları ve teknik alanlarda olağandışı koku, ses veya ısı varsa hemen bildir. Yangının %60'ı teknik arızadan çıkar.",
+    gradient: "from-yellow-500 to-amber-600",
+    badgeBg: "bg-white/20",
+  },
+  {
+    emoji: "🏆",
+    badge: "Son Nokta!",
+    title: "Neredeyse Bitti, Odaklan!",
+    text: "Son nokta en tehlikeli andır — dikkat dağılmaya başlar. Geri dönüş rotasında da tetikte ol, devriye bitmeden güvenli değilsin.",
+    gradient: "from-green-600 to-emerald-700",
+    badgeBg: "bg-white/20",
+  },
+];
+
 export default function DevriyePage() {
   const router = useRouter();
   const { personnel } = useAuth();
@@ -191,6 +258,34 @@ export default function DevriyePage() {
             </div>
           </div>
         </section>
+
+        {/* Motivasyon Kartı */}
+        {activeCheckpoint && (() => {
+          const tip = patrolTips[(activeCheckpoint.checkpoint_order - 1) % patrolTips.length];
+          return (
+            <section className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${tip.gradient} p-5 shadow-lg`}>
+              <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/5" />
+              <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5" />
+              <div className="relative z-10 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className={`text-[11px] font-bold uppercase tracking-widest text-white/80 ${tip.badgeBg} px-3 py-1 rounded-full`}>
+                    {tip.badge}
+                  </span>
+                  <span className="text-3xl">{tip.emoji}</span>
+                </div>
+                <div>
+                  <h4 className="text-white font-bold text-lg leading-tight">{tip.title}</h4>
+                  <p className="text-white/80 text-sm leading-relaxed mt-1">{tip.text}</p>
+                </div>
+                <div className="flex items-center gap-1.5 pt-1">
+                  {patrolTips.map((_, i) => (
+                    <div key={i} className={`h-1 rounded-full transition-all ${i === (activeCheckpoint.checkpoint_order - 1) % patrolTips.length ? "w-6 bg-white" : "w-2 bg-white/30"}`} />
+                  ))}
+                </div>
+              </div>
+            </section>
+          );
+        })()}
 
         {/* Checkpoints */}
         <section className="space-y-4">
