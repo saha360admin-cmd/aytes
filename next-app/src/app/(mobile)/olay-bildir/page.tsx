@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -29,12 +29,16 @@ function OlayBildirForm() {
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
-  const [selectedDept, setSelectedDept] = useState<string | null>(null);
+  const [selectedDepts, setSelectedDepts] = useState<string[]>([]);
   const [severity, setSeverity] = useState<string | null>(null);
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
+  const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(false);
+
+  const cameraRef = useRef<HTMLInputElement>(null);
+  const galleryRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.from("departments").select("*").then(({ data }) => {
@@ -47,7 +51,7 @@ function OlayBildirForm() {
     setSending(true);
 
     const { error } = await supabase.from("incidents").insert({
-      department_id: selectedDept || personnel.department_id,
+      department_id: selectedDepts[0] || personnel.department_id,
       reported_by: personnel.id,
       type: selectedType,
       severity,
@@ -63,6 +67,28 @@ function OlayBildirForm() {
       setToast(true);
       setTimeout(() => { setToast(false); router.push("/dashboard"); }, 2000);
     }
+  }
+
+  function toggleDept(id: string) {
+    setSelectedDepts((prev) =>
+      prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
+    );
+  }
+
+  function handlePhotoAdd(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        setPhotos((prev) => [...prev, { file, preview: ev.target?.result as string }]);
+      };
+      reader.readAsDataURL(file);
+    });
+    e.target.value = "";
+  }
+
+  function removePhoto(idx: number) {
+    setPhotos((prev) => prev.filter((_, i) => i !== idx));
   }
 
   const deptIcons: Record<string, string> = { idari: "admin_panel_settings", guvenlik: "security", teknik: "engineering", temizlik: "cleaning_services" };
@@ -103,16 +129,25 @@ function OlayBildirForm() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">İlgili Birimi Seçin</h2>
+          <p className="text-xs text-gray-400 -mt-2">Birden fazla seçebilirsiniz</p>
           <div className="grid grid-cols-2 gap-4">
-            {departments.map(d => (
-              <button key={d.id} onClick={() => setSelectedDept(d.id)}
-                className={`flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border-2 transition-all group ${selectedDept === d.id ? "border-blue-700 bg-blue-50" : "border-transparent hover:border-blue-300"}`}>
-                <div className="w-12 h-12 bg-blue-50 text-blue-700 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
-                  <span className="material-symbols-outlined text-[28px]">{deptIcons[d.slug] || "business"}</span>
-                </div>
-                <span className="text-sm font-semibold">{d.name}</span>
-              </button>
-            ))}
+            {departments.map(d => {
+              const selected = selectedDepts.includes(d.id);
+              return (
+                <button key={d.id} onClick={() => toggleDept(d.id)}
+                  className={`flex flex-col items-center justify-center p-6 bg-white rounded-2xl shadow-sm border-2 transition-all group relative ${selected ? "border-blue-700 bg-blue-50" : "border-transparent hover:border-blue-300"}`}>
+                  {selected && (
+                    <span className="absolute top-2 right-2 w-5 h-5 bg-blue-700 rounded-full flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-[14px]">check</span>
+                    </span>
+                  )}
+                  <div className="w-12 h-12 bg-blue-50 text-blue-700 rounded-full flex items-center justify-center mb-2 group-hover:scale-110 transition-transform">
+                    <span className="material-symbols-outlined text-[28px]">{deptIcons[d.slug] || "business"}</span>
+                  </div>
+                  <span className="text-sm font-semibold">{d.name}</span>
+                </button>
+              );
+            })}
           </div>
         </section>
 
@@ -156,16 +191,35 @@ function OlayBildirForm() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Medya Ekle</h2>
-          <div className="flex gap-6">
-            <button className="flex-1 aspect-square bg-white border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
+
+          {photos.length > 0 && (
+            <div className="flex gap-3 flex-wrap">
+              {photos.map((p, i) => (
+                <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                  <img src={p.preview} alt={`foto-${i}`} className="w-full h-full object-cover" />
+                  <button onClick={() => removePhoto(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center shadow">
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button onClick={() => cameraRef.current?.click()}
+              className="flex-1 py-5 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 text-gray-500 bg-white hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
               <span className="material-symbols-outlined text-[32px]">photo_camera</span>
               <span className="text-xs font-semibold">Fotoğraf Çek</span>
             </button>
-            <button className="flex-1 aspect-square bg-white border-2 border-dashed border-gray-300 rounded-2xl flex flex-col items-center justify-center gap-2 text-gray-500 hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
-              <span className="material-symbols-outlined text-[32px]">videocam</span>
-              <span className="text-xs font-semibold">Video Yükle</span>
+            <button onClick={() => galleryRef.current?.click()}
+              className="flex-1 py-5 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 text-gray-500 bg-white hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
+              <span className="material-symbols-outlined text-[32px]">photo_library</span>
+              <span className="text-xs font-semibold">Galeriden Seç</span>
             </button>
           </div>
+
+          <input ref={cameraRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handlePhotoAdd} />
+          <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
         </section>
       </main>
 
