@@ -111,7 +111,7 @@ function OlayBildirForm() {
         </div>
       </header>
 
-      <main className="px-6 pt-6 space-y-6">
+      <main className="px-6 pt-6 pb-8 space-y-6">
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Olay Türü Seçin</h2>
           <div className="grid grid-cols-2 gap-4">
@@ -223,7 +223,7 @@ function OlayBildirForm() {
         </section>
       </main>
 
-      <div className="sticky bottom-0 w-full bg-white p-6 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] rounded-t-2xl z-50">
+      <div className="sticky bottom-0 w-full bg-white px-6 pt-4 pb-6 shadow-[0_-10px_20px_rgba(0,0,0,0.05)] rounded-t-2xl z-50 mt-4">
         <button onClick={handleSubmit} disabled={sending || !selectedType || !severity || !description}
           className="w-full py-4 bg-blue-800 text-white rounded-full text-2xl font-semibold shadow-lg hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-4 disabled:opacity-50">
           {sending ? <span className="material-symbols-outlined animate-spin">progress_activity</span> : <span className="material-symbols-outlined">send</span>}
