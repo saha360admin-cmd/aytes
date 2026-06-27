@@ -71,8 +71,7 @@ function AuthForm() {
           }
 
           // Yönlendirme
-          if (role === "admin") router.replace("/yonetici");
-          else if (role === "supervisor") router.replace("/amir");
+          if (role === "admin" || role === "supervisor") router.replace("/yonetici");
           else router.replace("/dashboard");
         } else {
           router.replace("/dashboard");

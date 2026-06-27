@@ -111,6 +111,7 @@ export default function PersonelPage() {
   const archived = people.filter((p) => p.status === "archived");
 
   async function updateStatus(id: string, status: string) {
+    if (!isAdmin) return;
     await supabase.from("personnel").update({ status }).eq("id", id);
     setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
   }
@@ -118,13 +119,14 @@ export default function PersonelPage() {
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
+    if (!file.type.startsWith("image/")) return;
     const reader = new FileReader();
     reader.onload = (ev) => setForm((f) => ({ ...f, photoFile: file, photoPreview: ev.target?.result as string }));
     reader.readAsDataURL(file);
   }
 
   async function handleAdd() {
-    if (!form.full_name || !personnel) return;
+    if (!isAdmin || !form.full_name || !personnel) return;
     setSaving(true);
 
     const posObj = POSITIONS.find((p) => p.value === form.position);

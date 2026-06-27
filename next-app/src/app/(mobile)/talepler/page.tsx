@@ -36,6 +36,7 @@ export default function TaleplerPage() {
   function handlePhotoAdd(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     files.forEach((file) => {
+      if (!file.type.startsWith("image/")) return;
       const reader = new FileReader();
       reader.onload = (ev) => {
         setPhotos((prev) => [...prev, { file, preview: ev.target?.result as string }]);
@@ -133,7 +134,7 @@ export default function TaleplerPage() {
         <section className="space-y-6">
           <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100">
             <label className="block text-sm font-semibold text-gray-500 mb-2">Talebiniz Hakkında Detaylar</label>
-            <textarea value={details} onChange={e => setDetails(e.target.value)}
+            <textarea value={details} onChange={e => setDetails(e.target.value.slice(0, 1000))} maxLength={1000}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl p-4 focus:ring-2 focus:ring-blue-700 focus:border-blue-700 outline-none text-base transition-all resize-none"
               placeholder="Talebinizi buraya yazınız..." rows={4} />
             <div className="mt-4 flex items-center gap-2 text-gray-500">

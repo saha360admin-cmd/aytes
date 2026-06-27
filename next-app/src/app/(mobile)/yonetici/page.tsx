@@ -69,7 +69,6 @@ export default function YoneticiPage() {
   useEffect(() => {
     if (!personnel) return;
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    if (personnel.role === "supervisor") { router.replace("/amir"); return; }
     loadData();
   }, [personnel]);
 

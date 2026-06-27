@@ -78,6 +78,7 @@ function OlayBildirForm() {
   function handlePhotoAdd(e: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(e.target.files || []);
     files.forEach((file) => {
+      if (!file.type.startsWith("image/")) return;
       const reader = new FileReader();
       reader.onload = (ev) => {
         setPhotos((prev) => [...prev, { file, preview: ev.target?.result as string }]);
