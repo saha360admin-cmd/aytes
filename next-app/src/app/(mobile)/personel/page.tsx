@@ -129,7 +129,7 @@ export default function PersonelPage() {
       role,
       department_id: personnel.department_id,
       status: "active",
-      auth_id: "00000000-0000-0000-0000-000000000000",
+      auth_id: null,
       ...(avatar_url ? { avatar_url } : {}),
     });
 
