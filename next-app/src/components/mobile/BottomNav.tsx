@@ -20,12 +20,20 @@ const adminItems = [
   { href: "/ayarlar", label: "Profil", icon: "person" },
 ];
 
+const supervisorItems = [
+  { href: "/amir", label: "Panel", icon: "supervisor_account" },
+  { href: "/personel", label: "Ekibim", icon: "group" },
+  { href: "/raporlar", label: "Raporlar", icon: "description" },
+  { href: "/talepler", label: "Talepler", icon: "assignment" },
+  { href: "/ayarlar", label: "Profil", icon: "person" },
+];
+
 export default function BottomNav() {
   const pathname = usePathname();
   const { personnel } = useAuth();
 
-  const isAdmin = personnel?.role === "admin" || personnel?.role === "supervisor";
-  const items = isAdmin ? adminItems : staffItems;
+  const role = personnel?.role;
+  const items = role === "admin" ? adminItems : role === "supervisor" ? supervisorItems : staffItems;
 
   return (
     <nav className="absolute bottom-0 left-0 w-full z-50 bg-white shadow-[0_-2px_10px_rgba(0,0,0,0.05)] flex justify-around items-center pt-2 pb-2 px-1 h-20 rounded-t-2xl">

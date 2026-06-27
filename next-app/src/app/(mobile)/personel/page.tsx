@@ -41,7 +41,7 @@ const POSITIONS = [
   { value: "guvenlik-gorevlisi",  label: "Güvenlik Görevlisi",       role: "personel" },
   { value: "cctv-sorumlusu",      label: "CCTV Güvenlik",            role: "personel" },
   { value: "sabit-guvenlik",      label: "Sabit Güvenlik",           role: "personel" },
-  { value: "guvenlik-sorumlusu",  label: "Güvenlik Sorumlusu",       role: "admin"    },
+  { value: "guvenlik-sorumlusu",  label: "Güvenlik Sorumlusu",       role: "supervisor" },
 ];
 
 interface Person {

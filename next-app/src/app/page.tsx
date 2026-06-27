@@ -24,8 +24,9 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && session && personnel) {
-      const isAdmin = personnel.role === "admin" || personnel.role === "supervisor";
-      router.replace(isAdmin ? "/yonetici" : "/dashboard");
+      if (personnel.role === "admin") router.replace("/yonetici");
+      else if (personnel.role === "supervisor") router.replace("/amir");
+      else router.replace("/dashboard");
     }
   }, [loading, session, personnel, router]);
 
@@ -87,7 +88,7 @@ export default function HomePage() {
             {adminDepts.map(({ slug, label, icon, color }) => (
               <button
                 key={`admin-${slug}`}
-                onClick={() => router.push(`/auth?dept=${slug}`)}
+                onClick={() => router.push(`/auth?dept=${slug}&mode=admin`)}
                 className="w-full flex items-center gap-sm px-md py-sm bg-surface-container-lowest/60 border border-outline-variant/20 rounded-lg hover:bg-surface-container-low active:scale-95 transition-all text-left"
               >
                 <span className={`material-symbols-outlined text-[18px] ${color}`} style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>

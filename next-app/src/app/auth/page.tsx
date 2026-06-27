@@ -6,17 +6,20 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { Loader2 } from "lucide-react";
 
-const deptConfig: Record<string, { name: string; desc: string; icon: string; iconBg: string }> = {
-  idari: { name: "İdari İşler", desc: "İdari Personel Giriş Paneli", icon: "admin_panel_settings", iconBg: "bg-primary-container" },
-  guvenlik: { name: "Güvenlik", desc: "Güvenlik Personeli Giriş Paneli", icon: "security", iconBg: "bg-primary-container" },
-  teknik: { name: "Teknik", desc: "Teknik Personel Giriş Paneli", icon: "engineering", iconBg: "bg-tertiary-container" },
-  temizlik: { name: "Temizlik", desc: "Temizlik Personeli Giriş Paneli", icon: "cleaning_services", iconBg: "bg-primary-container" },
+const deptConfig: Record<string, { name: string; icon: string; iconBg: string }> = {
+  idari:    { name: "İdari İşler",  icon: "admin_panel_settings", iconBg: "bg-primary-container" },
+  guvenlik: { name: "Güvenlik",     icon: "security",             iconBg: "bg-primary-container" },
+  teknik:   { name: "Teknik",       icon: "engineering",          iconBg: "bg-tertiary-container" },
+  temizlik: { name: "Temizlik",     icon: "cleaning_services",    iconBg: "bg-primary-container" },
 };
 
 function AuthForm() {
   const params = useSearchParams();
   const dept = params.get("dept") || "idari";
+  const mode = params.get("mode") || "staff"; // "staff" | "admin"
   const config = deptConfig[dept] || deptConfig.idari;
+  const isAdminMode = mode === "admin";
+
   const router = useRouter();
   const { signIn, signUp } = useAuth();
 
@@ -48,8 +51,29 @@ function AuthForm() {
             .select("role")
             .eq("auth_id", user.id)
             .single();
-          const isAdmin = p?.role === "admin" || p?.role === "supervisor";
-          router.replace(isAdmin ? "/yonetici" : "/dashboard");
+
+          const role = p?.role;
+
+          if (isAdminMode) {
+            // Yönetici girişi: sadece admin veya supervisor girebilir
+            if (role !== "admin" && role !== "supervisor") {
+              await supabase.auth.signOut();
+              setError("Bu giriş paneli yalnızca yöneticilere açıktır.");
+              return;
+            }
+          } else {
+            // Personel girişi: sadece personel girebilir
+            if (role === "admin" || role === "supervisor") {
+              await supabase.auth.signOut();
+              setError("Yönetici hesabınızla yönetici girişini kullanınız.");
+              return;
+            }
+          }
+
+          // Yönlendirme
+          if (role === "admin") router.replace("/yonetici");
+          else if (role === "supervisor") router.replace("/amir");
+          else router.replace("/dashboard");
         } else {
           router.replace("/dashboard");
         }
@@ -61,9 +85,11 @@ function AuthForm() {
     }
   }
 
+  const panelTitle = isAdminMode ? `${config.name} Yönetici Girişi` : `${config.name} Personel Girişi`;
+  const panelDesc = isAdminMode ? "Bu panel yalnızca yetkili yöneticilere açıktır." : "Personel giriş paneli";
+
   return (
     <div className="bg-background min-h-screen flex flex-col justify-center items-center p-margin-mobile">
-      {/* Atmosferik Arkaplan */}
       <div className="fixed inset-0 z-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-[10%] -left-[10%] w-[40%] h-[40%] rounded-full bg-primary/5 blur-[120px]" />
         <div className="absolute bottom-[5%] right-[5%] w-[30%] h-[30%] rounded-full bg-secondary-container/10 blur-[100px]" />
@@ -72,11 +98,22 @@ function AuthForm() {
       <main className="relative z-10 w-full max-w-md animate-fade-up">
         {/* Logo ve Markalama */}
         <div className="flex flex-col items-center mb-xl">
-          <div className={`w-16 h-16 ${config.iconBg} rounded-2xl flex items-center justify-center mb-md shadow-sm`}>
+          <div className={`w-16 h-16 ${config.iconBg} rounded-2xl flex items-center justify-center mb-md shadow-sm relative`}>
             <span className="material-symbols-outlined text-on-primary-container text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>{config.icon}</span>
+            {isAdminMode && (
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                <span className="material-symbols-outlined text-white text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>star</span>
+              </span>
+            )}
           </div>
           <h1 className="font-display text-headline-lg-mobile text-primary mb-xs">AYTES Personel</h1>
-          <p className="font-label-md text-on-surface-variant">{config.desc}</p>
+          <p className="font-label-md text-on-surface-variant text-center">{panelTitle}</p>
+          {isAdminMode && (
+            <div className="mt-sm flex items-center gap-xs bg-amber-50 border border-amber-200 px-md py-xs rounded-full">
+              <span className="material-symbols-outlined text-amber-600 text-[14px]">lock</span>
+              <span className="text-[11px] font-semibold text-amber-700">Yetkili Personel Girişi</span>
+            </div>
+          )}
         </div>
 
         {/* Giriş Kartı */}
@@ -147,7 +184,12 @@ function AuthForm() {
               </div>
             )}
 
-            {error && <p className="text-error text-label-sm font-semibold text-center">{error}</p>}
+            {error && (
+              <div className="flex items-center gap-sm bg-error/10 border border-error/30 rounded-md px-md py-sm">
+                <span className="material-symbols-outlined text-error text-[18px]">error</span>
+                <p className="text-error text-label-sm font-semibold">{error}</p>
+              </div>
+            )}
 
             <button
               type="submit"
@@ -187,7 +229,6 @@ function AuthForm() {
           </div>
         </section>
 
-        {/* Footer */}
         <footer className="mt-xl text-center">
           <p className="font-label-sm text-outline">AYTES Yönetim Sistemi v2.4.0</p>
           <p className="font-label-sm text-outline-variant mt-xs">© 2024 Tüm Hakları Saklıdır</p>
