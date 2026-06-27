@@ -287,6 +287,25 @@ export default function DevriyePage() {
           );
         })()}
 
+        {/* Hızlı Aksiyonlar */}
+        <section className="grid grid-cols-2 gap-3">
+          <button
+            onClick={() => router.push(`/olay-bildir?patrol_id=${patrol.id}`)}
+            className="flex items-center justify-center gap-2 py-4 rounded-2xl bg-blue-800 text-white font-bold text-sm active:scale-95 transition-all shadow-sm"
+          >
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>report</span>
+            Olay Bildir
+          </button>
+          <button
+            onClick={() => {}}
+            className="relative flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-all shadow-sm overflow-hidden"
+          >
+            <span className="absolute inset-0 rounded-2xl animate-ping bg-red-400 opacity-30" />
+            <span className="relative material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
+            <span className="relative">SOS</span>
+          </button>
+        </section>
+
         {/* Checkpoints */}
         <section className="space-y-4">
           <div className="flex justify-between items-center">
@@ -356,11 +375,6 @@ export default function DevriyePage() {
         </button>
       </div>
 
-      {/* Floating Incident */}
-      <button onClick={() => router.push(`/olay-bildir?patrol_id=${patrol.id}`)}
-        className="fixed bottom-32 right-4 w-14 h-14 bg-red-600 rounded-full shadow-2xl flex items-center justify-center text-white active:scale-90 transition-transform z-40">
-        <span className="material-symbols-outlined text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>report</span>
-      </button>
     </div>
   );
 }
