@@ -204,10 +204,16 @@ export default function TaleplerPage() {
           </section>
         )}
 
-        <div className="mt-12 relative h-40 w-full overflow-hidden rounded-2xl bg-blue-100/50 flex items-center justify-center">
-          <div className="text-center px-6">
-            <p className="text-sm font-bold text-blue-800">7/24 Personel Destek Hattı</p>
-            <p className="text-base text-gray-700">Yardıma mı ihtiyacınız var? Destek ekibimiz her zaman yanınızda.</p>
+        <div className="mt-12 rounded-2xl border border-amber-200 bg-amber-50 p-5 flex gap-4">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center mt-0.5">
+            <span className="material-symbols-outlined text-amber-600 text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>gavel</span>
+          </div>
+          <div className="space-y-1.5">
+            <p className="text-sm font-bold text-amber-800">Yasal Mevzuat Bilgisi</p>
+            <p className="text-xs text-amber-700 leading-relaxed">
+              Buradan yapacağınız talepler <span className="font-semibold">hızlı bilgilendirme</span> amaçlıdır. 4857 Sayılı İş Kanunu kapsamındaki izin, istifa ve benzeri resmi taleplerinizin <span className="font-semibold">yazılı dilekçe</span> ile insan kaynakları birimine iletilmesi zorunludur.
+            </p>
+            <p className="text-[11px] text-amber-600 font-semibold pt-0.5">İş K. Md. 56 · Md. 17 · Md. 19</p>
           </div>
         </div>
       </main>
