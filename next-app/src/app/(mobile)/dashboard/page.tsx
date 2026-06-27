@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { Task, Announcement, Shift } from "@/lib/types";
 
 export default function DashboardPage() {
   const { personnel } = useAuth();
+  const router = useRouter();
   const [shift, setShift] = useState<Shift | null>(null);
   const [patrolStatus, setPatrolStatus] = useState({ completed: 0, total: 0, hasActive: false });
   const [pendingIncidents, setPendingIncidents] = useState(0);
@@ -17,6 +19,8 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!personnel) return;
+    if (personnel.role === "admin") { router.replace("/yonetici"); return; }
+    if (personnel.role === "supervisor") { router.replace("/amir"); return; }
     loadDashboard();
   }, [personnel]);
 
@@ -26,7 +30,7 @@ export default function DashboardPage() {
     const pId = personnel.id;
 
     const [shiftRes, patrolRes, incidentRes, taskRes, annRes] = await Promise.all([
-      supabase.from("shifts").select("*").eq("department_id", deptId).limit(1).single(),
+      supabase.from("shifts").select("*").eq("department_id", deptId).limit(1).maybeSingle(),
       supabase.from("patrols").select("*").eq("personnel_id", pId).eq("status", "active").limit(1).maybeSingle(),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "open"),
       supabase.from("tasks").select("*, assigned:assigned_to(full_name)").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
@@ -54,7 +58,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="bg-[#f0f2ff] min-h-screen pb-8">
+    <div className="bg-[#f0f2ff] min-h-screen pb-28">
       {/* Gradyan Header */}
       <header className="sticky top-0 w-full z-40 h-16 flex justify-between items-center px-6"
         style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>

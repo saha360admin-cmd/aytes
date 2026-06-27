@@ -110,13 +110,14 @@ export default function DevriyePage() {
       .from("patrols")
       .select("*")
       .eq("personnel_id", personnel.id)
-      .eq("status", "active")
+      .in("status", ["active", "paused"])
       .order("created_at", { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (data) {
       setPatrol(data);
+      if (data.status === "paused") setPaused(true);
       const elapsed = Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000);
       setSeconds(elapsed);
       const { data: cps } = await supabase
