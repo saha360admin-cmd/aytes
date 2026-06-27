@@ -17,11 +17,24 @@ function toTitleCase(value: string) {
 }
 
 const LOCATIONS = [
-  "A Lokasyonu", "B Lokasyonu", "C Lokasyonu", "D Lokasyonu",
-  "E Lokasyonu", "F Lokasyonu", "G Lokasyonu", "H Lokasyonu",
-  "I Lokasyonu", "J Lokasyonu", "K Lokasyonu", "L Lokasyonu",
-  "M Lokasyonu", "N Lokasyonu", "O Lokasyonu", "P Lokasyonu",
-  "R Lokasyonu", "S Lokasyonu",
+  "Genel Müdürlük",
+  "Beykoz Operasyon Merkezi",
+  "Yunus Eğitim Merkezi",
+  "Tuzla-Pendik Operasyon Merkezi (Tavşantepe)",
+  "Marmara (Kartal) Dağıtım Op. Bölge Md.lüğü",
+  "Üsküdar Operasyon Merkezi",
+  "Kurtköy Operasyon Merkezi",
+  "Kadıköy Operasyon Merkezi",
+  "Karadeniz (Sancaktepe) Dağıtım Op. Bölge Md.",
+  "Erenköy Operasyon Merkezi",
+  "Şile Ova İndiricı Merkezi",
+  "Vaniköy Operasyon Merkezi",
+  "SCADA Operasyon Kontrol Merkezi",
+  "Ümraniye Operasyon Merkezi",
+  "Ataşehir Trafo Merkezi",
+  "Şile Merkez Operasyon Müdürlüğü",
+  "Pendik LHM",
+  "İstanbul Anadolu Yakası Elektrik Dağıtım Dudullu",
 ];
 
 const POSITIONS = [
