@@ -53,6 +53,7 @@ const statusLabel: Record<string, string> = {
   active: "Aktif",
   inactive: "Pasif",
   on_leave: "İzinli",
+  archived: "Arşiv",
 };
 
 const emptyForm = {
@@ -69,6 +70,7 @@ export default function PersonelPage() {
   const [people, setPeople] = useState<Person[]>([]);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
@@ -86,10 +88,14 @@ export default function PersonelPage() {
       .then(({ data }) => setPeople(data || []));
   }, [personnel]);
 
-  const filtered = people.filter((p) =>
-    p.full_name.toLowerCase().includes(search.toLowerCase()) ||
-    p.email?.toLowerCase().includes(search.toLowerCase())
+  const activeFiltered = people.filter(
+    (p) =>
+      p.status !== "archived" &&
+      (p.full_name.toLowerCase().includes(search.toLowerCase()) ||
+        p.email?.toLowerCase().includes(search.toLowerCase()))
   );
+
+  const archived = people.filter((p) => p.status === "archived");
 
   async function updateStatus(id: string, status: string) {
     await supabase.from("personnel").update({ status }).eq("id", id);
@@ -180,11 +186,12 @@ export default function PersonelPage() {
           />
         </div>
 
+        {/* Aktif Personel Listesi */}
         <div className="space-y-md">
-          {filtered.length === 0 ? (
+          {activeFiltered.length === 0 ? (
             <p className="text-center text-on-surface-variant py-xxl">Personel bulunamadı</p>
           ) : (
-            filtered.map((p) => {
+            activeFiltered.map((p) => {
               const isActive = p.status === "active";
               return (
                 <div key={p.id} className={`bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant flex flex-col gap-md ${!isActive ? "opacity-75" : ""}`}>
@@ -222,17 +229,20 @@ export default function PersonelPage() {
                     <div className="flex gap-sm pt-xs">
                       <button
                         className={`flex-1 py-2.5 rounded-full text-label-md font-label-md active:scale-95 transition-all ${
-                          isActive ? "bg-surface-container-highest text-on-surface-variant hover:bg-error-container hover:text-on-error-container" : "bg-primary text-on-primary"
+                          isActive
+                            ? "bg-surface-container-highest text-on-surface-variant hover:bg-error-container hover:text-on-error-container"
+                            : "bg-primary text-on-primary"
                         }`}
                         onClick={() => updateStatus(p.id, isActive ? "inactive" : "active")}
                       >
                         {isActive ? "Yetkiyi Kapat" : "Yetkiyi Aç"}
                       </button>
                       <button
-                        className="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full text-label-md font-label-md hover:bg-surface-container-high active:scale-95 transition-all"
-                        onClick={() => updateStatus(p.id, "on_leave")}
+                        className="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full text-label-md font-label-md hover:bg-error-container hover:text-on-error-container active:scale-95 transition-all flex items-center justify-center gap-xs"
+                        onClick={() => updateStatus(p.id, "archived")}
                       >
-                        İzne Al
+                        <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                        Arşiv Ekle
                       </button>
                     </div>
                   )}
@@ -241,6 +251,71 @@ export default function PersonelPage() {
             })
           )}
         </div>
+
+        {/* Arşiv Bölümü */}
+        {archived.length > 0 && (
+          <div className="mt-lg">
+            <button
+              onClick={() => setArchiveOpen((v) => !v)}
+              className="w-full flex items-center justify-between px-md py-sm bg-surface-container-low rounded-xl border border-outline-variant active:bg-surface-container-high transition-colors"
+            >
+              <div className="flex items-center gap-sm">
+                <span className="material-symbols-outlined text-on-surface-variant text-[20px]">inventory_2</span>
+                <span className="font-semibold text-on-surface-variant text-sm">Arşiv</span>
+                <span className="bg-surface-container-highest text-on-surface-variant text-xs font-bold px-2 py-0.5 rounded-full">
+                  {archived.length}
+                </span>
+              </div>
+              <span className="material-symbols-outlined text-on-surface-variant text-[20px]">
+                {archiveOpen ? "expand_less" : "expand_more"}
+              </span>
+            </button>
+
+            {archiveOpen && (
+              <div className="space-y-md mt-md">
+                {archived.map((p) => (
+                  <div key={p.id} className="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-outline-variant flex flex-col gap-md opacity-60 grayscale">
+                    <div className="flex items-center gap-md">
+                      <div className="w-14 h-14 rounded-full bg-surface-container-high flex-shrink-0 overflow-hidden">
+                        {p.avatar_url ? (
+                          <img src={p.avatar_url} alt={p.full_name} className="w-full h-full object-cover" />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-on-surface-variant font-bold text-lg">
+                            {getInitials(p.full_name)}
+                          </div>
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-semibold text-on-surface-variant text-[16px] truncate line-through">{p.full_name}</h3>
+                        <p className="text-label-sm font-label-sm text-outline">
+                          {getPositionLabel(p.position) || roleLabel[p.role] || p.role}
+                        </p>
+                        {p.location && (
+                          <p className="text-label-sm font-label-sm text-outline flex items-center gap-xs mt-0.5">
+                            <span className="material-symbols-outlined" style={{ fontSize: "12px" }}>location_on</span>
+                            {p.location}
+                          </p>
+                        )}
+                      </div>
+                      <span className="px-3 py-1 rounded-full text-label-sm font-label-sm bg-surface-container-highest text-on-surface-variant flex-shrink-0">
+                        Arşiv
+                      </span>
+                    </div>
+                    {isAdmin && (
+                      <button
+                        className="w-full py-2.5 rounded-full text-label-md font-label-md bg-surface-container-low text-on-surface-variant hover:bg-primary hover:text-on-primary active:scale-95 transition-all flex items-center justify-center gap-xs"
+                        onClick={() => updateStatus(p.id, "active")}
+                      >
+                        <span className="material-symbols-outlined text-[16px]">unarchive</span>
+                        Arşivden Çıkar
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </main>
 
       {/* FAB */}
