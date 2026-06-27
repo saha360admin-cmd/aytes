@@ -125,6 +125,10 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined">calendar_today</span>
               Vardiyalar
             </Link>
+            <Link href="/vardiya-olustur" className="w-full bg-gray-200 text-gray-600 py-4 px-6 rounded-full flex items-center justify-center gap-3 text-sm font-semibold hover:bg-gray-300 active:scale-95 transition-all">
+              <span className="material-symbols-outlined">edit_calendar</span>
+              Vardiyalar
+            </Link>
           </div>
         </section>
 
