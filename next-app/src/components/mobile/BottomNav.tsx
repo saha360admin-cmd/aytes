@@ -6,6 +6,7 @@ import { useAuth } from "@/context/AuthContext";
 
 const staffItems = [
   { href: "/dashboard", label: "Ana Sayfa", icon: "home" },
+  { href: "/vardiyalar", label: "Vardiyam", icon: "calendar_month" },
   { href: "/devriye", label: "Devriye", icon: "route" },
   { href: "/raporlar", label: "Raporlar", icon: "description" },
   { href: "/talepler", label: "Talepler", icon: "assignment" },
@@ -43,7 +44,7 @@ export default function BottomNav() {
           <Link
             key={href}
             href={href}
-            className={`flex flex-col items-center justify-center px-3 py-1 rounded-2xl active:scale-90 transition-all duration-200 ${
+            className={`flex flex-col items-center justify-center px-2 py-1 rounded-2xl active:scale-90 transition-all duration-200 ${
               active ? "bg-blue-700 text-white" : "text-gray-500 hover:bg-gray-100"
             }`}
           >
