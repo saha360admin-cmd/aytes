@@ -44,6 +44,11 @@ const POSITIONS = [
   { value: "guvenlik-sorumlusu",  label: "Güvenlik Sorumlusu",       role: "supervisor" },
 ];
 
+interface Location {
+  id: string;
+  name: string;
+}
+
 interface Person {
   id: string;
   full_name: string;
@@ -53,6 +58,7 @@ interface Person {
   avatar_url: string | null;
   phone: string | null;
   location: string | null;
+  location_id: string | null;
   position: string | null;
 }
 
@@ -81,12 +87,14 @@ const emptyForm = {
 export default function PersonelPage() {
   const { personnel } = useAuth();
   const [people, setPeople] = useState<Person[]>([]);
+  const [locations, setLocations] = useState<Location[]>([]);
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
   const [archiveOpen, setArchiveOpen] = useState(false);
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState({ ...emptyForm, location_id: "" });
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [updatingLocId, setUpdatingLocId] = useState<string | null>(null);
 
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
@@ -95,10 +103,16 @@ export default function PersonelPage() {
     if (!personnel) return;
     supabase
       .from("personnel")
-      .select("id, full_name, email, role, status, avatar_url, phone, location, position")
+      .select("id, full_name, email, role, status, avatar_url, phone, location, location_id, position")
       .eq("department_id", personnel.department_id)
       .order("full_name")
-      .then(({ data }) => setPeople(data || []));
+      .then(({ data }) => setPeople((data || []) as Person[]));
+    supabase
+      .from("locations")
+      .select("id, name")
+      .eq("department_id", personnel.department_id)
+      .order("name")
+      .then(({ data }) => setLocations((data || []) as Location[]));
   }, [personnel]);
 
   const activeFiltered = people.filter(
@@ -114,6 +128,14 @@ export default function PersonelPage() {
     if (!isAdmin) return;
     await supabase.from("personnel").update({ status }).eq("id", id);
     setPeople((prev) => prev.map((p) => (p.id === id ? { ...p, status } : p)));
+  }
+
+  async function updateLocationId(personId: string, locId: string | null) {
+    if (!isAdmin) return;
+    setUpdatingLocId(personId);
+    await supabase.from("personnel").update({ location_id: locId || null }).eq("id", personId);
+    setPeople((prev) => prev.map((p) => (p.id === personId ? { ...p, location_id: locId } : p)));
+    setUpdatingLocId(null);
   }
 
   function handlePhotoChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -147,6 +169,7 @@ export default function PersonelPage() {
       phone: form.phone,
       position: form.position,
       location: form.location || null,
+      location_id: (form as any).location_id || null,
       role,
       department_id: personnel.department_id,
       status: "active",
@@ -158,11 +181,11 @@ export default function PersonelPage() {
     if (!error) {
       const { data } = await supabase
         .from("personnel")
-        .select("id, full_name, email, role, status, avatar_url, phone, location, position")
+        .select("id, full_name, email, role, status, avatar_url, phone, location, location_id, position")
         .eq("department_id", personnel.department_id)
         .order("full_name");
-      setPeople(data || []);
-      setForm(emptyForm);
+      setPeople((data || []) as Person[]);
+      setForm({ ...emptyForm, location_id: "" });
       setModalOpen(false);
       setToast("Personel başarıyla eklendi!");
       setTimeout(() => setToast(""), 3000);
@@ -243,24 +266,41 @@ export default function PersonelPage() {
                     </span>
                   </div>
                   {isAdmin && (
-                    <div className="flex gap-sm pt-xs">
-                      <button
-                        className={`flex-1 py-2.5 rounded-full text-label-md font-label-md active:scale-95 transition-all ${
-                          isActive
-                            ? "bg-surface-container-highest text-on-surface-variant hover:bg-error-container hover:text-on-error-container"
-                            : "bg-primary text-on-primary"
-                        }`}
-                        onClick={() => updateStatus(p.id, isActive ? "inactive" : "active")}
-                      >
-                        {isActive ? "Yetkiyi Kapat" : "Yetkiyi Aç"}
-                      </button>
-                      <button
-                        className="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full text-label-md font-label-md hover:bg-error-container hover:text-on-error-container active:scale-95 transition-all flex items-center justify-center gap-xs"
-                        onClick={() => updateStatus(p.id, "archived")}
-                      >
-                        <span className="material-symbols-outlined text-[16px]">inventory_2</span>
-                        Arşiv Ekle
-                      </button>
+                    <div className="space-y-2 pt-xs">
+                      {/* Lokasyon ata */}
+                      <div className="relative">
+                        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[16px] text-gray-400 pointer-events-none">location_on</span>
+                        <select
+                          value={p.location_id || ""}
+                          onChange={(e) => updateLocationId(p.id, e.target.value || null)}
+                          disabled={updatingLocId === p.id}
+                          className="w-full pl-8 pr-8 py-2 bg-gray-50 border border-gray-200 rounded-xl text-xs font-semibold text-gray-700 appearance-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent outline-none disabled:opacity-50">
+                          <option value="">— Lokasyon Ata —</option>
+                          {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                        </select>
+                        <span className="material-symbols-outlined absolute right-2 top-1/2 -translate-y-1/2 text-[16px] text-gray-400 pointer-events-none">
+                          {updatingLocId === p.id ? "progress_activity" : "expand_more"}
+                        </span>
+                      </div>
+                      <div className="flex gap-sm">
+                        <button
+                          className={`flex-1 py-2.5 rounded-full text-label-md font-label-md active:scale-95 transition-all ${
+                            isActive
+                              ? "bg-surface-container-highest text-on-surface-variant hover:bg-error-container hover:text-on-error-container"
+                              : "bg-primary text-on-primary"
+                          }`}
+                          onClick={() => updateStatus(p.id, isActive ? "inactive" : "active")}
+                        >
+                          {isActive ? "Yetkiyi Kapat" : "Yetkiyi Aç"}
+                        </button>
+                        <button
+                          className="flex-1 bg-surface-container-low text-on-surface-variant py-2.5 rounded-full text-label-md font-label-md hover:bg-error-container hover:text-on-error-container active:scale-95 transition-all flex items-center justify-center gap-xs"
+                          onClick={() => updateStatus(p.id, "archived")}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">inventory_2</span>
+                          Arşiv Ekle
+                        </button>
+                      </div>
                     </div>
                   )}
                 </div>
@@ -446,12 +486,12 @@ export default function PersonelPage() {
                   <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">location_on</span>
                   <select
                     className="w-full pl-12 pr-10 py-md bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all appearance-none"
-                    value={form.location}
-                    onChange={(e) => setForm({ ...form, location: e.target.value })}
+                    value={(form as any).location_id || ""}
+                    onChange={(e) => setForm({ ...form, location_id: e.target.value } as any)}
                   >
                     <option value="">Lokasyon Seçiniz</option>
-                    {LOCATIONS.map((loc) => (
-                      <option key={loc} value={loc}>{loc}</option>
+                    {locations.map((loc) => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
                     ))}
                   </select>
                   <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
