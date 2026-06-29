@@ -160,6 +160,13 @@ export default function VardiyalarPage() {
     return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   });
 
+  const overtimeHours = thisMonth.reduce((total, a) => {
+    const code = a.shift_code;
+    if (code === "5" || code === "6") return total + 3.5;
+    if (code === "7" || code === "8") return total + 7.5;
+    return total;
+  }, 0);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -381,8 +388,8 @@ export default function VardiyalarPage() {
             </div>
             <div className="bg-surface-container-lowest rounded-xl shadow-md p-2 flex flex-col items-center justify-center gap-2 border-b-4 border-tertiary">
               <span className="material-symbols-outlined text-tertiary text-[24px]">more_time</span>
-              <span className="text-headline-md font-bold text-tertiary">{thisMonth.length}</span>
-              <span className="text-label-sm text-on-surface-variant text-center">Bu Ay Toplam</span>
+              <span className="text-headline-md font-bold text-tertiary">{overtimeHours}</span>
+              <span className="text-label-sm text-on-surface-variant text-center">Fazla Mesai</span>
             </div>
           </div>
 
@@ -425,7 +432,7 @@ export default function VardiyalarPage() {
               shadow: "shadow-tertiary/20",
               label: "Yapılan Mesai",
               sub: "Yıllık toplam",
-              value: `${thisMonth.length * 8} Saat`,
+              value: `${overtimeHours} Saat`,
               valueClass: "text-tertiary",
             },
             {
