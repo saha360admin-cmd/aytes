@@ -309,60 +309,64 @@ export default function YoneticiPage() {
           </div>
         </section>
 
-        {/* ── BEKLEYEN TALEPLER ── */}
-        <section className="space-y-3">
-          <div className="flex justify-between items-center">
+        {/* ── BEKLEYEN TALEPLER ÖZET ── */}
+        <section>
+          <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-orange-600 text-[16px]">pending_actions</span>
               </div>
               <h3 className="font-bold text-gray-800">Bekleyen Talepler</h3>
-              {pendingRequestsList.length > 0 && (
-                <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{pendingRequestsList.length}</span>
+              {stats.pendingRequests > 0 && (
+                <span className="bg-orange-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{stats.pendingRequests}</span>
               )}
             </div>
-            <Link href="/talepler" className="text-xs font-bold text-[#3949AB]">Tümü →</Link>
+            <Link href="/yonetici/talepler" className="text-xs font-bold text-[#3949AB]">Tümü →</Link>
           </div>
 
           {pendingRequestsList.length === 0 ? (
-            <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-              <span className="material-symbols-outlined text-gray-300 text-[36px] block mb-2">inbox</span>
-              <p className="text-sm text-gray-400">Bekleyen talep yok</p>
+            <div className="bg-white rounded-xl p-5 text-center shadow-sm">
+              <span className="material-symbols-outlined text-gray-300 text-[32px] block mb-1">inbox</span>
+              <p className="text-sm text-gray-400 font-semibold">Bekleyen talep yok</p>
             </div>
           ) : (
-            pendingRequestsList.map((req) => (
-              <div key={req.id} className="bg-white rounded-xl shadow-sm border-l-4 border-l-[#FF9800] p-4">
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <p className="font-bold text-gray-800 text-sm">{req.requester?.full_name || "Bilinmiyor"}</p>
-                    <p className="text-xs text-[#FF9800] font-semibold mt-0.5">{typeLabels[req.type] || req.type}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{timeAgo(req.created_at)}</p>
-                  </div>
-                  <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-1 rounded-full flex-shrink-0">Bekliyor</span>
-                </div>
-                {req.details && (
-                  <p className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 mb-3 line-clamp-2">{req.details}</p>
-                )}
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleRequest(req.id, "approved")}
-                    disabled={updatingReq === req.id}
-                    className="flex-1 py-2.5 bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
-                    {updatingReq === req.id
-                      ? <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-                      : <span className="material-symbols-outlined text-[16px]">check</span>}
-                    Onayla
-                  </button>
-                  <button
-                    onClick={() => handleRequest(req.id, "rejected")}
-                    disabled={updatingReq === req.id}
-                    className="flex-1 py-2.5 bg-red-100 text-red-600 text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all border border-red-200 disabled:opacity-50">
-                    <span className="material-symbols-outlined text-[16px]">close</span>
-                    Reddet
-                  </button>
-                </div>
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              {/* Tip dağılımı */}
+              <div className="grid grid-cols-4 divide-x divide-gray-100 border-b border-gray-100">
+                {(["annual","unpaid","medical","other"] as const).map(t => {
+                  const count = pendingRequestsList.filter(r => r.type === t).length;
+                  return (
+                    <div key={t} className="flex flex-col items-center py-3 gap-0.5">
+                      <span className="text-lg font-bold text-gray-800">{count}</span>
+                      <span className="text-[9px] font-semibold text-gray-400 text-center leading-tight px-1">
+                        {t === "annual" ? "Yıllık" : t === "unpaid" ? "Ücretsiz" : t === "medical" ? "Doktor" : "Diğer"}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
-            ))
+              {/* Son 2 talep önizleme */}
+              <div className="divide-y divide-gray-50">
+                {pendingRequestsList.slice(0, 2).map(req => (
+                  <div key={req.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className="w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center flex-shrink-0">
+                      <span className="material-symbols-outlined text-orange-600 text-[16px]">person</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800 truncate">{req.requester?.full_name || "Bilinmiyor"}</p>
+                      <p className="text-xs text-orange-500 font-semibold">{typeLabels[req.type] || req.type} · {timeAgo(req.created_at)}</p>
+                    </div>
+                    <span className="bg-amber-100 text-amber-700 text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0">Bekliyor</span>
+                  </div>
+                ))}
+              </div>
+              {pendingRequestsList.length > 2 && (
+                <Link href="/yonetici/talepler" className="flex items-center justify-center gap-1 py-3 text-xs font-bold text-[#3949AB] border-t border-gray-100">
+                  +{pendingRequestsList.length - 2} talep daha · Tümünü Gör
+                  <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+                </Link>
+              )}
+            </div>
           )}
         </section>
 
@@ -416,48 +420,62 @@ export default function YoneticiPage() {
           )}
         </section>
 
-        {/* ── SON OLAYLAR / RAPORLAR ── */}
-        <section className="space-y-3">
-          <div className="flex justify-between items-center">
+        {/* ── SON OLAYLAR ÖZET ── */}
+        <section>
+          <div className="flex justify-between items-center mb-3">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-red-600 text-[16px]">assignment_late</span>
               </div>
               <h3 className="font-bold text-gray-800">Son Olaylar</h3>
+              {stats.openIncidents > 0 && (
+                <span className="bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{stats.openIncidents}</span>
+              )}
             </div>
-            <Link href="/raporlar" className="text-xs font-bold text-[#3949AB]">Tümü →</Link>
+            <Link href="/yonetici/olaylar" className="text-xs font-bold text-[#3949AB]">Tümü →</Link>
           </div>
 
           {recentIncidents.length === 0 ? (
-            <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-              <span className="material-symbols-outlined text-gray-300 text-[36px] block mb-2">assignment</span>
-              <p className="text-sm text-gray-400">Henüz olay raporu yok</p>
+            <div className="bg-white rounded-xl p-5 text-center shadow-sm">
+              <span className="material-symbols-outlined text-gray-300 text-[32px] block mb-1">assignment</span>
+              <p className="text-sm text-gray-400 font-semibold">Henüz olay raporu yok</p>
             </div>
           ) : (
-            recentIncidents.map((inc) => (
-              <div key={inc.id} className="bg-white rounded-xl shadow-sm border-l-4 border-l-[#EF5350] p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-gray-800 text-sm truncate">{inc.title || inc.type}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {(inc.reporter as any)?.full_name || "Bilinmiyor"} • {timeAgo(inc.created_at)}
-                      {inc.location ? ` • ${inc.location}` : ""}
-                    </p>
-                    {inc.description && (
-                      <p className="text-xs text-gray-500 mt-1.5 line-clamp-2">{inc.description}</p>
-                    )}
-                  </div>
-                  <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-full ${severityColor[inc.severity] || "bg-gray-100 text-gray-600"}`}>
-                    {inc.severity === "low" ? "Düşük" : inc.severity === "medium" ? "Orta" : inc.severity === "high" ? "Yüksek" : inc.severity}
-                  </span>
-                </div>
-                <div className="mt-2 flex justify-between items-center">
-                  <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${inc.status === "open" ? "bg-red-100 text-red-600" : inc.status === "in_progress" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                    {inc.status === "open" ? "Açık" : inc.status === "in_progress" ? "İnceleniyor" : "Kapalı"}
-                  </span>
-                </div>
+            <div className="bg-white rounded-xl shadow-sm overflow-hidden">
+              {/* Şiddet dağılımı */}
+              <div className="grid grid-cols-3 divide-x divide-gray-100 border-b border-gray-100">
+                {([["high","Yüksek","text-red-600","bg-red-50"],["medium","Orta","text-amber-600","bg-amber-50"],["low","Düşük","text-emerald-600","bg-emerald-50"]] as const).map(([sev, label, tc, bg]) => {
+                  const count = recentIncidents.filter(i => i.severity === sev).length;
+                  return (
+                    <div key={sev} className={`flex flex-col items-center py-3 gap-0.5 ${bg}`}>
+                      <span className={`text-lg font-bold ${tc}`}>{count}</span>
+                      <span className={`text-[10px] font-semibold ${tc}`}>{label}</span>
+                    </div>
+                  );
+                })}
               </div>
-            ))
+              {/* Son 2 olay önizleme */}
+              <div className="divide-y divide-gray-50">
+                {recentIncidents.slice(0, 2).map(inc => (
+                  <div key={inc.id} className="flex items-center gap-3 px-4 py-3">
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${inc.severity === "high" ? "bg-red-100" : inc.severity === "medium" ? "bg-amber-100" : "bg-emerald-100"}`}>
+                      <span className={`material-symbols-outlined text-[16px] ${inc.severity === "high" ? "text-red-600" : inc.severity === "medium" ? "text-amber-600" : "text-emerald-600"}`}>warning</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-gray-800 truncate">{inc.title || inc.type}</p>
+                      <p className="text-xs text-gray-400 font-semibold">{(inc.reporter as any)?.full_name || "Bilinmiyor"} · {timeAgo(inc.created_at)}</p>
+                    </div>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${inc.status === "open" ? "bg-red-100 text-red-600" : inc.status === "in_progress" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                      {inc.status === "open" ? "Açık" : inc.status === "in_progress" ? "İnceleniyor" : "Kapalı"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/yonetici/olaylar" className="flex items-center justify-center gap-1 py-3 text-xs font-bold text-[#3949AB] border-t border-gray-100">
+                Tüm Olayları Gör
+                <span className="material-symbols-outlined text-[14px]">arrow_forward</span>
+              </Link>
+            </div>
           )}
         </section>
 
