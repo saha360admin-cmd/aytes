@@ -167,6 +167,10 @@ export default function VardiyalarPage() {
     return total;
   }, 0);
 
+  const unpaidLeaveDays  = thisMonth.filter(a => a.shift_code === "T245").length;
+  const annualLeaveDays  = thisMonth.filter(a => a.shift_code === "T216").length;
+  const doctorReportDays = thisMonth.filter(a => a.shift_code === "T241").length;
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-background">
@@ -401,8 +405,8 @@ export default function VardiyalarPage() {
               iconText: "text-on-primary",
               shadow: "shadow-primary/20",
               label: "Ücretsiz İzin",
-              sub: "Bu yıl toplam",
-              value: "—",
+              sub: "Bu ay toplam",
+              value: unpaidLeaveDays > 0 ? `${unpaidLeaveDays} Gün` : "—",
               valueClass: "text-primary",
             },
             {
@@ -411,8 +415,8 @@ export default function VardiyalarPage() {
               iconText: "text-on-primary",
               shadow: "shadow-primary/20",
               label: "Yıllık İzin",
-              sub: "Kalan bakiye",
-              value: "—",
+              sub: "Bu ay toplam",
+              value: annualLeaveDays > 0 ? `${annualLeaveDays} Gün` : "—",
               valueClass: "text-primary",
             },
             {
@@ -421,8 +425,8 @@ export default function VardiyalarPage() {
               iconText: "text-on-error",
               shadow: "shadow-error/20",
               label: "Doktor Raporu",
-              sub: "Bu yıl toplam",
-              value: "—",
+              sub: "Bu ay toplam",
+              value: doctorReportDays > 0 ? `${doctorReportDays} Gün` : "—",
               valueClass: "text-error",
             },
             {
