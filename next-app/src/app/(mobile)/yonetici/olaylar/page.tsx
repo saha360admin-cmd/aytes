@@ -266,7 +266,7 @@ export default function OlaylarPage() {
                   {Array.isArray(inc.photo_urls) && inc.photo_urls.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
                       {inc.photo_urls.map((url, i) => (
-                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                        <a key={i} href={`/api/storage-proxy?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer"
                           className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm block flex-shrink-0">
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
