@@ -10,7 +10,7 @@ interface DeptStatus {
   status: "open" | "in_progress" | "closed";
   note: string | null;
   department_id: string;
-  dept: { name: string; slug: string } | null;
+  dept_name: string;
 }
 
 interface Incident {
@@ -91,52 +91,67 @@ export default function OlaylarPage() {
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
 
-    // 1. Kendi birim kayıtlarını al
-    const { data: myRecs } = await supabase
+    // 1. Tüm incident_departments'ı tab statusuna göre çek (birim filtresi yok)
+    const { data: allRecs } = await supabase
       .from("incident_departments")
-      .select("id, status, note, incident_id")
-      .eq("department_id", personnel.department_id)
+      .select("id, status, note, incident_id, department_id, updated_at")
       .eq("status", tab)
-      .order("updated_at", { ascending: false })
-      .range(from, to);
+      .order("updated_at", { ascending: false });
 
-    const rows = myRecs || [];
-    const incidentIds = rows.map(r => r.incident_id);
+    const allRows = allRecs || [];
 
-    if (incidentIds.length === 0) {
+    // Kendi birimime ait kayıtları bul
+    const myRows = allRows.filter(r => r.department_id === personnel.department_id);
+
+    // Benzersiz incident_id'leri paginasyon ile al
+    const allIncidentIds = [...new Set(allRows.map(r => r.incident_id))];
+    const pageIds = allIncidentIds.slice(from, to + 1);
+
+    if (pageIds.length === 0) {
       setIncidents(prev => pageIndex === 0 ? [] : prev);
       setHasMore(false);
       pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
       return;
     }
 
-    // 2. Olayların tam detayını + tüm birimlerin durumunu çek
+    // 2. Bu incident'ların detaylarını çek
     const { data: incData } = await supabase
       .from("incidents")
       .select(`
         id, type, severity, title, description, location, created_at,
         reporter:reported_by(full_name),
-        all_depts:incident_departments(
-          id, status, note, department_id,
-          dept:departments(name, slug)
-        )
+        all_depts:incident_departments(id, status, note, department_id)
       `)
-      .in("id", incidentIds)
+      .in("id", pageIds)
       .order("created_at", { ascending: false });
 
+    // 3. Departman isimlerini çek
+    const { data: deptData } = await supabase
+      .from("departments")
+      .select("id, name, slug");
+
+    const deptMap = Object.fromEntries((deptData || []).map(d => [d.id, d]));
+
     const merged: Incident[] = (incData || []).map((inc: any) => {
-      const myRec = rows.find(r => r.incident_id === inc.id);
+      const myRec = myRows.find(r => r.incident_id === inc.id);
+      const depts: DeptStatus[] = (inc.all_depts || []).map((d: any) => ({
+        id: d.id,
+        status: d.status,
+        note: d.note,
+        department_id: d.department_id,
+        dept_name: deptMap[d.department_id]?.name || "Bilinmiyor",
+      }));
       return {
         ...inc,
         reporter: inc.reporter as { full_name: string } | null,
-        all_depts: (inc.all_depts || []) as DeptStatus[],
+        all_depts: depts,
         my_dept_record_id: myRec?.id ?? "",
         my_dept_status: myRec?.status ?? "open",
       };
     });
 
     setIncidents(prev => pageIndex === 0 ? merged : [...prev, ...merged]);
-    setHasMore(rows.length === PAGE_SIZE);
+    setHasMore(allIncidentIds.length > to + 1);
     setPage(pageIndex);
     pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
   }
@@ -261,7 +276,7 @@ export default function OlaylarPage() {
                             <div key={d.id} className={`flex items-center gap-2.5 px-3 py-2.5 ${isMe ? "bg-indigo-50/60" : ""}`}>
                               <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
                               <span className={`text-xs font-semibold flex-1 ${isMe ? "text-indigo-700" : "text-gray-700"}`}>
-                                {d.dept?.name || "Bilinmiyor"}
+                                {d.dept_name}
                                 {isMe && <span className="ml-1 text-[10px] text-indigo-400">(Sen)</span>}
                               </span>
                               <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
