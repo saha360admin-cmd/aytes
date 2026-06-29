@@ -8,11 +8,13 @@ interface Personnel {
   id: string;
   auth_id: string;
   department_id: string;
+  location_id: string | null;
   full_name: string;
   email: string;
   role: "admin" | "supervisor" | "personel";
   status: string;
   departments: { id: string; name: string; slug: string; icon: string; color: string } | null;
+  locations: { id: string; name: string } | null;
 }
 
 interface AuthContextType {
@@ -34,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function fetchPersonnel(userId: string) {
     const { data } = await supabase
       .from("personnel")
-      .select("*, departments(*)")
+      .select("*, departments(*), locations(id, name)")
       .eq("auth_id", userId)
       .single();
     setPersonnel(data);

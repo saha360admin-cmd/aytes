@@ -30,7 +30,10 @@ const TR_MONTHS = [
 ];
 
 function toDateStr(d: Date) {
-  return d.toISOString().split("T")[0];
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }
 
 function getShiftIcon(code: string) {
@@ -95,21 +98,25 @@ export default function VardiyalarPage() {
   }
 
   async function loadDetails(code: string, dateStr: string) {
-    if (!personnel) return;
+    if (!personnel || !personnel.location_id) return;
+
     const [cwRes, shiftRes] = await Promise.all([
+      // Aynı lokasyon + aynı tarih + aynı vardiya koduna sahip diğer personel
       supabase
         .from("shift_assignments")
         .select("personnel_id")
-        .eq("department_id", personnel.department_id)
+        .eq("location_id", personnel.location_id)
         .eq("shift_date", dateStr)
+        .eq("shift_code", code)
         .eq("status", "published")
         .neq("personnel_id", personnel.id)
-        .limit(3),
+        .limit(10),
+      // Vardiya tipi bilgisi
       supabase
-        .from("shifts")
+        .from("shift_types")
         .select("name, start_time, end_time")
         .eq("department_id", personnel.department_id)
-        .limit(1)
+        .eq("code", code)
         .maybeSingle(),
     ]);
 
@@ -286,7 +293,7 @@ export default function VardiyalarPage() {
                   <div>
                     <p className="text-label-sm text-outline font-semibold">Konum</p>
                     <p className="text-body-md font-medium">
-                      {personnel?.departments?.name ?? "—"}
+                      {personnel?.locations?.name ?? personnel?.departments?.name ?? "—"}
                     </p>
                   </div>
                 </div>
@@ -335,6 +342,7 @@ export default function VardiyalarPage() {
                     weekday: "long",
                     day: "numeric",
                     month: "long",
+                    year: "numeric",
                   })}
                 </p>
               </div>
