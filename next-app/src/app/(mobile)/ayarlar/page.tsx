@@ -117,7 +117,7 @@ export default function AyarlarPage() {
 
       {/* Toast */}
       {saveToast && (
-        <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-full shadow-xl flex items-center gap-2 text-sm font-bold text-white ${saveToast.startsWith("Hata") || saveToast.startsWith("Şifreler") || saveToast.startsWith("Şifre en") ? "bg-red-600" : "bg-emerald-600"}`}>
+        <div className={`fixed bottom-24 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-full shadow-xl flex items-center gap-2 text-sm font-bold text-white max-w-[380px] w-max ${saveToast.startsWith("Hata") || saveToast.startsWith("Şifreler") || saveToast.startsWith("Şifre en") ? "bg-red-600" : "bg-emerald-600"}`}>
           <span className="material-symbols-outlined text-[18px]">{saveToast.startsWith("Hata") || saveToast.startsWith("Şifreler") ? "error" : "check_circle"}</span>
           {saveToast}
         </div>
@@ -125,9 +125,9 @@ export default function AyarlarPage() {
 
       {/* Çıkış Onay Modalı */}
       {showSignOutConfirm && (
-        <div className="fixed inset-0 z-[70] flex items-end justify-center p-4">
+        <div className="fixed inset-0 z-[70] flex items-end justify-center">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowSignOutConfirm(false)} />
-          <div className="relative w-full bg-white rounded-2xl p-6 shadow-2xl space-y-4">
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-2xl p-6 shadow-2xl space-y-4">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
                 <span className="material-symbols-outlined text-red-600 text-[24px]">logout</span>

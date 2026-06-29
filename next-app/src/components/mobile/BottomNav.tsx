@@ -8,15 +8,15 @@ const staffItems = [
   { href: "/dashboard", label: "Ana Sayfa", icon: "home" },
   { href: "/vardiyalar", label: "Vardiyam", icon: "calendar_month" },
   { href: "/devriye", label: "Devriye", icon: "route" },
-  { href: "/raporlar", label: "Raporlar", icon: "description" },
   { href: "/talepler", label: "Talepler", icon: "assignment" },
+  { href: "/olay-bildir", label: "Olaylar", icon: "report_problem" },
   { href: "/ayarlar", label: "Profil", icon: "person" },
 ];
 
 const adminItems = [
   { href: "/yonetici", label: "Panel", icon: "dashboard" },
   { href: "/personel", label: "Personel", icon: "group" },
-  { href: "/vardiyalar", label: "Vardiya", icon: "edit_calendar" },
+  { href: "/vardiya-olustur", label: "Vardiya", icon: "edit_calendar" },
   { href: "/raporlar", label: "Raporlar", icon: "description" },
   { href: "/talepler", label: "Talepler", icon: "assignment" },
   { href: "/ayarlar", label: "Profil", icon: "person" },
@@ -25,7 +25,7 @@ const adminItems = [
 const supervisorItems = [
   { href: "/yonetici", label: "Panel", icon: "dashboard" },
   { href: "/personel", label: "Ekibim", icon: "group" },
-  { href: "/vardiyalar", label: "Vardiya", icon: "edit_calendar" },
+  { href: "/vardiya-olustur", label: "Vardiya", icon: "edit_calendar" },
   { href: "/raporlar", label: "Raporlar", icon: "description" },
   { href: "/talepler", label: "Talepler", icon: "assignment" },
   { href: "/ayarlar", label: "Profil", icon: "person" },

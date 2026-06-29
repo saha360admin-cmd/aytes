@@ -35,10 +35,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
       </head>
-      <body className="min-h-full font-quicksand bg-gray-100 flex items-start justify-center">
-        <div className="w-full max-w-[430px] min-h-screen bg-background text-on-surface shadow-2xl relative mx-auto">
-          <AuthProvider>{children}</AuthProvider>
-        </div>
+      <body className="min-h-full font-quicksand">
+        <AuthProvider>{children}</AuthProvider>
       </body>
     </html>
   );

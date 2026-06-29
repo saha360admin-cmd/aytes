@@ -23,11 +23,13 @@ function AuthForm() {
   const router = useRouter();
   const { signIn, signUp } = useAuth();
 
+  const isPhoneLogin = dept === "guvenlik" && !isAdminMode;
+
   const [isRegister, setIsRegister] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", password: "" });
+  const [form, setForm] = useState({ name: "", email: "", phone: "", password: "" });
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -43,7 +45,10 @@ function AuthForm() {
         await signUp(form.email, form.password, form.name, dept);
         setIsRegister(false);
       } else {
-        await signIn(form.email, form.password);
+        const loginEmail = isPhoneLogin
+          ? `${form.phone.replace(/\s/g, "")}@aytes.app`
+          : form.email;
+        await signIn(loginEmail, form.password);
         const { data: { user } } = await supabase.auth.getUser();
         if (user) {
           const { data: p } = await supabase
@@ -135,20 +140,38 @@ function AuthForm() {
               </div>
             )}
 
-            <div className="space-y-sm">
-              <label className="font-label-md text-on-surface-variant px-xs">E-posta</label>
-              <div className="relative flex items-center">
-                <span className="material-symbols-outlined absolute left-md text-outline">mail</span>
-                <input
-                  type="email"
-                  required
-                  placeholder="ornek@aytes.com"
-                  value={form.email}
-                  onChange={e => update("email", e.target.value)}
-                  className="w-full pl-[48px] pr-md py-md rounded-md border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-surface font-body-md text-on-surface placeholder:text-outline/50"
-                />
+            {isPhoneLogin ? (
+              <div className="space-y-sm">
+                <label className="font-label-md text-on-surface-variant px-xs">Telefon Numarası</label>
+                <div className="relative flex items-center">
+                  <span className="material-symbols-outlined absolute left-md text-outline">phone</span>
+                  <input
+                    type="tel"
+                    required
+                    placeholder="05321234567"
+                    maxLength={11}
+                    value={form.phone}
+                    onChange={e => update("phone", e.target.value.replace(/\s/g, "").slice(0, 11))}
+                    className="w-full pl-[48px] pr-md py-md rounded-md border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-surface font-body-md text-on-surface placeholder:text-outline/50"
+                  />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="space-y-sm">
+                <label className="font-label-md text-on-surface-variant px-xs">E-posta</label>
+                <div className="relative flex items-center">
+                  <span className="material-symbols-outlined absolute left-md text-outline">mail</span>
+                  <input
+                    type="email"
+                    required
+                    placeholder="ornek@aytes.com"
+                    value={form.email}
+                    onChange={e => update("email", e.target.value)}
+                    className="w-full pl-[48px] pr-md py-md rounded-md border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all bg-surface font-body-md text-on-surface placeholder:text-outline/50"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="space-y-sm">
               <label className="font-label-md text-on-surface-variant px-xs">Şifre</label>
@@ -208,16 +231,24 @@ function AuthForm() {
 
           {/* İkincil Eylemler */}
           <div className="border-t border-outline-variant/30 pt-md flex flex-col items-center gap-md">
-            <p className="font-label-sm text-outline">
-              {isRegister ? "Zaten hesabınız var mı?" : "Hesabınız yok mu?"}
-            </p>
-            <button
-              onClick={() => { setIsRegister(!isRegister); setError(""); }}
-              className="flex items-center gap-sm px-lg py-sm rounded-full border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant font-label-md"
-            >
-              <span className="material-symbols-outlined">{isRegister ? "login" : "person_add"}</span>
-              {isRegister ? "Giriş Yap" : "Kayıt Ol"}
-            </button>
+            {isPhoneLogin ? (
+              <p className="font-label-sm text-outline text-center">
+                Hesabınız yöneticiniz tarafından oluşturulur.
+              </p>
+            ) : (
+              <>
+                <p className="font-label-sm text-outline">
+                  {isRegister ? "Zaten hesabınız var mı?" : "Hesabınız yok mu?"}
+                </p>
+                <button
+                  onClick={() => { setIsRegister(!isRegister); setError(""); }}
+                  className="flex items-center gap-sm px-lg py-sm rounded-full border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant font-label-md"
+                >
+                  <span className="material-symbols-outlined">{isRegister ? "login" : "person_add"}</span>
+                  {isRegister ? "Giriş Yap" : "Kayıt Ol"}
+                </button>
+              </>
+            )}
             <button
               onClick={() => router.push("/")}
               className="flex items-center gap-sm px-lg py-sm rounded-full border border-outline-variant hover:bg-surface-container-high transition-colors text-on-surface-variant font-label-md"

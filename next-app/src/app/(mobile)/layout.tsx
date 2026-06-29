@@ -18,8 +18,10 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
 
   if (loading || (!loading && session && !personnel)) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="animate-spin text-primary" size={40} />
+      <div className="min-h-screen bg-gray-100 flex items-start justify-center">
+        <div className="w-full max-w-[430px] min-h-screen bg-background shadow-2xl flex items-center justify-center mx-auto">
+          <Loader2 className="animate-spin text-primary" size={40} />
+        </div>
       </div>
     );
   }
@@ -27,9 +29,11 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   if (!session) return null;
 
   return (
-    <div className="relative min-h-screen pb-[80px] translate-x-0">
-      {children}
-      <BottomNav />
+    <div className="min-h-screen bg-gray-100 flex items-start justify-center">
+      <div className="w-full max-w-[430px] min-h-screen bg-background text-on-surface shadow-2xl relative mx-auto pb-[80px]">
+        {children}
+        <BottomNav />
+      </div>
     </div>
   );
 }
