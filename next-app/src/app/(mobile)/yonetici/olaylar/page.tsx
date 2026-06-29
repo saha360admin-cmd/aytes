@@ -5,6 +5,14 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
+interface DeptStatus {
+  id: string;
+  status: "open" | "in_progress" | "closed";
+  note: string | null;
+  department_id: string;
+  dept: { name: string; slug: string } | null;
+}
+
 interface Incident {
   id: string;
   type: string;
@@ -12,29 +20,36 @@ interface Incident {
   title: string | null;
   description: string;
   location: string | null;
-  status: "open" | "in_progress" | "closed";
   created_at: string;
   reporter: { full_name: string } | null;
+  all_depts: DeptStatus[];
+  my_dept_record_id: string;
+  my_dept_status: "open" | "in_progress" | "closed";
 }
 
 const TABS = [
-  { key: "open",        label: "Açık",        dot: "bg-red-500",    text: "text-red-600"     },
-  { key: "in_progress", label: "İnceleniyor", dot: "bg-amber-500",  text: "text-amber-600"   },
-  { key: "closed",      label: "Kapalı",      dot: "bg-gray-400",   text: "text-gray-500"    },
+  { key: "open",        label: "Açık",        dot: "bg-red-500",   text: "text-red-600"   },
+  { key: "in_progress", label: "İnceleniyor", dot: "bg-amber-500", text: "text-amber-600" },
+  { key: "closed",      label: "Kapatıldı",   dot: "bg-gray-400",  text: "text-gray-500"  },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
 
 const severityConfig = {
-  high:   { label: "Yüksek", bg: "bg-red-100",     text: "text-red-700",     icon: "bg-red-100"     },
-  medium: { label: "Orta",   bg: "bg-amber-100",   text: "text-amber-700",   icon: "bg-amber-100"   },
-  low:    { label: "Düşük",  bg: "bg-emerald-100", text: "text-emerald-700", icon: "bg-emerald-100" },
+  high:   { label: "Yüksek", bg: "bg-red-100",     text: "text-red-700",     bar: "bg-red-500"     },
+  medium: { label: "Orta",   bg: "bg-amber-100",   text: "text-amber-700",   bar: "bg-amber-400"   },
+  low:    { label: "Düşük",  bg: "bg-emerald-100", text: "text-emerald-700", bar: "bg-emerald-400" },
 };
 
-const statusNext: Record<TabKey, { to: "in_progress" | "closed"; label: string; color: string }> = {
-  open:        { to: "in_progress", label: "İncelemeye Al", color: "bg-amber-500 text-white" },
-  in_progress: { to: "closed",      label: "Kapat",         color: "bg-gray-600 text-white"  },
-  closed:      { to: "closed",      label: "",              color: "" },
+const statusNext: Record<"open" | "in_progress", { to: "in_progress" | "closed"; label: string; icon: string; color: string }> = {
+  open:        { to: "in_progress", label: "İncelemeye Al", icon: "manage_search", color: "bg-amber-500 text-white"  },
+  in_progress: { to: "closed",      label: "Kapat",         icon: "task_alt",      color: "bg-gray-700 text-white"   },
+};
+
+const deptStatusConfig = {
+  open:        { label: "Açık",        dot: "bg-red-400",   text: "text-red-600",   bg: "bg-red-50"    },
+  in_progress: { label: "İnceleniyor", dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50"  },
+  closed:      { label: "Kapatıldı",   dot: "bg-gray-400",  text: "text-gray-500",  bg: "bg-gray-50"   },
 };
 
 function timeAgo(dateStr: string) {
@@ -72,31 +87,72 @@ export default function OlaylarPage() {
   async function load(pageIndex: number) {
     if (!personnel) return;
     pageIndex === 0 ? setLoading(true) : setLoadingMore(true);
+
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
-    const { data } = await supabase
-      .from("incidents")
-      .select("id, type, severity, title, description, location, status, created_at, reporter:reported_by(full_name)")
+
+    // 1. Kendi birim kayıtlarını al
+    const { data: myRecs } = await supabase
+      .from("incident_departments")
+      .select("id, status, note, incident_id")
+      .eq("department_id", personnel.department_id)
       .eq("status", tab)
-      .order("created_at", { ascending: false })
+      .order("updated_at", { ascending: false })
       .range(from, to);
-    const rows = (data || []) as unknown as Incident[];
-    setIncidents(prev => pageIndex === 0 ? rows : [...prev, ...rows]);
+
+    const rows = myRecs || [];
+    const incidentIds = rows.map(r => r.incident_id);
+
+    if (incidentIds.length === 0) {
+      setIncidents(prev => pageIndex === 0 ? [] : prev);
+      setHasMore(false);
+      pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
+      return;
+    }
+
+    // 2. Olayların tam detayını + tüm birimlerin durumunu çek
+    const { data: incData } = await supabase
+      .from("incidents")
+      .select(`
+        id, type, severity, title, description, location, created_at,
+        reporter:reported_by(full_name),
+        all_depts:incident_departments(
+          id, status, note, department_id,
+          dept:departments(name, slug)
+        )
+      `)
+      .in("id", incidentIds)
+      .order("created_at", { ascending: false });
+
+    const merged: Incident[] = (incData || []).map((inc: any) => {
+      const myRec = rows.find(r => r.incident_id === inc.id);
+      return {
+        ...inc,
+        reporter: inc.reporter as { full_name: string } | null,
+        all_depts: (inc.all_depts || []) as DeptStatus[],
+        my_dept_record_id: myRec?.id ?? "",
+        my_dept_status: myRec?.status ?? "open",
+      };
+    });
+
+    setIncidents(prev => pageIndex === 0 ? merged : [...prev, ...merged]);
     setHasMore(rows.length === PAGE_SIZE);
     setPage(pageIndex);
     pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
   }
 
-  function loadMore() { load(page + 1); }
+  async function updateStatus(incidentId: string, recordId: string, newStatus: "in_progress" | "closed") {
+    setUpdatingId(incidentId);
+    const { error } = await supabase
+      .from("incident_departments")
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq("id", recordId);
 
-  async function updateStatus(id: string, newStatus: "in_progress" | "closed") {
-    setUpdatingId(id);
-    const { error } = await supabase.from("incidents").update({ status: newStatus }).eq("id", id);
     if (!error) {
-      setIncidents(prev => prev.filter(i => i.id !== id));
+      setIncidents(prev => prev.filter(i => i.id !== incidentId));
       showToast(newStatus === "in_progress" ? "İncelemeye alındı" : "Olay kapatıldı", true);
     } else {
-      showToast("İşlem başarısız", false);
+      showToast("İşlem başarısız: " + error.message, false);
     }
     setUpdatingId(null);
   }
@@ -121,13 +177,12 @@ export default function OlaylarPage() {
         <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-white/15 active:scale-95 transition-all">
           <span className="material-symbols-outlined text-white text-[22px]">arrow_back</span>
         </button>
-        <div>
+        <div className="flex-1">
           <h1 className="font-bold text-white text-lg leading-tight">Olaylar</h1>
-          <p className="text-white/60 text-xs">Olay raporları ve takibi</p>
+          <p className="text-white/60 text-xs">Biriminize atanan olaylar</p>
         </div>
-        <button
-          onClick={() => router.push("/olay-bildir")}
-          className="ml-auto w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center active:scale-95 transition-all">
+        <button onClick={() => router.push("/olay-bildir")}
+          className="w-9 h-9 rounded-full bg-white/15 hover:bg-white/25 flex items-center justify-center active:scale-95 transition-all">
           <span className="material-symbols-outlined text-white text-[20px]">add</span>
         </button>
       </header>
@@ -135,9 +190,7 @@ export default function OlaylarPage() {
       {/* Tab Bar */}
       <div className="flex bg-white shadow-sm border-b border-gray-100 sticky top-16 z-30">
         {TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
+          <button key={t.key} onClick={() => setTab(t.key)}
             className={`flex-1 py-3.5 text-xs font-bold transition-all relative flex items-center justify-center gap-1.5 ${tab === t.key ? t.text : "text-gray-400"}`}>
             {tab === t.key && <span className={`w-1.5 h-1.5 rounded-full ${t.dot}`} />}
             {t.label}
@@ -157,23 +210,26 @@ export default function OlaylarPage() {
               {tab === "open" ? "gpp_good" : tab === "in_progress" ? "manage_search" : "task_alt"}
             </span>
             <p className="text-sm font-semibold text-gray-400">
-              {tab === "open" ? "Açık olay yok" : tab === "in_progress" ? "İncelenen olay yok" : "Kapalı olay yok"}
+              {tab === "open" ? "Açık olay yok" : tab === "in_progress" ? "İncelenen olay yok" : "Kapatılan olay yok"}
             </p>
           </div>
         ) : (
           incidents.map(inc => {
             const sev = severityConfig[inc.severity] ?? severityConfig.low;
-            const next = statusNext[tab];
+            const next = tab !== "closed" ? statusNext[tab as "open" | "in_progress"] : null;
+            const closedCount = inc.all_depts.filter(d => d.status === "closed").length;
+            const totalDepts = inc.all_depts.length;
+
             return (
               <div key={inc.id} className="bg-white rounded-2xl shadow-sm overflow-hidden">
-                {/* Şiddet renk şeridi */}
-                <div className={`h-1 w-full ${inc.severity === "high" ? "bg-red-500" : inc.severity === "medium" ? "bg-amber-400" : "bg-emerald-400"}`} />
-                <div className="p-4">
-                  {/* Başlık + şiddet */}
-                  <div className="flex items-start justify-between gap-2 mb-2">
+                <div className={`h-1 w-full ${sev.bar}`} />
+                <div className="p-4 space-y-3">
+
+                  {/* Başlık */}
+                  <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-gray-800 text-sm truncate">{inc.title || inc.type}</p>
-                      <p className="text-xs text-gray-400 font-semibold mt-0.5">
+                      <p className="font-bold text-gray-800 text-sm">{inc.title || inc.type}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">
                         {inc.reporter?.full_name || "Bilinmiyor"} · {timeAgo(inc.created_at)}
                         {inc.location ? ` · ${inc.location}` : ""}
                       </p>
@@ -185,36 +241,62 @@ export default function OlaylarPage() {
 
                   {/* Açıklama */}
                   {inc.description && (
-                    <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2.5 mb-3 leading-relaxed">
+                    <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2.5 leading-relaxed">
                       {inc.description}
                     </p>
                   )}
 
-                  {/* Konum */}
-                  {inc.location && (
-                    <div className="flex items-center gap-1.5 mb-3">
-                      <span className="material-symbols-outlined text-gray-400 text-[14px]">location_on</span>
-                      <span className="text-xs text-gray-500 font-semibold">{inc.location}</span>
+                  {/* Birim Durumları */}
+                  {inc.all_depts.length > 0 && (
+                    <div className="rounded-xl border border-gray-100 overflow-hidden">
+                      <div className="flex items-center justify-between px-3 py-2 bg-gray-50 border-b border-gray-100">
+                        <span className="text-[10px] font-bold text-gray-500 uppercase tracking-wide">Birim Durumları</span>
+                        <span className="text-[10px] font-bold text-gray-400">{closedCount}/{totalDepts} tamamlandı</span>
+                      </div>
+                      <div className="divide-y divide-gray-50">
+                        {inc.all_depts.map(d => {
+                          const cfg = deptStatusConfig[d.status];
+                          const isMe = d.department_id === personnel?.department_id;
+                          return (
+                            <div key={d.id} className={`flex items-center gap-2.5 px-3 py-2.5 ${isMe ? "bg-indigo-50/60" : ""}`}>
+                              <span className={`w-2 h-2 rounded-full flex-shrink-0 ${cfg.dot}`} />
+                              <span className={`text-xs font-semibold flex-1 ${isMe ? "text-indigo-700" : "text-gray-700"}`}>
+                                {d.dept?.name || "Bilinmiyor"}
+                                {isMe && <span className="ml-1 text-[10px] text-indigo-400">(Sen)</span>}
+                              </span>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>
+                                {cfg.label}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      {/* Genel ilerleme barı */}
+                      <div className="px-3 py-2 border-t border-gray-100">
+                        <div className="w-full bg-gray-100 h-1.5 rounded-full overflow-hidden">
+                          <div className="h-full bg-emerald-400 rounded-full transition-all"
+                            style={{ width: totalDepts > 0 ? `${(closedCount / totalDepts) * 100}%` : "0%" }} />
+                        </div>
+                      </div>
                     </div>
                   )}
 
-                  {/* Aksiyon butonu */}
-                  {tab !== "closed" && next.label && (
+                  {/* Aksiyon butonu (kendi birimi için) */}
+                  {next && tab !== "closed" && (
                     <button
-                      onClick={() => updateStatus(inc.id, next.to)}
+                      onClick={() => updateStatus(inc.id, inc.my_dept_record_id, next.to)}
                       disabled={updatingId === inc.id}
-                      className={`w-full h-10 text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50 ${next.color}`}>
+                      className={`w-full h-10 text-sm font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50 ${next.color}`}>
                       {updatingId === inc.id
                         ? <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
-                        : <span className="material-symbols-outlined text-[16px]">{tab === "open" ? "manage_search" : "task_alt"}</span>}
+                        : <span className="material-symbols-outlined text-[16px]">{next.icon}</span>}
                       {next.label}
                     </button>
                   )}
 
-                  {/* Kapalı rozeti */}
                   {tab === "closed" && (
                     <div className="flex justify-end">
-                      <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-500">✓ Kapatıldı</span>
+                      <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-500">✓ Biriminiz kapattı</span>
                     </div>
                   )}
                 </div>
@@ -224,9 +306,7 @@ export default function OlaylarPage() {
         )}
 
         {!loading && hasMore && (
-          <button
-            onClick={loadMore}
-            disabled={loadingMore}
+          <button onClick={() => load(page + 1)} disabled={loadingMore}
             className="w-full py-3.5 bg-white rounded-2xl shadow-sm text-sm font-bold text-[#3949AB] flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
             {loadingMore
               ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>

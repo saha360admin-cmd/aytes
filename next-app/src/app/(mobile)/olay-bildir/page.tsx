@@ -50,8 +50,10 @@ function OlayBildirForm() {
     if (!selectedType || !severity || !description || !personnel) return;
     setSending(true);
 
-    const { error } = await supabase.from("incidents").insert({
-      department_id: selectedDepts[0] || personnel.department_id,
+    const depts = selectedDepts.length > 0 ? selectedDepts : [personnel.department_id];
+
+    const { data: inc, error } = await supabase.from("incidents").insert({
+      department_id: depts[0],
       reported_by: personnel.id,
       type: selectedType,
       severity,
@@ -60,7 +62,13 @@ function OlayBildirForm() {
       location,
       status: "open",
       patrol_id: patrolId || null,
-    });
+    }).select("id").single();
+
+    if (!error && inc) {
+      await supabase.from("incident_departments").insert(
+        depts.map(dept_id => ({ incident_id: inc.id, department_id: dept_id, status: "open" }))
+      );
+    }
 
     setSending(false);
     if (!error) {
