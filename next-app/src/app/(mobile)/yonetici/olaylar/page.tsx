@@ -8,7 +8,6 @@ import { supabase } from "@/lib/supabase";
 interface DeptStatus {
   id: string;
   status: "open" | "in_progress" | "closed";
-  note: string | null;
   department_id: string;
   dept_name: string;
 }
@@ -95,7 +94,7 @@ export default function OlaylarPage() {
     // 1. Tüm incident_departments'ı tab statusuna göre çek (birim filtresi yok)
     const { data: allRecs, error: recsError } = await supabase
       .from("incident_departments")
-      .select("id, status, note, incident_id, department_id, updated_at")
+      .select("id, status, incident_id, department_id, updated_at")
       .eq("status", tab)
       .order("updated_at", { ascending: false });
 
@@ -123,7 +122,7 @@ export default function OlaylarPage() {
       .select(`
         id, type, severity, title, description, location, created_at,
         reporter:reported_by(full_name),
-        all_depts:incident_departments(id, status, note, department_id)
+        all_depts:incident_departments(id, status, department_id)
       `)
       .in("id", pageIds)
       .order("created_at", { ascending: false });
@@ -140,7 +139,6 @@ export default function OlaylarPage() {
       const depts: DeptStatus[] = (inc.all_depts || []).map((d: any) => ({
         id: d.id,
         status: d.status,
-        note: d.note,
         department_id: d.department_id,
         dept_name: deptMap[d.department_id]?.name || "Bilinmiyor",
       }));
