@@ -1,21 +1,29 @@
+import { createClient } from "@supabase/supabase-js";
 import { NextRequest, NextResponse } from "next/server";
+
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
+  { auth: { autoRefreshToken: false, persistSession: false } }
+);
 
 export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
-  if (!url || !url.startsWith("https://rtglrsgedmoknaumonbr.supabase.co/storage/")) {
-    return new NextResponse("Invalid URL", { status: 400 });
-  }
+  if (!url) return new NextResponse("Invalid URL", { status: 400 });
 
-  const res = await fetch(url, {
-    headers: {
-      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
-      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""}`,
-    },
-  });
-  if (!res.ok) return new NextResponse("Not found", { status: 404 });
+  const match = url.match(/\/incident-photos\/(.+)$/);
+  if (!match) return new NextResponse("Invalid path", { status: 400 });
 
-  const buffer = await res.arrayBuffer();
-  const contentType = res.headers.get("content-type") || "image/jpeg";
+  const path = match[1];
+
+  const { data, error } = await supabaseAdmin.storage
+    .from("incident-photos")
+    .download(path);
+
+  if (error || !data) return new NextResponse("Not found", { status: 404 });
+
+  const buffer = await data.arrayBuffer();
+  const contentType = data.type || "image/jpeg";
 
   return new NextResponse(buffer, {
     headers: {
