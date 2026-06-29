@@ -20,6 +20,7 @@ interface Incident {
   description: string;
   location: string | null;
   created_at: string;
+  photo_urls: string[] | null;
   reporter: { full_name: string } | null;
   all_depts: DeptStatus[];
   my_dept_record_id: string;
@@ -118,7 +119,7 @@ export default function OlaylarPage() {
     const { data: incData } = await supabase
       .from("incidents")
       .select(`
-        id, type, severity, title, description, location, created_at,
+        id, type, severity, title, description, location, created_at, photo_urls,
         reporter:reported_by(full_name),
         all_depts:incident_departments(id, status, department_id)
       `)
@@ -258,6 +259,18 @@ export default function OlaylarPage() {
                     <p className="text-xs text-gray-500 bg-gray-50 rounded-xl px-3 py-2.5 leading-relaxed">
                       {inc.description}
                     </p>
+                  )}
+
+                  {/* Fotoğraflar */}
+                  {inc.photo_urls && inc.photo_urls.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {inc.photo_urls.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noopener noreferrer"
+                          className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm block flex-shrink-0">
+                          <img src={url} alt={`foto-${i + 1}`} className="w-full h-full object-cover" />
+                        </a>
+                      ))}
+                    </div>
                   )}
 
                   {/* Birim Durumları */}

@@ -68,6 +68,24 @@ function OlayBildirForm() {
       await supabase.from("incident_departments").insert(
         depts.map(dept_id => ({ incident_id: inc.id, department_id: dept_id, status: "open" }))
       );
+
+      if (photos.length > 0) {
+        const urls: string[] = [];
+        for (const p of photos) {
+          const ext = p.file.name.split(".").pop() || "jpg";
+          const path = `incidents/${inc.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("incident-photos")
+            .upload(path, p.file, { contentType: p.file.type });
+          if (!upErr) {
+            const { data: urlData } = supabase.storage.from("incident-photos").getPublicUrl(path);
+            urls.push(urlData.publicUrl);
+          }
+        }
+        if (urls.length > 0) {
+          await supabase.from("incidents").update({ photo_urls: urls }).eq("id", inc.id);
+        }
+      }
     }
 
     setSending(false);
