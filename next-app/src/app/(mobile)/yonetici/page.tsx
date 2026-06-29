@@ -84,13 +84,13 @@ export default function YoneticiPage() {
       incidentRes,
     ] = await Promise.all([
       supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
-      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "open"),
+      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open"),
       supabase.from("patrols").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "active"),
       supabase.from("shifts").select("id", { count: "exact", head: true }).eq("department_id", deptId),
       supabase.from("personnel").select("id, full_name, status, position").eq("department_id", deptId).neq("status", "archived").order("full_name"),
       supabase.from("requests").select("*, requester:personnel_id(full_name)").eq("department_id", deptId).eq("status", "pending").order("created_at", { ascending: false }).limit(10),
       supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as any,
-      supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
+      supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").order("created_at", { ascending: false }).limit(5),
     ]);
 
     setStats({

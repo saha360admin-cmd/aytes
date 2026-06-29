@@ -77,7 +77,6 @@ export default function OlaylarPage() {
     const { data } = await supabase
       .from("incidents")
       .select("id, type, severity, title, description, location, status, created_at, reporter:reported_by(full_name)")
-      .eq("department_id", personnel.department_id)
       .eq("status", tab)
       .order("created_at", { ascending: false })
       .range(from, to);
