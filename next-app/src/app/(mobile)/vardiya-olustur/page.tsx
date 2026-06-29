@@ -38,6 +38,7 @@ export default function VardiyaOlusturmaPage() {
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocId, setSelectedLocId] = useState("");
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [weekIndex, setWeekIndex] = useState(0);
   const [personnelList, setPersonnelList] = useState<PersonnelItem[]>([]);
   const [cells, setCells] = useState<Record<string, string>>({});
   const [locOpen, setLocOpen] = useState(false);
@@ -54,14 +55,28 @@ export default function VardiyaOlusturmaPage() {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
   }, []);
 
-  const weekDays = useMemo(() => {
-    const dow = today.getDay();
-    const mon = new Date(today);
-    mon.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(mon); d.setDate(mon.getDate() + i); return d;
+  const selectedYear = today.getFullYear();
+
+  const monthDays = useMemo(() => {
+    const count = new Date(selectedYear, selectedMonth + 1, 0).getDate();
+    return Array.from({ length: count }, (_, i) => new Date(selectedYear, selectedMonth, i + 1));
+  }, [selectedMonth, selectedYear]);
+
+  // Ayı Pzt başlangıçlı haftalara böl
+  const weeks = useMemo(() => {
+    const result: Date[][] = [];
+    let week: Date[] = [];
+    monthDays.forEach(day => {
+      const dow = day.getDay(); // 0=Paz
+      const isMonday = dow === 1;
+      if (isMonday && week.length > 0) { result.push(week); week = []; }
+      week.push(day);
     });
-  }, [today]);
+    if (week.length > 0) result.push(week);
+    return result;
+  }, [monthDays]);
+
+  const currentWeek = weeks[weekIndex] ?? weeks[0] ?? [];
 
   // Close dropdowns on outside click
   useEffect(() => {
@@ -100,7 +115,9 @@ export default function VardiyaOlusturmaPage() {
   useEffect(() => {
     if (!selectedLocId) return;
     loadPersonnel();
-  }, [selectedLocId]);
+  }, [selectedLocId, selectedMonth]);
+
+  useEffect(() => { setWeekIndex(0); }, [selectedMonth]);
 
   async function loadLocations() {
     const { data } = await supabase.from("locations").select("id, name").order("name");
@@ -114,8 +131,8 @@ export default function VardiyaOlusturmaPage() {
   async function loadPersonnel() {
     setPersonnelList([]);
     setCells({});
-    const startStr = toDateStr(weekDays[0]);
-    const endStr = toDateStr(weekDays[6]);
+    const startStr = toDateStr(monthDays[0]);
+    const endStr = toDateStr(monthDays[monthDays.length - 1]);
 
     const [{ data: pData }, { data: saData }] = await Promise.all([
       supabase.from("personnel").select("id, full_name").eq("location_id", selectedLocId).neq("status", "archived").order("full_name"),
@@ -163,7 +180,7 @@ export default function VardiyaOlusturmaPage() {
 
     const upserts: object[] = [];
     personnelList.forEach(p => {
-      weekDays.forEach(day => {
+      monthDays.forEach(day => {
         const dateStr = toDateStr(day);
         const code = cells[`${p.id}_${dateStr}`];
         if (code) {
@@ -174,7 +191,7 @@ export default function VardiyaOlusturmaPage() {
 
     const deletes: object[] = [];
     personnelList.forEach(p => {
-      weekDays.forEach(day => {
+      monthDays.forEach(day => {
         const dateStr = toDateStr(day);
         const code = cells[`${p.id}_${dateStr}`];
         if (!code) deletes.push({ personnel_id: p.id, shift_date: dateStr });
@@ -202,7 +219,7 @@ export default function VardiyaOlusturmaPage() {
     const st = shiftTypes.find(s => s.code === v);
     return st && !st.is_day_off;
   }).length;
-  const activeCount = personnelList.filter(p => weekDays.some(day => {
+  const activeCount = personnelList.filter(p => monthDays.some(day => {
     const c = cells[`${p.id}_${toDateStr(day)}`];
     return c && !dayOffCodes.includes(c);
   })).length;
@@ -325,81 +342,127 @@ export default function VardiyaOlusturmaPage() {
           ))}
         </div>
 
-        {/* ── Weekly Schedule Table ── */}
+        {/* ── Monthly Schedule Table (haftalık sayfalama) ── */}
         <section>
+
+          {/* Hafta navigasyonu */}
           <div className="flex items-center justify-between mb-3">
-            <h2 className="text-base font-bold text-gray-800">Haftalık Çizelge</h2>
+            <button
+              onClick={() => setWeekIndex(i => Math.max(0, i - 1))}
+              disabled={weekIndex === 0}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 text-gray-600 disabled:opacity-30 active:scale-90 transition-all">
+              <span className="material-symbols-outlined text-[20px]">chevron_left</span>
+            </button>
+
+            <div className="text-center">
+              <p className="text-sm font-bold text-gray-800">
+                {currentWeek[0]?.getDate()} – {currentWeek[currentWeek.length - 1]?.getDate()} {TR_MONTHS[selectedMonth]}
+              </p>
+              <p className="text-xs text-gray-400">{weekIndex + 1}. Hafta · {weeks.length} haftadan</p>
+            </div>
+
+            <button
+              onClick={() => setWeekIndex(i => Math.min(weeks.length - 1, i + 1))}
+              disabled={weekIndex === weeks.length - 1}
+              className="w-9 h-9 flex items-center justify-center rounded-full bg-white shadow-sm border border-gray-200 text-gray-600 disabled:opacity-30 active:scale-90 transition-all">
+              <span className="material-symbols-outlined text-[20px]">chevron_right</span>
+            </button>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-            <div className="overflow-x-auto no-scrollbar">
-              <table className="w-full text-left border-collapse">
-                <thead style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
-                  <tr>
-                    <th className="p-3 text-xs font-semibold text-white/80 min-w-[130px] sticky left-0 z-10 border-r border-white/20"
-                      style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
-                      Personel
-                    </th>
-                    {weekDays.map(day => (
-                      <th key={toDateStr(day)} className="p-3 text-xs font-semibold text-white/80 text-center whitespace-nowrap min-w-[64px]">
-                        {day.getDate()} {TR_SHORT_DAYS[day.getDay()]}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                  {personnelList.length === 0 ? (
-                    <tr>
-                      <td colSpan={8} className="p-8 text-center text-gray-400 text-sm font-semibold">
-                        Bu lokasyonda tanımlı personel bulunamadı
-                      </td>
-                    </tr>
-                  ) : (
-                    personnelList.map(p => (
-                      <tr key={p.id} className="hover:bg-indigo-50/40 transition-colors">
-                        {/* Sticky personnel cell */}
-                        <td className="p-3 sticky left-0 bg-white z-10 border-r border-gray-100 hover:bg-indigo-50/40">
-                          <div className="flex items-center gap-2">
-                            <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
-                              {initials(p.full_name)}
-                            </div>
-                            <span className="text-xs font-semibold text-gray-700 max-w-[80px] truncate leading-tight">
-                              {shortName(p.full_name)}
-                            </span>
-                          </div>
-                        </td>
+          {/* Hafta ilerleme noktaları */}
+          <div className="flex justify-center gap-1.5 mb-3">
+            {weeks.map((_, i) => (
+              <button key={i} onClick={() => setWeekIndex(i)}
+                className={`h-1.5 rounded-full transition-all ${i === weekIndex ? "w-6 bg-indigo-600" : "w-1.5 bg-gray-300"}`} />
+            ))}
+          </div>
 
-                        {/* Day cells */}
-                        {weekDays.map(day => {
-                          const dateStr = toDateStr(day);
-                          const key = `${p.id}_${dateStr}`;
-                          const code = cells[key] ?? "";
-                          const bg = cellBg(code);
-                          return (
-                            <td key={dateStr} className="p-1.5">
-                              <button
-                                onClick={() => cycleCell(p.id, dateStr)}
-                                className="w-full h-9 flex items-center justify-center text-xs font-bold transition-all active:scale-90 rounded-lg"
-                                style={code ? bg : { backgroundColor: "#e8eaf0", color: "#727785" }}
-                              >
-                                {code || "—"}
-                              </button>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+          {/* Renk açıklaması */}
+          {shiftTypes.length > 0 && (
+            <div className="flex gap-2 flex-wrap mb-3">
+              {shiftTypes.map(st => (
+                <div key={st.id} className="flex items-center gap-1.5 px-2.5 py-1 rounded-full border border-gray-200 bg-white text-xs font-bold"
+                  style={{ color: st.is_day_off ? "#93000a" : st.color }}>
+                  <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: st.is_day_off ? "#ffdad6" : st.color }} />
+                  {st.code}
+                </div>
+              ))}
             </div>
+          )}
+
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+            <table className="w-full text-left border-collapse">
+              <thead style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+                <tr>
+                  <th className="p-3 text-xs font-semibold text-white/80 min-w-[120px] sticky left-0 z-10 border-r border-white/20"
+                    style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+                    Personel
+                  </th>
+                  {currentWeek.map(day => {
+                    const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                    const isToday = toDateStr(day) === toDateStr(today);
+                    return (
+                      <th key={toDateStr(day)}
+                        className={`text-center min-w-[52px] p-0 ${isWeekend ? "bg-white/10" : ""}`}>
+                        <div className={`flex flex-col items-center py-2 mx-1 rounded-lg ${isToday ? "bg-white/25" : ""}`}>
+                          <span className="text-[10px] text-white/60 leading-none">{TR_SHORT_DAYS[day.getDay()]}</span>
+                          <span className={`text-sm font-bold leading-none mt-0.5 ${isToday ? "text-white" : "text-white/90"}`}>{day.getDate()}</span>
+                        </div>
+                      </th>
+                    );
+                  })}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100">
+                {personnelList.length === 0 ? (
+                  <tr>
+                    <td colSpan={currentWeek.length + 1} className="p-8 text-center text-gray-400 text-sm font-semibold">
+                      Bu lokasyonda tanımlı personel bulunamadı
+                    </td>
+                  </tr>
+                ) : (
+                  personnelList.map(p => (
+                    <tr key={p.id} className="hover:bg-indigo-50/40 transition-colors">
+                      <td className="p-3 sticky left-0 bg-white z-10 border-r border-gray-100">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center font-bold text-xs flex-shrink-0">
+                            {initials(p.full_name)}
+                          </div>
+                          <span className="text-xs font-semibold text-gray-700 truncate leading-tight max-w-[72px]">
+                            {shortName(p.full_name)}
+                          </span>
+                        </div>
+                      </td>
+                      {currentWeek.map(day => {
+                        const dateStr = toDateStr(day);
+                        const code = cells[`${p.id}_${dateStr}`] ?? "";
+                        const bg = cellBg(code);
+                        const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                        const isToday = dateStr === toDateStr(today);
+                        return (
+                          <td key={dateStr} className={`p-1.5 ${isWeekend ? "bg-gray-50/60" : ""} ${isToday ? "bg-indigo-50/60" : ""}`}>
+                            <button
+                              onClick={() => cycleCell(p.id, dateStr)}
+                              className="w-full h-9 flex items-center justify-center text-xs font-bold transition-all active:scale-90 rounded-lg"
+                              style={code ? bg : { backgroundColor: "#eef0f6", color: "#9aa0b0" }}
+                            >
+                              {code || "—"}
+                            </button>
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
           </div>
 
           {/* Info tip */}
           <div className="mt-3 p-3 bg-indigo-50 rounded-2xl flex gap-3 border border-indigo-100">
             <span className="material-symbols-outlined text-[#3949AB] flex-shrink-0 text-[20px]">info</span>
             <p className="text-xs font-semibold text-indigo-700">
-              Hücrelere dokunarak vardiya tiplerini (T211 → G1 → G2 → OFF) hızlıca değiştirebilirsiniz.
+              Hücrelere dokunarak vardiya tipini döngüsel olarak değiştirin. Ok tuşları ile haftalar arası geçiş yapın. Kaydet tüm ayı kaydeder.
             </p>
           </div>
         </section>
