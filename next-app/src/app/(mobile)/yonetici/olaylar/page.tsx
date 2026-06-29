@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -262,12 +263,12 @@ export default function OlaylarPage() {
                   )}
 
                   {/* Fotoğraflar */}
-                  {inc.photo_urls && inc.photo_urls.length > 0 && (
+                  {Array.isArray(inc.photo_urls) && inc.photo_urls.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
                       {inc.photo_urls.map((url, i) => (
                         <a key={i} href={url} target="_blank" rel="noopener noreferrer"
-                          className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm block flex-shrink-0">
-                          <img src={url} alt={`foto-${i + 1}`} className="w-full h-full object-cover" />
+                          className="relative w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm block flex-shrink-0">
+                          <Image src={url} alt={`foto-${i + 1}`} fill className="object-cover" sizes="80px" />
                         </a>
                       ))}
                     </div>
