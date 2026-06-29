@@ -74,6 +74,7 @@ export default function OlaylarPage() {
   const [page, setPage] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [debug, setDebug] = useState<string>("");
 
   useEffect(() => {
     if (!personnel) return;
@@ -92,11 +93,13 @@ export default function OlaylarPage() {
     const to = from + PAGE_SIZE - 1;
 
     // 1. Tüm incident_departments'ı tab statusuna göre çek (birim filtresi yok)
-    const { data: allRecs } = await supabase
+    const { data: allRecs, error: recsError } = await supabase
       .from("incident_departments")
       .select("id, status, note, incident_id, department_id, updated_at")
       .eq("status", tab)
       .order("updated_at", { ascending: false });
+
+    setDebug(`dept_id:${personnel.department_id?.slice(0,8)} | tab:${tab} | allRecs:${allRecs?.length ?? "null"} | err:${recsError?.message ?? "ok"}`);
 
     const allRows = allRecs || [];
 
@@ -213,6 +216,12 @@ export default function OlaylarPage() {
           </button>
         ))}
       </div>
+
+      {debug && (
+        <div className="mx-4 mt-3 bg-yellow-50 border border-yellow-200 rounded-xl p-3 text-[10px] font-mono text-yellow-800 break-all">
+          {debug}
+        </div>
+      )}
 
       <main className="px-4 pt-4 space-y-3">
         {loading ? (
