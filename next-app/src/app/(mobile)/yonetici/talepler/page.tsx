@@ -47,33 +47,49 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(h / 24)} gün önce`;
 }
 
+const PAGE_SIZE = 20;
+
 export default function TaleplerPage() {
   const router = useRouter();
   const { personnel } = useAuth();
   const [tab, setTab] = useState<TabKey>("pending");
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     if (!personnel) return;
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    load();
+    setRequests([]);
+    setPage(0);
+    setHasMore(false);
+    load(0);
   }, [personnel, tab]);
 
-  async function load() {
+  async function load(pageIndex: number) {
     if (!personnel) return;
-    setLoading(true);
+    pageIndex === 0 ? setLoading(true) : setLoadingMore(true);
+    const from = pageIndex * PAGE_SIZE;
+    const to = from + PAGE_SIZE - 1;
     const { data } = await supabase
       .from("requests")
       .select("*, requester:personnel_id(full_name)")
       .eq("department_id", personnel.department_id)
       .eq("status", tab)
-      .order("created_at", { ascending: false });
-    setRequests((data || []) as Request[]);
-    setLoading(false);
+      .order("created_at", { ascending: false })
+      .range(from, to);
+    const rows = (data || []) as Request[];
+    setRequests(prev => pageIndex === 0 ? rows : [...prev, ...rows]);
+    setHasMore(rows.length === PAGE_SIZE);
+    setPage(pageIndex);
+    pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
   }
+
+  function loadMore() { load(page + 1); }
 
   async function handleAction(id: string, status: "approved" | "rejected") {
     setUpdatingId(id);
@@ -201,6 +217,26 @@ export default function TaleplerPage() {
               </div>
             </div>
           ))
+        )}
+
+        {/* Daha Fazla Yükle */}
+        {!loading && hasMore && (
+          <button
+            onClick={loadMore}
+            disabled={loadingMore}
+            className="w-full py-3.5 bg-white rounded-2xl shadow-sm text-sm font-bold text-[#3949AB] flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+            {loadingMore
+              ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+              : <span className="material-symbols-outlined text-[18px]">expand_more</span>}
+            {loadingMore ? "Yükleniyor..." : "Daha Fazla Yükle"}
+          </button>
+        )}
+
+        {/* Liste sonu */}
+        {!loading && !hasMore && requests.length > 0 && (
+          <p className="text-center text-xs text-gray-400 font-semibold py-4">
+            Tüm kayıtlar gösterildi · {requests.length} talep
+          </p>
         )}
       </main>
     </div>
