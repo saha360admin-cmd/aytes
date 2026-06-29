@@ -265,17 +265,22 @@ export default function OlaylarPage() {
                   {/* Fotoğraflar */}
                   {Array.isArray(inc.photo_urls) && inc.photo_urls.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
-                      {inc.photo_urls.map((url, i) => (
-                        <a key={i} href={`/api/storage-proxy?url=${encodeURIComponent(url)}`} target="_blank" rel="noopener noreferrer"
-                          className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm block flex-shrink-0">
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={`/api/storage-proxy?url=${encodeURIComponent(url)}`}
-                            alt={`foto-${i + 1}`}
-                            className="w-full h-full object-cover"
-                          />
-                        </a>
-                      ))}
+                      {inc.photo_urls.map((url, i) => {
+                        const proxyUrl = `/api/storage-proxy?url=${encodeURIComponent(url)}`;
+                        return (
+                          <div key={i} className="relative flex-shrink-0">
+                            <a href={proxyUrl} target="_blank" rel="noopener noreferrer"
+                              className="w-20 h-20 rounded-xl overflow-hidden border border-gray-200 shadow-sm block">
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img src={proxyUrl} alt={`foto-${i + 1}`} className="w-full h-full object-cover" />
+                            </a>
+                            <a href={`${proxyUrl}&download=1`} download
+                              className="absolute bottom-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white text-[13px]">download</span>
+                            </a>
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
 
