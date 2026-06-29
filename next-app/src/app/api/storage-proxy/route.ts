@@ -6,7 +6,12 @@ export async function GET(req: NextRequest) {
     return new NextResponse("Invalid URL", { status: 400 });
   }
 
-  const res = await fetch(url);
+  const res = await fetch(url, {
+    headers: {
+      apikey: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "",
+      Authorization: `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? ""}`,
+    },
+  });
   if (!res.ok) return new NextResponse("Not found", { status: 404 });
 
   const buffer = await res.arrayBuffer();
