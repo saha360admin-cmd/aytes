@@ -1,0 +1,250 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
+import { supabase } from "@/lib/supabase";
+
+interface Incident {
+  id: string;
+  type: string;
+  severity: "low" | "medium" | "high";
+  title: string | null;
+  description: string;
+  location: string | null;
+  created_at: string;
+  status: string;
+  photo_urls: string[] | null;
+  video_urls: string[] | null;
+  reporter: { full_name: string } | null;
+  is_mine: boolean;
+}
+
+const TABS = [
+  { key: "open",        label: "Açık",        color: "text-red-600",   dot: "bg-red-500"   },
+  { key: "in_progress", label: "İnceleniyor", color: "text-amber-600", dot: "bg-amber-500" },
+  { key: "closed",      label: "Kapatıldı",   color: "text-gray-500",  dot: "bg-gray-400"  },
+] as const;
+type TabKey = typeof TABS[number]["key"];
+
+const typeConfig: Record<string, { label: string; icon: string; bg: string; color: string }> = {
+  fire:        { label: "Yangın",          icon: "local_fire_department", bg: "bg-red-100",     color: "text-red-600"     },
+  theft:       { label: "Hırsızlık",       icon: "lock_person",           bg: "bg-indigo-100",  color: "text-indigo-700"  },
+  suspicious:  { label: "Şüpheli Durum",   icon: "visibility",            bg: "bg-amber-100",   color: "text-amber-700"   },
+  maintenance: { label: "Teknik Arıza",    icon: "build",                 bg: "bg-emerald-100", color: "text-emerald-700" },
+  other:       { label: "Diğer",           icon: "more_horiz",            bg: "bg-purple-100",  color: "text-purple-700"  },
+};
+
+const severityConfig = {
+  high:   { label: "Yüksek", bg: "bg-red-100",     text: "text-red-700"     },
+  medium: { label: "Orta",   bg: "bg-amber-100",   text: "text-amber-700"   },
+  low:    { label: "Düşük",  bg: "bg-emerald-100", text: "text-emerald-700" },
+};
+
+function timeAgo(dateStr: string) {
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+  if (diff < 1) return "az önce";
+  if (diff < 60) return `${diff} dk önce`;
+  const h = Math.floor(diff / 60);
+  if (h < 24) return `${h} sa önce`;
+  return `${Math.floor(h / 24)} gün önce`;
+}
+
+export default function OlaylarPage() {
+  const router = useRouter();
+  const { personnel } = useAuth();
+
+  const [tab, setTab] = useState<TabKey>("open");
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [locationName, setLocationName] = useState("");
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "admin" || personnel.role === "supervisor") {
+      router.replace("/yonetici/olaylar");
+      return;
+    }
+    if (!personnel.location_id) { setLoading(false); return; }
+    loadLocationName();
+    loadIncidents();
+  }, [personnel, tab]);
+
+  async function loadLocationName() {
+    if (!personnel?.location_id) return;
+    const { data } = await supabase.from("locations").select("name").eq("id", personnel.location_id).maybeSingle();
+    if (data) setLocationName(data.name);
+  }
+
+  async function loadIncidents() {
+    if (!personnel?.location_id) return;
+    setLoading(true);
+
+    // 1. Aynı lokasyondaki tüm personel ID'lerini al
+    const { data: peers } = await supabase
+      .from("personnel")
+      .select("id")
+      .eq("location_id", personnel.location_id);
+
+    if (!peers || peers.length === 0) { setIncidents([]); setLoading(false); return; }
+    const peerIds = peers.map((p: { id: string }) => p.id);
+
+    // 2. Bu personellerin bildirdiği olayları çek
+    const { data } = await supabase
+      .from("incidents")
+      .select("id, type, severity, title, description, location, created_at, status, photo_urls, video_urls, reporter:reported_by(full_name)")
+      .in("reported_by", peerIds)
+      .eq("status", tab)
+      .order("created_at", { ascending: false })
+      .limit(50);
+
+    setIncidents(
+      (data || []).map((inc: any) => ({
+        ...inc,
+        reporter: Array.isArray(inc.reporter) ? inc.reporter[0] ?? null : inc.reporter,
+        is_mine: peerIds.includes(personnel.id) && inc.reporter?.full_name === personnel.full_name,
+      }))
+    );
+    setLoading(false);
+  }
+
+  const openCount = incidents.filter(i => i.status === "open").length;
+  const tc = (type: string) => typeConfig[type] ?? typeConfig.other;
+  const sc = (sev: string) => severityConfig[sev as keyof typeof severityConfig] ?? severityConfig.low;
+
+  return (
+    <div className="bg-[#f0f2ff] min-h-screen pb-32">
+
+      {/* Header */}
+      <header className="sticky top-0 z-40 flex items-center gap-3 px-4 h-16 shadow-sm"
+        style={{ background: "linear-gradient(135deg, #C62828 0%, #E53935 100%)" }}>
+        <button onClick={() => router.back()}
+          className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/15 active:scale-90 transition-all">
+          <span className="material-symbols-outlined text-white">arrow_back</span>
+        </button>
+        <div className="flex-1 min-w-0">
+          <h1 className="font-bold text-white text-lg leading-tight">Bölge Olayları</h1>
+          <p className="text-white/70 text-xs truncate">{locationName || "Lokasyonunuz"}</p>
+        </div>
+        {tab === "open" && openCount > 0 && (
+          <span className="bg-white text-red-700 text-xs font-bold px-2.5 py-1 rounded-full flex-shrink-0">
+            {openCount} açık
+          </span>
+        )}
+      </header>
+
+      {/* Tabs */}
+      <div className="flex bg-white shadow-sm">
+        {TABS.map(t => (
+          <button key={t.key} onClick={() => setTab(t.key)}
+            className={`flex-1 py-3.5 text-xs font-bold transition-all relative ${tab === t.key ? t.color : "text-gray-400"}`}>
+            {t.label}
+            {tab === t.key && <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-current rounded-full" />}
+          </button>
+        ))}
+      </div>
+
+      {/* İçerik */}
+      {loading ? (
+        <div className="flex items-center justify-center py-20">
+          <span className="material-symbols-outlined animate-spin text-red-500 text-[40px]">progress_activity</span>
+        </div>
+      ) : !personnel?.location_id ? (
+        <div className="flex flex-col items-center gap-4 py-20 px-8 text-center">
+          <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center">
+            <span className="material-symbols-outlined text-amber-500 text-[32px]">location_off</span>
+          </div>
+          <p className="font-bold text-gray-700">Lokasyon atanmamış</p>
+          <p className="text-xs text-gray-400">Yöneticinizden lokasyon ataması yapmasını isteyin.</p>
+        </div>
+      ) : incidents.length === 0 ? (
+        <div className="flex flex-col items-center gap-4 py-20 px-8 text-center">
+          <div className="w-16 h-16 bg-gray-100 rounded-2xl flex items-center justify-center">
+            <span className="material-symbols-outlined text-gray-300 text-[32px]">report_problem</span>
+          </div>
+          <p className="font-bold text-gray-500">Bu kategoride olay yok</p>
+        </div>
+      ) : (
+        <main className="px-4 pt-4 space-y-3">
+          {incidents.map(inc => {
+            const type = tc(inc.type);
+            const sev = sc(inc.severity);
+            return (
+              <div key={inc.id} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${inc.is_mine ? "ring-2 ring-red-200" : ""}`}>
+                {inc.is_mine && (
+                  <div className="bg-red-50 px-4 py-1.5 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-red-400 text-[14px]">person</span>
+                    <span className="text-[11px] font-bold text-red-500">Benim Bildirimim</span>
+                  </div>
+                )}
+
+                <div className="p-4">
+                  {/* Üst satır: tip + önem + zaman */}
+                  <div className="flex items-start gap-3 mb-3">
+                    <div className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${type.bg}`}>
+                      <span className={`material-symbols-outlined text-[22px] ${type.color}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                        {type.icon}
+                      </span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-bold text-gray-800 text-sm">{inc.title || type.label}</span>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sev.bg} ${sev.text}`}>
+                          {sev.label}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-0.5">
+                        {inc.reporter?.full_name ?? "—"} · {timeAgo(inc.created_at)}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Açıklama */}
+                  <p className="text-sm text-gray-600 leading-relaxed line-clamp-2">{inc.description}</p>
+
+                  {/* Lokasyon */}
+                  {inc.location && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      <span className="material-symbols-outlined text-gray-300 text-[14px]">location_on</span>
+                      <span className="text-xs text-gray-400 font-medium truncate">{inc.location}</span>
+                    </div>
+                  )}
+
+                  {/* Fotoğraf/video sayacı */}
+                  {((inc.photo_urls?.length ?? 0) > 0 || (inc.video_urls?.length ?? 0) > 0) && (
+                    <div className="flex items-center gap-3 mt-3 pt-3 border-t border-gray-50">
+                      {(inc.photo_urls?.length ?? 0) > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-gray-400 font-semibold">
+                          <span className="material-symbols-outlined text-[14px]">photo_camera</span>
+                          {inc.photo_urls!.length} fotoğraf
+                        </div>
+                      )}
+                      {(inc.video_urls?.length ?? 0) > 0 && (
+                        <div className="flex items-center gap-1 text-xs text-gray-400 font-semibold">
+                          <span className="material-symbols-outlined text-[14px]">videocam</span>
+                          {inc.video_urls!.length} video
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </main>
+      )}
+
+      {/* FAB — Olay Bildir */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto pointer-events-none z-50">
+        <div className="flex justify-end pb-[8.5rem] pr-4">
+          <button onClick={() => router.push("/olay-bildir")}
+            className="pointer-events-auto flex items-center gap-2 px-5 py-3.5 rounded-full shadow-lg text-white text-sm font-bold active:scale-95 transition-all"
+            style={{ background: "linear-gradient(135deg, #C62828, #E53935)" }}>
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>add_circle</span>
+            Olay Bildir
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}

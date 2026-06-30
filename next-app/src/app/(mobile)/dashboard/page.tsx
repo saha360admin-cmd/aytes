@@ -41,7 +41,7 @@ export default function DashboardPage() {
     const pId = personnel.id;
     const today = toDateStr(new Date());
 
-    const [assignmentRes, patrolRes, incidentRes, taskRes, annRes] = await Promise.all([
+    const [assignmentRes, patrolRes, taskRes, annRes] = await Promise.all([
       supabase
         .from("shift_assignments")
         .select("shift_code")
@@ -50,10 +50,19 @@ export default function DashboardPage() {
         .eq("status", "published")
         .maybeSingle(),
       supabase.from("patrols").select("*").eq("personnel_id", pId).eq("status", "active").limit(1).maybeSingle(),
-      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "open"),
       supabase.from("tasks").select("*, assigned:assigned_to(full_name)").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
       supabase.from("announcements").select("*, creator:created_by(full_name)").eq("department_id", deptId).order("is_pinned", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
+
+    // Lokasyondaki açık olay sayısı — iki adımlı
+    if (personnel.location_id) {
+      const { data: peers } = await supabase.from("personnel").select("id").eq("location_id", personnel.location_id);
+      const ids = (peers || []).map((p: { id: string }) => p.id);
+      if (ids.length > 0) {
+        const { count } = await supabase.from("incidents").select("id", { count: "exact", head: true }).in("reported_by", ids).eq("status", "open");
+        setPendingIncidents(count || 0);
+      }
+    }
 
     if (assignmentRes.data?.shift_code) {
       const { data: typeData } = await supabase
@@ -70,7 +79,6 @@ export default function DashboardPage() {
     if (patrolRes.data) {
       setPatrolStatus({ completed: patrolRes.data.completed_checkpoints, total: patrolRes.data.total_checkpoints, hasActive: true });
     }
-    setPendingIncidents(incidentRes.count || 0);
     setTasks(taskRes.data || []);
     if (annRes.data) setAnnouncement(annRes.data);
     setLoading(false);
@@ -146,18 +154,23 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#FF9800] flex items-center gap-4">
-            <div className="p-3 bg-amber-100 rounded-xl text-amber-600 flex-shrink-0">
-              <span className="material-symbols-outlined">report_problem</span>
+          <Link href="/olaylar" className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#C62828] flex items-center gap-4 active:scale-[0.98] transition-all">
+            <div className="p-3 bg-red-100 rounded-xl text-red-600 flex-shrink-0">
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>report_problem</span>
             </div>
             <div className="flex-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Bekleyen Raporlar</p>
-              <p className="text-xl font-bold text-gray-800">Olay Kayıtları</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Bölge Olayları</p>
+              <p className="text-base font-bold text-gray-800 mt-0.5">
+                {pendingIncidents > 0 ? `${pendingIncidents} açık olay` : "Bekleyen olay yok"}
+              </p>
             </div>
-            {pendingIncidents > 0 && (
-              <span className="bg-amber-100 text-amber-800 px-3 py-1 rounded-full text-xs font-bold">{pendingIncidents} Yeni</span>
-            )}
-          </div>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              {pendingIncidents > 0 && (
+                <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs font-bold">{pendingIncidents}</span>
+              )}
+              <span className="material-symbols-outlined text-gray-300 text-[20px]">chevron_right</span>
+            </div>
+          </Link>
         </section>
 
         {/* Quick Actions */}

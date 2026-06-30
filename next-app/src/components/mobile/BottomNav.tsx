@@ -9,7 +9,7 @@ const staffItems = [
   { href: "/vardiyalar",  label: "Vardiyam",  icon: "calendar_month", color: "#00897B" },
   { href: "/devriye",     label: "Devriye",   icon: "route",          color: "#7B1FA2" },
   { href: "/talepler",    label: "Talepler",  icon: "assignment",     color: "#E65100" },
-  { href: "/olay-bildir", label: "Olaylar",   icon: "report_problem", color: "#C62828" },
+  { href: "/olaylar",     label: "Olaylar",   icon: "report_problem", color: "#C62828" },
   { href: "/ayarlar",     label: "Profil",    icon: "person",         color: "#546E7A" },
 ];
 
