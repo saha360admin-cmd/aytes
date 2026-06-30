@@ -143,14 +143,6 @@ function TaseronYeniForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-bold text-gray-700">Açıklama <span className="text-red-500">*</span></label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)}
-              placeholder="Arıza veya destek talebini açıklayın…"
-              rows={3}
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none resize-none" />
-          </div>
-
-          <div className="space-y-1.5">
             <label className="text-sm font-bold text-gray-700 flex items-center gap-1.5">
               <span className="material-symbols-outlined text-[16px] text-gray-400">location_on</span>
               Lokasyon
@@ -161,6 +153,14 @@ function TaseronYeniForm() {
               <option value="">Lokasyon seçin…</option>
               {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
             </select>
+          </div>
+
+          <div className="space-y-1.5">
+            <label className="text-sm font-bold text-gray-700">Arıza Açıklama <span className="text-red-500">*</span></label>
+            <textarea value={description} onChange={e => setDescription(e.target.value)}
+              placeholder="Arıza veya destek talebini açıklayın…"
+              rows={3}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none resize-none" />
           </div>
         </div>
 
