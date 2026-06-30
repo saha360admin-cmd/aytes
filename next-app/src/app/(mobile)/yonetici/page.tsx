@@ -153,7 +153,8 @@ export default function YoneticiPage() {
     return `${Math.floor(h / 24)} gün önce`;
   }
 
-  const percent = shiftFill.total > 0 ? Math.round((shiftFill.active / shiftFill.total) * 100) : 0;
+  const TOTAL_PERSONNEL = 103;
+  const percent = Math.round((shiftFill.active / TOTAL_PERSONNEL) * 100);
   const circumference = 2 * Math.PI * 40;
   const offset = circumference - (percent / 100) * circumference;
   const name = personnel?.full_name || "Yönetici";
@@ -199,7 +200,7 @@ export default function YoneticiPage() {
           <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <p className="text-sm text-white/75">Yönetici Paneli • {shiftFill.active}/{shiftFill.total} Personel Aktif</p>
+            <p className="text-sm text-white/75">Yönetici Paneli • {shiftFill.active}/{TOTAL_PERSONNEL} Personel Aktif</p>
           </div>
         </div>
       </div>
@@ -253,7 +254,7 @@ export default function YoneticiPage() {
             <div className="flex-1 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-gray-400">Aktif Personel</p>
-                <p className="font-bold text-gray-800">{shiftFill.active} / {shiftFill.total} kişi</p>
+                <p className="font-bold text-gray-800">{shiftFill.active} / {TOTAL_PERSONNEL} kişi</p>
               </div>
               <div className="pt-2 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-400">Bekleyen Talepler</p>
