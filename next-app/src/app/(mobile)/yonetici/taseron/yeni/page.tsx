@@ -14,10 +14,11 @@ function TaseronYeniForm() {
 
   const [departments, setDepartments] = useState<SelectOption[]>([]);
   const [locations, setLocations] = useState<SelectOption[]>([]);
+  const [contractors, setContractors] = useState<SelectOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  const [contractorName, setContractorName] = useState("");
+  const [contractorId, setContractorId] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [description, setDescription] = useState("");
   const [locationId, setLocationId] = useState("");
@@ -38,9 +39,11 @@ function TaseronYeniForm() {
     Promise.all([
       supabase.from("departments").select("id, name").order("name"),
       supabase.from("locations").select("id, name").order("name"),
-    ]).then(([deptRes, locRes]) => {
+      supabase.from("contractors").select("id, name").order("name"),
+    ]).then(([deptRes, locRes, conRes]) => {
       setDepartments((deptRes.data || []) as SelectOption[]);
       setLocations((locRes.data || []) as SelectOption[]);
+      setContractors((conRes.data || []) as SelectOption[]);
     });
   }, []);
 
@@ -50,14 +53,15 @@ function TaseronYeniForm() {
   }
 
   async function handleSubmit() {
-    if (!contractorName.trim() || !departmentId || !description.trim()) {
+    if (!contractorId || !departmentId || !description.trim()) {
       showToast("Zorunlu alanları doldurun.", false);
       return;
     }
     setSaving(true);
     const selectedLocation = locations.find(l => l.id === locationId);
+    const selectedContractor = contractors.find(c => c.id === contractorId);
     const payload: Record<string, unknown> = {
-      contractor_name: contractorName.trim(),
+      contractor_name: selectedContractor?.name ?? "",
       department_id: departmentId,
       description: description.trim(),
       status: "open",
@@ -98,7 +102,7 @@ function TaseronYeniForm() {
           <span className="material-symbols-outlined text-white">arrow_back</span>
         </button>
         <div className="flex-1">
-          <h1 className="font-bold text-white text-lg leading-tight">Yeni Taşeron Kaydı</h1>
+          <h1 className="font-bold text-white text-lg leading-tight">Arıza Kaydı</h1>
           <p className="text-white/70 text-xs">Arıza veya destek talebini kayıt al</p>
         </div>
       </header>
@@ -131,9 +135,11 @@ function TaseronYeniForm() {
 
           <div className="space-y-1.5">
             <label className="text-sm font-bold text-gray-700">Taşeron / Firma <span className="text-red-500">*</span></label>
-            <input type="text" value={contractorName} onChange={e => setContractorName(e.target.value)}
-              placeholder="Örn: ABC Teknik Servis"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none" />
+            <select value={contractorId} onChange={e => setContractorId(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none">
+              <option value="">Firma seçin…</option>
+              {contractors.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
           </div>
 
           <div className="space-y-1.5">
