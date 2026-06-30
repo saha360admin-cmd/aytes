@@ -311,7 +311,7 @@ export default function DevriyePlanlama() {
     setAtamaLoading(true);
     const { data } = await supabase
       .from("patrol_assignments")
-      .select("*, personnel:personnel_id(id, full_name)")
+      .select("*, personnel:personnel(id, full_name)")
       .eq("assigned_date", atamaDate);
     setAssignments((data || []) as PatrolAssignment[]);
     setAtamaLoading(false);
@@ -401,7 +401,7 @@ export default function DevriyePlanlama() {
         status: "assigned",
         assigned_by: personnel.id,
       })
-      .select("*, personnel:personnel_id(id, full_name)")
+      .select("*, personnel:personnel(id, full_name)")
       .single();
 
     if (!error && data) {
@@ -497,7 +497,7 @@ export default function DevriyePlanlama() {
         status: "assigned",
         assigned_by: personnel.id,
       })
-      .select("*, personnel:personnel_id(id, full_name)")
+      .select("*, personnel:personnel(id, full_name)")
       .single();
 
     if (!error && data) {
@@ -559,7 +559,7 @@ export default function DevriyePlanlama() {
           status: "assigned",
           assigned_by: personnel.id,
         })
-        .select("*, personnel:personnel_id(id, full_name)")
+        .select("*, personnel:personnel(id, full_name)")
         .single();
 
       if (!error && data) {
@@ -607,7 +607,7 @@ export default function DevriyePlanlama() {
     setTakipLoading(true);
     const { data } = await supabase
       .from("patrol_assignments")
-      .select("*, plan:plan_id(id, name, start_time, end_time, department_id, department:department_id(name)), personnel:personnel_id(id, full_name)")
+      .select("*, plan:patrol_plans(id, name, start_time, end_time, department_id, department:departments(name)), personnel:personnel(id, full_name)")
       .gte("assigned_date", takipFrom)
       .lte("assigned_date", takipTo)
       .order("assigned_date", { ascending: false });
