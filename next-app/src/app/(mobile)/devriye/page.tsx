@@ -157,7 +157,7 @@ export default function DevriyePage() {
     if (!personnel) return;
     const { data } = await supabase
       .from("patrol_assignments")
-      .select("*, plan:patrol_plans(id, name, start_time, end_time, interval_minutes)")
+      .select("*, plan:plan_id(id, name, start_time, end_time, interval_minutes)")
       .eq("personnel_id", personnel.id)
       .eq("assigned_date", todayStr)
       .in("status", ["assigned", "started"]);
