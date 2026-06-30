@@ -132,7 +132,7 @@ export default function TaseronRaporPage() {
       r.description.replace(/"/g, '""'),
       STATUS_LABELS[r.status] ?? r.status,
     ]);
-    const csv = BOM + [header, ...rows].map(row => row.map(c => `"${c}"`).join(",")).join("\n");
+    const csv = BOM + "sep=;\n" + [header, ...rows].map(row => row.map(c => `"${c}"`).join(";")).join("\n");
     const link = document.createElement("a");
     link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
     link.download = `taseron-rapor-${new Date().toISOString().slice(0, 10)}.csv`;
