@@ -98,6 +98,7 @@ function getPositionLabel(pos: string | null) {
 
 function PersonCard({
   p, locations, isAdmin, updatingLocId, updateLocationId, openEdit, updateStatus, showLocation,
+  onAvatarClick, uploadingAvatar,
 }: {
   p: Person;
   locations: Location[];
@@ -107,17 +108,29 @@ function PersonCard({
   openEdit: (p: Person) => void;
   updateStatus: (id: string, status: string) => void;
   showLocation: boolean;
+  onAvatarClick?: () => void;
+  uploadingAvatar?: boolean;
 }) {
   const isActive = p.status === "active";
   return (
     <div className={`bg-white p-md rounded-xl shadow-sm border border-gray-100 flex flex-col gap-md ${!isActive ? "opacity-75" : ""}`}>
       <div className="flex items-center gap-md">
-        <div className="w-12 h-12 rounded-full bg-indigo-100 flex-shrink-0 overflow-hidden">
+        <div
+          className={`relative w-12 h-12 rounded-full bg-indigo-100 flex-shrink-0 overflow-hidden ${isAdmin ? "cursor-pointer" : ""}`}
+          onClick={isAdmin ? onAvatarClick : undefined}
+        >
           {p.avatar_url ? (
             <img src={p.avatar_url} alt={p.full_name} className="w-full h-full object-cover" />
           ) : (
             <div className="w-full h-full flex items-center justify-center text-indigo-700 font-bold text-base">
               {getInitials(p.full_name)}
+            </div>
+          )}
+          {isAdmin && (
+            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 hover:opacity-100 active:opacity-100 transition-opacity rounded-full">
+              {uploadingAvatar
+                ? <span className="material-symbols-outlined text-white text-[16px] animate-spin">progress_activity</span>
+                : <span className="material-symbols-outlined text-white text-[16px]">photo_camera</span>}
             </div>
           )}
         </div>
@@ -293,6 +306,33 @@ export default function PersonelPage() {
 
   const cameraRef = useRef<HTMLInputElement>(null);
   const fileRef   = useRef<HTMLInputElement>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+  const [uploadingAvatarFor, setUploadingAvatarFor] = useState<string | null>(null);
+
+  function triggerAvatarUpload(personId: string) {
+    setUploadingAvatarFor(personId);
+    avatarInputRef.current?.click();
+  }
+
+  async function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !uploadingAvatarFor) { setUploadingAvatarFor(null); return; }
+    if (!file.type.startsWith("image/")) { setUploadingAvatarFor(null); return; }
+
+    const ext = file.name.split(".").pop() ?? "jpg";
+    const path = `personnel/${uploadingAvatarFor}.${ext}`;
+    const { data: up, error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
+    if (error || !up) { setToast("Yükleme hatası: " + (error?.message ?? "")); setTimeout(() => setToast(""), 3000); setUploadingAvatarFor(null); return; }
+
+    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(up.path);
+    const avatar_url = urlData.publicUrl + `?t=${Date.now()}`;
+    await supabase.from("personnel").update({ avatar_url }).eq("id", uploadingAvatarFor);
+    setPeople(prev => prev.map(p => p.id === uploadingAvatarFor ? { ...p, avatar_url } : p));
+    setUploadingAvatarFor(null);
+    setToast("Fotoğraf güncellendi!");
+    setTimeout(() => setToast(""), 3000);
+  }
 
   useEffect(() => {
     if (!personnel) return;
@@ -559,7 +599,7 @@ export default function PersonelPage() {
             {activeFiltered.length === 0 ? (
               <p className="text-center text-on-surface-variant py-xxl">Personel bulunamadı</p>
             ) : (
-              activeFiltered.map((p) => <PersonCard key={p.id} p={p} locations={locations} isAdmin={isAdmin} updatingLocId={updatingLocId} updateLocationId={updateLocationId} openEdit={openEdit} updateStatus={updateStatus} showLocation />)
+              activeFiltered.map((p) => <PersonCard key={p.id} p={p} locations={locations} isAdmin={isAdmin} updatingLocId={updatingLocId} updateLocationId={updateLocationId} openEdit={openEdit} updateStatus={updateStatus} showLocation onAvatarClick={() => triggerAvatarUpload(p.id)} uploadingAvatar={uploadingAvatarFor === p.id} />)
             )}
           </div>
         ) : (
@@ -603,7 +643,7 @@ export default function PersonelPage() {
                     <div className="space-y-md px-lg pb-md bg-gray-50 border-b border-gray-100">
                       <div className="pt-md space-y-md">
                         {group.members.map((p) => (
-                          <PersonCard key={p.id} p={p} locations={locations} isAdmin={isAdmin} updatingLocId={updatingLocId} updateLocationId={updateLocationId} openEdit={openEdit} updateStatus={updateStatus} showLocation={false} />
+                          <PersonCard key={p.id} p={p} locations={locations} isAdmin={isAdmin} updatingLocId={updatingLocId} updateLocationId={updateLocationId} openEdit={openEdit} updateStatus={updateStatus} showLocation={false} onAvatarClick={() => triggerAvatarUpload(p.id)} uploadingAvatar={uploadingAvatarFor === p.id} />
                         ))}
                       </div>
                     </div>
@@ -1044,6 +1084,9 @@ export default function PersonelPage() {
           </div>
         </div>
       )}
+
+      {/* Avatar upload input */}
+      <input ref={avatarInputRef} type="file" accept="image/*" className="hidden" onChange={handleAvatarChange} />
 
       {/* Toast */}
       {toast && (
