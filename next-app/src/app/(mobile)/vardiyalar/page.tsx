@@ -284,7 +284,7 @@ export default function VardiyalarPage() {
                         schedule
                       </span>
                       <span className="text-body-md text-on-surface-variant">
-                        {shiftInfo.start_time.slice(0, 5)} - {shiftInfo.end_time.slice(0, 5)}
+                        {shiftInfo.start_time?.slice(0, 5) ?? "—"} - {shiftInfo.end_time?.slice(0, 5) ?? "—"}
                       </span>
                     </div>
                   )}
