@@ -78,7 +78,7 @@ function TaseronYeniForm() {
     if (error) {
       showToast("Kayıt oluşturulamadı: " + error.message, false);
     } else {
-      router.push("/yonetici/taseron");
+      router.push("/yonetici");
     }
   }
 
