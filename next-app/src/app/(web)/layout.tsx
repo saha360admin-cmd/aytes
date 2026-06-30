@@ -29,10 +29,22 @@ function WebNavbar() {
   return (
     <header className="w-full h-16 flex items-center justify-between px-6 shadow-sm sticky top-0 z-50"
       style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield</span>
         <span className="font-bold text-white text-lg">AYTES</span>
-        <span className="ml-2 text-xs text-white/60 font-semibold">{personnel?.departments?.name}</span>
+        <span className="ml-1 text-xs text-white/60 font-semibold">{personnel?.departments?.name}</span>
+        <nav className="hidden md:flex items-center gap-1 ml-4">
+          {[
+            { href: "/taseron",       label: "Taşeron Takip", icon: "engineering"   },
+            { href: "/taseron/rapor", label: "Rapor",         icon: "bar_chart"     },
+          ].map(item => (
+            <a key={item.href} href={item.href}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold text-white/80 hover:text-white hover:bg-white/15 transition-all">
+              <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+              {item.label}
+            </a>
+          ))}
+        </nav>
       </div>
 
       <div className="flex items-center gap-3">
