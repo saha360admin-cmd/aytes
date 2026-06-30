@@ -386,7 +386,7 @@ export default function OlaylarPage() {
 
       {/* FAB — Yeni Olay Bildir */}
       <div className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto pointer-events-none z-50">
-        <div className="flex justify-end pb-[6.5rem] pr-4">
+        <div className="flex justify-end pb-[8.5rem] pr-4">
           <button
             onClick={() => router.push("/olay-bildir")}
             className="pointer-events-auto flex items-center gap-2 px-5 py-3.5 rounded-full shadow-lg text-white text-sm font-bold active:scale-95 transition-all"

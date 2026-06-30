@@ -30,7 +30,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
 
   return (
     <div className="min-h-screen bg-gray-100 flex items-start justify-center">
-      <div className="w-full max-w-[430px] min-h-screen bg-background text-on-surface shadow-2xl relative mx-auto pb-[80px]">
+      <div className="w-full max-w-[430px] min-h-screen bg-background text-on-surface shadow-2xl relative mx-auto pb-28">
         {children}
         <BottomNav />
       </div>
