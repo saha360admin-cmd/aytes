@@ -99,7 +99,7 @@ export default function MobileTaseronListePage() {
             ? <p className="text-white/70 text-xs">{activeCount} açık/devam eden kayıt</p>
             : <p className="text-white/70 text-xs">Tüm kayıtlar çözümlendi</p>}
         </div>
-        <button onClick={() => router.push("/yonetici/taseron/yeni")}
+        <button onClick={() => router.push("/taseron/firma/yeni")}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 active:scale-90 transition-all">
           <span className="material-symbols-outlined text-white text-[22px]">add</span>
         </button>
