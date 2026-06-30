@@ -76,7 +76,8 @@ function TaseronYeniForm() {
     const { error } = await supabase.from("service_requests").insert(payload);
     setSaving(false);
     if (error) {
-      showToast("Kayıt oluşturulamadı: " + error.message, false);
+      console.error("service_requests insert:", error);
+      showToast("Kayıt oluşturulamadı. Lütfen tekrar deneyin.", false);
     } else {
       router.push("/yonetici");
     }

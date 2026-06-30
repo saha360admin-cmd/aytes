@@ -1,15 +1,22 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 export default function TaseronFirmaYeniPage() {
   const router = useRouter();
+  const { personnel } = useAuth();
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") router.replace("/dashboard");
+  }, [personnel]);
 
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok });
@@ -24,9 +31,10 @@ export default function TaseronFirmaYeniPage() {
     const { error } = await supabase.from("contractors").insert(payload);
     setSaving(false);
     if (error) {
-      showToast("Kayıt oluşturulamadı: " + error.message, false);
+      console.error("contractors insert:", error);
+      showToast("Kayıt oluşturulamadı. Lütfen tekrar deneyin.", false);
     } else {
-      router.push("/taseron/firma");
+      router.push("/yonetici");
     }
   }
 
@@ -65,7 +73,7 @@ export default function TaseronFirmaYeniPage() {
               type="text"
               value={name}
               onChange={e => setName(e.target.value.toLocaleUpperCase("tr-TR"))}
-              placeholder="Örn: ABC Teknik Servis"
+              placeholder="Örn: ABC TEKNİK SERVİS"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none"
             />
           </div>

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 const TR_MONTHS = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
@@ -51,6 +52,7 @@ interface DeptSummary { id: string; name: string; open: number; in_progress: num
 
 export default function TaseronRaporPage() {
   const router = useRouter();
+  const { personnel } = useAuth();
   const [records, setRecords] = useState<ServiceRequest[]>([]);
   const [filtered, setFiltered] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,6 +66,8 @@ export default function TaseronRaporPage() {
   const [filterLocation, setFilterLocation] = useState("");
 
   useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
     supabase
       .from("service_requests")
       .select(`id, department_id, contractor_name, contractor_ticket_no, description, location_detail, status, opened_at, resolved_at, department:departments(id,name)`)
@@ -120,6 +124,11 @@ export default function TaseronRaporPage() {
   }
   const deptSummary = Array.from(deptSummaryMap.values()).sort((a, b) => b.total_active - a.total_active);
 
+  function sanitizeCsvCell(val: string): string {
+    const s = val.replace(/"/g, '""');
+    return /^[=+\-@\t\r]/.test(s) ? "'" + s : s;
+  }
+
   function toWin1254(str: string): Uint8Array {
     const map: Record<number, number> = {
       8364:0x80, 8218:0x82, 402:0x83, 8222:0x84, 8230:0x85, 8224:0x86, 8225:0x87,
@@ -140,12 +149,12 @@ export default function TaseronRaporPage() {
     const header = ["Tarih", "Birim", "Lokasyon", "Taşeron", "Bilet No", "Açıklama", "Durum"];
     const rows = filtered.map(r => [
       formatDateCSV(r.opened_at),
-      r.department?.name ?? "",
-      r.location_detail ?? "",
-      r.contractor_name,
-      r.contractor_ticket_no ?? "",
-      r.description.replace(/"/g, '""'),
-      STATUS_LABELS[r.status] ?? r.status,
+      sanitizeCsvCell(r.department?.name ?? ""),
+      sanitizeCsvCell(r.location_detail ?? ""),
+      sanitizeCsvCell(r.contractor_name),
+      sanitizeCsvCell(r.contractor_ticket_no ?? ""),
+      sanitizeCsvCell(r.description),
+      sanitizeCsvCell(STATUS_LABELS[r.status] ?? r.status),
     ]);
     const csv = "sep=;\n" + [header, ...rows].map(row => row.map(c => `"${c}"`).join(";")).join("\n");
     const blob = new Blob([toWin1254(csv)], { type: "text/csv;charset=windows-1254;" });

@@ -2,16 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 interface Contractor { id: string; name: string; description: string | null; created_at: string; }
 
 export default function TaseronFirmaPage() {
   const router = useRouter();
+  const { personnel } = useAuth();
   const [firms, setFirms] = useState<Contractor[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { loadFirms(); }, []);
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    loadFirms();
+  }, [personnel]);
 
   async function loadFirms() {
     setLoading(true);
