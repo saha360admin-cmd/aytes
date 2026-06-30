@@ -41,6 +41,21 @@ const severityConfig = {
   low:    { label: "Düşük",  bg: "bg-emerald-100", text: "text-emerald-700" },
 };
 
+const TR_MONTHS = ["Oca","Şub","Mar","Nis","May","Haz","Tem","Ağu","Eyl","Eki","Kas","Ara"];
+
+function formatDateTime(dateStr: string) {
+  const d = new Date(dateStr);
+  const day  = d.getDate();
+  const mon  = TR_MONTHS[d.getMonth()];
+  const year = d.getFullYear();
+  const hh   = String(d.getHours()).padStart(2, "0");
+  const mm   = String(d.getMinutes()).padStart(2, "0");
+  const currentYear = new Date().getFullYear();
+  return year !== currentYear
+    ? `${day} ${mon} ${year}, ${hh}:${mm}`
+    : `${day} ${mon}, ${hh}:${mm}`;
+}
+
 function timeAgo(dateStr: string) {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
   if (diff < 1) return "az önce";
@@ -212,9 +227,15 @@ export default function OlaylarPage() {
                           {sev.label}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-400 mt-0.5">
-                        {inc.reporter?.full_name ?? "—"} · {timeAgo(inc.created_at)}
+                      <p className="text-xs text-gray-500 font-semibold mt-0.5">
+                        {inc.reporter?.full_name ?? "—"}
                       </p>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <span className="material-symbols-outlined text-gray-300 text-[13px]">calendar_today</span>
+                        <span className="text-xs text-gray-400">{formatDateTime(inc.created_at)}</span>
+                        <span className="text-gray-200">·</span>
+                        <span className="text-xs text-gray-400">{timeAgo(inc.created_at)}</span>
+                      </div>
                     </div>
                   </div>
 
