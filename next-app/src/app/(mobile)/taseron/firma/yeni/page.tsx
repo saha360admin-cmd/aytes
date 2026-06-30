@@ -76,7 +76,7 @@ export default function TaseronFirmaYeniPage() {
             </label>
             <textarea
               value={description}
-              onChange={e => setDescription(e.target.value)}
+              onChange={e => { const v = e.target.value; setDescription(v.charAt(0).toLocaleUpperCase("tr-TR") + v.slice(1)); }}
               placeholder="Firmanın uzmanlık alanı veya notlar…"
               rows={3}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none resize-none"
