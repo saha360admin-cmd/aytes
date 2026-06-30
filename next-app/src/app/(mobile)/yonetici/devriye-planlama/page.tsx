@@ -39,6 +39,9 @@ export default function DevriyePlanlama() {
   const [selectedLoc, setSelectedLoc] = useState<string>("all");
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
+  /* ── Bölge seçici ── */
+  const [showLocPicker, setShowLocPicker] = useState(false);
+
   /* ── Yeni rota formu ── */
   const [showNewRoute, setShowNewRoute] = useState(false);
   const [newRouteName, setNewRouteName] = useState("");
@@ -50,13 +53,13 @@ export default function DevriyePlanlama() {
   const [newPointName, setNewPointName]   = useState("");
   const [savingPoint, setSavingPoint]     = useState(false);
 
-  /* ── Plan ekleme ── */
-  const [addingSchedTo, setAddingSchedTo]   = useState<string | null>(null);
-  const [schedDayType, setSchedDayType]     = useState<"weekday"|"weekend"|"everyday">("weekday");
-  const [schedStart, setSchedStart]         = useState("08:00");
-  const [schedInterval, setSchedInterval]   = useState(60);
-  const [schedEnd, setSchedEnd]             = useState("");
-  const [savingSched, setSavingSched]       = useState(false);
+  /* ── Plan ekle / düzenle ── */
+  const [editingSched, setEditingSched] = useState<{ routeId: string; sched: Schedule | null } | null>(null);
+  const [schedDayType, setSchedDayType] = useState<"weekday"|"weekend"|"everyday">("weekday");
+  const [schedStart, setSchedStart]     = useState("08:00");
+  const [schedInterval, setSchedInterval] = useState(60);
+  const [schedEnd, setSchedEnd]         = useState("");
+  const [savingSched, setSavingSched]   = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
@@ -122,17 +125,40 @@ export default function DevriyePlanlama() {
       : r));
   }
 
-  async function addSchedule(routeId: string) {
-    setSavingSched(true);
-    const { data, error } = await supabase.from("patrol_schedules")
-      .insert({ route_id: routeId, day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true })
-      .select("id, day_type, start_time, interval_minutes, end_time, is_active").single();
-    if (!error && data) {
-      setRoutes(p => p.map(r => r.id === routeId ? { ...r, schedules: [...r.schedules, data] } : r));
-      setAddingSchedTo(null);
+  function openSchedForm(routeId: string, sched: Schedule | null) {
+    setEditingSched({ routeId, sched });
+    if (sched) {
+      setSchedDayType(sched.day_type);
+      setSchedStart(sched.start_time.slice(0, 5));
+      setSchedInterval(sched.interval_minutes);
+      setSchedEnd(sched.end_time ? sched.end_time.slice(0, 5) : "");
+    } else {
       setSchedDayType("weekday"); setSchedStart("08:00"); setSchedInterval(60); setSchedEnd("");
-      flash("Plan kaydedildi", true);
-    } else flash(error?.message ?? "Hata", false);
+    }
+  }
+
+  async function saveSchedule() {
+    if (!editingSched) return;
+    const { routeId, sched } = editingSched;
+    setSavingSched(true);
+    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true };
+
+    if (sched) {
+      const { data, error } = await supabase.from("patrol_schedules").update(payload).eq("id", sched.id).select("id, day_type, start_time, interval_minutes, end_time, is_active").single();
+      if (!error && data) {
+        setRoutes(p => p.map(r => r.id === routeId ? { ...r, schedules: r.schedules.map(s => s.id === sched.id ? data : s) } : r));
+        flash("Plan güncellendi", true);
+      } else flash(error?.message ?? "Hata", false);
+    } else {
+      const { data, error } = await supabase.from("patrol_schedules")
+        .insert({ route_id: routeId, ...payload })
+        .select("id, day_type, start_time, interval_minutes, end_time, is_active").single();
+      if (!error && data) {
+        setRoutes(p => p.map(r => r.id === routeId ? { ...r, schedules: [...r.schedules, data] } : r));
+        flash("Plan kaydedildi", true);
+      } else flash(error?.message ?? "Hata", false);
+    }
+    setEditingSched(null);
     setSavingSched(false);
   }
 
@@ -158,6 +184,7 @@ export default function DevriyePlanlama() {
     setTimeout(() => setToast(null), 2500);
   }
 
+  const selectedLocName = selectedLoc === "all" ? "Tüm Bölgeler" : (locations.find(l => l.id === selectedLoc)?.name ?? "Bölge");
   const filtered = selectedLoc === "all" ? routes : routes.filter(r => r.location_id === selectedLoc);
 
   if (loading) return (
@@ -186,19 +213,34 @@ export default function DevriyePlanlama() {
         </button>
         <div className="flex-1">
           <h1 className="font-bold text-white text-lg leading-tight">Devriye Planlaması</h1>
-          <p className="text-white/60 text-xs">Bölge bazlı rota ve zaman yönetimi</p>
+          <p className="text-white/60 text-xs">{filtered.length} rota · {filtered.filter(r => r.is_active).length} aktif</p>
         </div>
       </header>
 
-      {/* Bölge Filtre */}
-      <div className="flex gap-2 px-4 pt-4 pb-2 overflow-x-auto no-scrollbar">
-        {[{ id: "all", name: "Tümü" }, ...locations].map(loc => (
-          <button key={loc.id} onClick={() => setSelectedLoc(loc.id)}
-            className={`flex-shrink-0 h-9 px-4 rounded-full text-xs font-bold transition-all active:scale-95 ${selectedLoc === loc.id ? "text-white shadow-md" : "bg-white text-gray-500 border border-gray-200"}`}
-            style={selectedLoc === loc.id ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
-            {loc.name}
-          </button>
-        ))}
+      {/* Bölge Seçici Butonu */}
+      <div className="px-4 pt-4 pb-2">
+        <div role="button" onClick={() => setShowLocPicker(true)}
+          className="w-full flex items-center justify-between bg-white rounded-2xl px-4 py-3.5 shadow-sm active:scale-[0.98] transition-all cursor-pointer select-none">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+              <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>location_on</span>
+            </div>
+            <div className="text-left">
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Bölge Filtresi</p>
+              <p className="text-sm font-bold text-gray-800">{selectedLocName}</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {selectedLoc !== "all" && (
+              <button onClick={e => { e.stopPropagation(); setSelectedLoc("all"); }}
+                className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-gray-400 text-[14px]">close</span>
+              </button>
+            )}
+            <span className="material-symbols-outlined text-gray-300 text-[22px]">expand_more</span>
+          </div>
+        </div>
       </div>
 
       {/* Rota Kartları */}
@@ -296,10 +338,8 @@ export default function DevriyePlanlama() {
                   <div className="px-4 pt-3 pb-4 border-t border-gray-100">
                     <div className="flex items-center justify-between mb-3">
                       <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Zaman Planları</p>
-                      <button onClick={() => {
-                        setAddingSchedTo(route.id);
-                        setSchedDayType("weekday"); setSchedStart("08:00"); setSchedInterval(60); setSchedEnd("");
-                      }} className="h-8 px-3 rounded-full bg-indigo-50 text-[#3949AB] text-xs font-bold flex items-center gap-1 active:scale-95 transition-all">
+                      <button onClick={() => openSchedForm(route.id, null)}
+                        className="h-8 px-3 rounded-full bg-indigo-50 text-[#3949AB] text-xs font-bold flex items-center gap-1 active:scale-95 transition-all">
                         <span className="material-symbols-outlined text-[14px]">add</span>
                         Plan Ekle
                       </button>
@@ -310,7 +350,8 @@ export default function DevriyePlanlama() {
                       : (
                         <div className="space-y-2">
                           {route.schedules.map(s => (
-                            <div key={s.id} className="flex items-center gap-3 bg-indigo-50 rounded-xl px-3 py-3">
+                            <div key={s.id} role="button" onClick={() => openSchedForm(route.id, s)}
+                              className="w-full flex items-center gap-3 bg-indigo-50 rounded-xl px-3 py-3 active:bg-indigo-100 transition-colors cursor-pointer select-none">
                               <div className="w-9 h-9 rounded-xl bg-white flex items-center justify-center flex-shrink-0">
                                 <span className="material-symbols-outlined text-[#3949AB] text-[18px]">schedule</span>
                               </div>
@@ -322,73 +363,17 @@ export default function DevriyePlanlama() {
                                   {s.end_time ? ` · ${s.end_time.slice(0, 5)}'e kadar` : ""}
                                 </p>
                               </div>
-                              <button onClick={() => deleteSchedule(route.id, s.id)}
-                                className="w-8 h-8 rounded-full bg-white flex items-center justify-center active:scale-90 transition-all flex-shrink-0">
-                                <span className="material-symbols-outlined text-red-400 text-[16px]">delete</span>
-                              </button>
+                              <div className="flex items-center gap-1.5 flex-shrink-0">
+                                <span className="text-[10px] font-bold text-[#3949AB] bg-white px-2 py-1 rounded-full">Düzenle</span>
+                                <button onClick={e => { e.stopPropagation(); deleteSchedule(route.id, s.id); }}
+                                  className="w-7 h-7 rounded-full bg-white flex items-center justify-center active:scale-90 transition-all">
+                                  <span className="material-symbols-outlined text-red-400 text-[14px]">delete</span>
+                                </button>
+                              </div>
                             </div>
                           ))}
                         </div>
                       )}
-
-                    {addingSchedTo === route.id && (
-                      <div className="mt-3 bg-gray-50 rounded-2xl p-4 space-y-4">
-
-                        {/* Gün tipi */}
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Hangi Günler</label>
-                          <div className="flex gap-2">
-                            {DAY_TYPES.map(dt => (
-                              <button key={dt.id} onClick={() => setSchedDayType(dt.id)}
-                                className={`flex-1 h-10 rounded-xl text-xs font-bold transition-all active:scale-95 ${schedDayType === dt.id ? "text-white" : "bg-white border border-gray-200 text-gray-500"}`}
-                                style={schedDayType === dt.id ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
-                                {dt.label}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Saatler */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">Başlangıç</label>
-                            <input type="time" value={schedStart} onChange={e => setSchedStart(e.target.value)}
-                              className="w-full h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm focus:ring-2 focus:ring-[#3949AB] outline-none" />
-                          </div>
-                          <div>
-                            <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">Bitiş (isteğe bağlı)</label>
-                            <input type="time" value={schedEnd} onChange={e => setSchedEnd(e.target.value)}
-                              className="w-full h-11 bg-white border border-gray-200 rounded-xl px-3 text-sm focus:ring-2 focus:ring-[#3949AB] outline-none" />
-                          </div>
-                        </div>
-
-                        {/* Aralık */}
-                        <div>
-                          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Devriye Aralığı</label>
-                          <div className="grid grid-cols-3 gap-2">
-                            {INTERVALS.map(iv => (
-                              <button key={iv} onClick={() => setSchedInterval(iv)}
-                                className={`h-11 rounded-xl text-xs font-bold transition-all active:scale-95 ${schedInterval === iv ? "text-white" : "bg-white border border-gray-200 text-gray-500"}`}
-                                style={schedInterval === iv ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
-                                {iv < 60 ? `${iv} dk` : `${iv / 60} saat`}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="flex gap-2">
-                          <button onClick={() => addSchedule(route.id)} disabled={savingSched}
-                            className="flex-1 h-12 rounded-xl text-white text-sm font-bold disabled:opacity-50 active:scale-95 transition-all"
-                            style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                            {savingSched ? "Kaydediliyor..." : "Planı Kaydet"}
-                          </button>
-                          <button onClick={() => setAddingSchedTo(null)}
-                            className="h-12 px-5 rounded-xl bg-gray-200 text-gray-600 text-sm font-bold active:scale-95 transition-all">
-                            İptal
-                          </button>
-                        </div>
-                      </div>
-                    )}
                   </div>
 
                   {/* Rota Aksiyonları */}
@@ -421,7 +406,138 @@ export default function DevriyePlanlama() {
         </div>
       </div>
 
-      {/* Yeni Rota Bottom Sheet */}
+      {/* ── Bölge Seçici Bottom Sheet ── */}
+      {showLocPicker && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowLocPicker(false)} />
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden">
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 relative">
+              <div className="w-10 h-1 bg-gray-200 rounded-full absolute top-3 left-1/2 -translate-x-1/2" />
+              <h3 className="text-base font-bold text-gray-800 mt-2">Bölge Seç</h3>
+              <button onClick={() => setShowLocPicker(false)}
+                className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-all mt-2">
+                <span className="material-symbols-outlined text-gray-500 text-[18px]">close</span>
+              </button>
+            </div>
+
+            <div className="px-4 pb-8 space-y-2 max-h-[60vh] overflow-y-auto">
+              {[{ id: "all", name: "Tüm Bölgeler" }, ...locations].map(loc => (
+                <button key={loc.id}
+                  onClick={() => { setSelectedLoc(loc.id); setShowLocPicker(false); }}
+                  className={`w-full flex items-center gap-4 px-4 py-4 rounded-2xl transition-all active:scale-[0.98] ${selectedLoc === loc.id ? "text-white" : "bg-gray-50 text-gray-700"}`}
+                  style={selectedLoc === loc.id ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                  <div className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${selectedLoc === loc.id ? "bg-white/20" : "bg-white"}`}>
+                    <span className={`material-symbols-outlined text-[18px] ${selectedLoc === loc.id ? "text-white" : "text-[#3949AB]"}`}
+                      style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {loc.id === "all" ? "layers" : "location_on"}
+                    </span>
+                  </div>
+                  <div className="flex-1 text-left">
+                    <p className="font-bold text-sm">{loc.name}</p>
+                    {loc.id !== "all" && (
+                      <p className={`text-xs mt-0.5 ${selectedLoc === loc.id ? "text-white/70" : "text-gray-400"}`}>
+                        {routes.filter(r => r.location_id === loc.id).length} rota
+                      </p>
+                    )}
+                  </div>
+                  {selectedLoc === loc.id && (
+                    <span className="material-symbols-outlined text-white text-[20px]">check_circle</span>
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Plan Ekle / Düzenle Bottom Sheet ── */}
+      {editingSched && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setEditingSched(null)} />
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl">
+            <div className="px-6 pt-5 pb-4 space-y-4 max-h-[85vh] overflow-y-auto">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto" />
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-bold text-gray-800">
+                  {editingSched.sched ? "Planı Düzenle" : "Yeni Plan Ekle"}
+                </h3>
+                <button onClick={() => setEditingSched(null)}
+                  className="w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-all">
+                  <span className="material-symbols-outlined text-gray-500 text-[18px]">close</span>
+                </button>
+              </div>
+
+              {/* Gün tipi */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Hangi Günler</label>
+                <div className="flex gap-2">
+                  {DAY_TYPES.map(dt => (
+                    <button key={dt.id} onClick={() => setSchedDayType(dt.id)}
+                      className={`flex-1 h-11 rounded-xl text-xs font-bold transition-all active:scale-95 ${schedDayType === dt.id ? "text-white" : "bg-gray-100 text-gray-500"}`}
+                      style={schedDayType === dt.id ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                      {dt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Saatler */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">Başlangıç</label>
+                  <input type="time" value={schedStart} onChange={e => setSchedStart(e.target.value)}
+                    className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-3 text-sm focus:ring-2 focus:ring-[#3949AB] outline-none" />
+                </div>
+                <div>
+                  <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-1.5">Bitiş (isteğe bağlı)</label>
+                  <input type="time" value={schedEnd} onChange={e => setSchedEnd(e.target.value)}
+                    className="w-full h-12 bg-gray-50 border border-gray-200 rounded-xl px-3 text-sm focus:ring-2 focus:ring-[#3949AB] outline-none" />
+                </div>
+              </div>
+
+              {/* Aralık */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Devriye Aralığı</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {INTERVALS.map(iv => (
+                    <button key={iv} onClick={() => setSchedInterval(iv)}
+                      className={`h-12 rounded-xl text-sm font-bold transition-all active:scale-95 ${schedInterval === iv ? "text-white" : "bg-gray-100 text-gray-500"}`}
+                      style={schedInterval === iv ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                      {iv < 60 ? `${iv} dk` : `${iv / 60} saat`}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Özet */}
+              <div className="bg-indigo-50 rounded-2xl px-4 py-3 flex items-center gap-3">
+                <span className="material-symbols-outlined text-[#3949AB] text-[20px]">info</span>
+                <p className="text-xs text-[#3949AB] font-semibold leading-relaxed">
+                  {DAY_LABEL[schedDayType]}, {schedStart} başlar · Her {schedInterval < 60 ? `${schedInterval} dk'da` : `${schedInterval / 60} saatte`} bir devriye
+                  {schedEnd ? ` · ${schedEnd}'e kadar` : ""}
+                </p>
+              </div>
+
+              <div className="flex gap-2 pb-6">
+                <button onClick={saveSchedule} disabled={savingSched}
+                  className="flex-1 h-13 py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all"
+                  style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                  {savingSched
+                    ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                    : <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>save</span>}
+                  {savingSched ? "Kaydediliyor..." : (editingSched.sched ? "Güncelle" : "Planı Kaydet")}
+                </button>
+                <button onClick={() => setEditingSched(null)}
+                  className="py-4 px-5 rounded-2xl bg-gray-100 text-gray-600 font-bold active:scale-95 transition-all">
+                  İptal
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Yeni Rota Bottom Sheet ── */}
       {showNewRoute && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={() => setShowNewRoute(false)} />
@@ -455,7 +571,7 @@ export default function DevriyePlanlama() {
             </div>
 
             <button onClick={createRoute} disabled={savingRoute || !newRouteName.trim()}
-              className="w-full h-13 py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all"
+              className="w-full py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all"
               style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
               {savingRoute
                 ? <span className="material-symbols-outlined animate-spin">progress_activity</span>
