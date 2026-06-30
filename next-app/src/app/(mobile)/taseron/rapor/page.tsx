@@ -11,6 +11,11 @@ function formatDate(dateStr: string) {
   return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
 }
 
+function formatDateCSV(dateStr: string) {
+  const d = new Date(dateStr);
+  return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${d.getFullYear()} ${String(d.getHours()).padStart(2,"0")}:${String(d.getMinutes()).padStart(2,"0")}`;
+}
+
 const STATUS_LABELS: Record<string, string> = {
   open: "Açık", in_progress: "Devam Ediyor", resolved: "Çözüldü", cancelled: "İptal",
 };
@@ -119,7 +124,7 @@ export default function TaseronRaporPage() {
     const BOM = "﻿";
     const header = ["Tarih", "Birim", "Lokasyon", "Taşeron", "Bilet No", "Açıklama", "Durum"];
     const rows = filtered.map(r => [
-      formatDate(r.opened_at),
+      formatDateCSV(r.opened_at),
       r.department?.name ?? "",
       r.location_detail ?? "",
       r.contractor_name,
