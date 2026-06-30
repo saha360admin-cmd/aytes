@@ -180,7 +180,7 @@ export default function OlaylarPage() {
   }
 
   return (
-    <div className="bg-[#f0f2ff] min-h-screen pb-8">
+    <div className="bg-[#f0f2ff] min-h-screen pb-24">
       {toast && (
         <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-full shadow-xl flex items-center gap-2 text-sm font-bold text-white ${toast.ok ? "bg-emerald-600" : "bg-red-600"}`}>
           <span className="material-symbols-outlined text-[18px]">{toast.ok ? "check_circle" : "error"}</span>
@@ -383,6 +383,20 @@ export default function OlaylarPage() {
           </p>
         )}
       </main>
+
+      {/* FAB — Yeni Olay Bildir */}
+      <div className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto pointer-events-none z-50">
+        <div className="flex justify-end pb-[6.5rem] pr-4">
+          <button
+            onClick={() => router.push("/olay-bildir")}
+            className="pointer-events-auto flex items-center gap-2 px-5 py-3.5 rounded-full shadow-lg text-white text-sm font-bold active:scale-95 transition-all"
+            style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}
+          >
+            <span className="material-symbols-outlined text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>add_circle</span>
+            Olay Bildir
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
