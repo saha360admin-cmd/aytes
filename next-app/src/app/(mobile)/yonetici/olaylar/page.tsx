@@ -22,6 +22,7 @@ interface Incident {
   location: string | null;
   created_at: string;
   photo_urls: string[] | null;
+  video_urls: string[] | null;
   reporter: { full_name: string } | null;
   all_depts: DeptStatus[];
   my_dept_record_id: string;
@@ -120,7 +121,7 @@ export default function OlaylarPage() {
     const { data: incData } = await supabase
       .from("incidents")
       .select(`
-        id, type, severity, title, description, location, created_at, photo_urls,
+        id, type, severity, title, description, location, created_at, photo_urls, video_urls,
         reporter:reported_by(full_name),
         all_depts:incident_departments(id, status, department_id)
       `)
@@ -277,6 +278,29 @@ export default function OlaylarPage() {
                             <a href={`${proxyUrl}&download=1`} download
                               className="absolute bottom-1 right-1 w-6 h-6 bg-black/60 rounded-full flex items-center justify-center">
                               <span className="material-symbols-outlined text-white text-[13px]">download</span>
+                            </a>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Videolar */}
+                  {Array.isArray(inc.video_urls) && inc.video_urls.length > 0 && (
+                    <div className="space-y-2">
+                      {inc.video_urls.map((url, i) => {
+                        const proxyUrl = `/api/storage-proxy?url=${encodeURIComponent(url)}`;
+                        return (
+                          <div key={i} className="rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-black relative">
+                            <video
+                              src={proxyUrl}
+                              controls
+                              preload="metadata"
+                              className="w-full max-h-52 object-contain"
+                            />
+                            <a href={`${proxyUrl}&download=1`} download
+                              className="absolute top-2 right-2 w-7 h-7 bg-black/60 rounded-full flex items-center justify-center">
+                              <span className="material-symbols-outlined text-white text-[14px]">download</span>
                             </a>
                           </div>
                         );

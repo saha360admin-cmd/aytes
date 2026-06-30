@@ -21,6 +21,8 @@ const severities = [
   { id: "high", label: "Yüksek", active: "bg-red-600 text-white shadow-md shadow-red-200", icon: "arrow_upward" },
 ];
 
+const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100 MB
+
 function OlayBildirForm() {
   const router = useRouter();
   const params = useSearchParams();
@@ -34,11 +36,14 @@ function OlayBildirForm() {
   const [description, setDescription] = useState("");
   const [location, setLocation] = useState("");
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
+  const [videos, setVideos] = useState<{ file: File; preview: string }[]>([]);
   const [sending, setSending] = useState(false);
   const [toast, setToast] = useState(false);
 
   const cameraRef = useRef<HTMLInputElement>(null);
   const galleryRef = useRef<HTMLInputElement>(null);
+  const videoCamRef = useRef<HTMLInputElement>(null);
+  const videoGalleryRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.from("departments").select("*").then(({ data }) => {
@@ -86,6 +91,24 @@ function OlayBildirForm() {
           await supabase.from("incidents").update({ photo_urls: urls }).eq("id", inc.id);
         }
       }
+
+      if (videos.length > 0) {
+        const urls: string[] = [];
+        for (const v of videos) {
+          const ext = v.file.name.split(".").pop() || "mp4";
+          const path = `incidents/${inc.id}/${Date.now()}_${Math.random().toString(36).slice(2)}.${ext}`;
+          const { error: upErr } = await supabase.storage
+            .from("incident-videos")
+            .upload(path, v.file, { contentType: v.file.type });
+          if (!upErr) {
+            const { data: urlData } = supabase.storage.from("incident-videos").getPublicUrl(path);
+            urls.push(urlData.publicUrl);
+          }
+        }
+        if (urls.length > 0) {
+          await supabase.from("incidents").update({ video_urls: urls }).eq("id", inc.id);
+        }
+      }
     }
 
     setSending(false);
@@ -116,6 +139,27 @@ function OlayBildirForm() {
 
   function removePhoto(idx: number) {
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
+  }
+
+  function handleVideoAdd(e: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(e.target.files || []);
+    files.forEach((file) => {
+      if (!file.type.startsWith("video/")) return;
+      if (file.size > MAX_VIDEO_SIZE) {
+        alert(`"${file.name}" dosyası 100 MB limitini aşıyor.`);
+        return;
+      }
+      const preview = URL.createObjectURL(file);
+      setVideos((prev) => [...prev, { file, preview }]);
+    });
+    e.target.value = "";
+  }
+
+  function removeVideo(idx: number) {
+    setVideos((prev) => {
+      URL.revokeObjectURL(prev[idx].preview);
+      return prev.filter((_, i) => i !== idx);
+    });
   }
 
   const deptIcons: Record<string, string> = { idari: "admin_panel_settings", guvenlik: "security", teknik: "engineering", temizlik: "cleaning_services" };
@@ -230,6 +274,7 @@ function OlayBildirForm() {
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Medya Ekle</h2>
 
+          {/* Fotoğraflar */}
           {photos.length > 0 && (
             <div className="flex gap-3 flex-wrap">
               {photos.map((p, i) => (
@@ -252,12 +297,46 @@ function OlayBildirForm() {
             <button onClick={() => galleryRef.current?.click()}
               className="flex-1 py-5 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 text-gray-500 bg-white hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
               <span className="material-symbols-outlined text-[32px]">photo_library</span>
-              <span className="text-xs font-semibold">Galeriden Seç</span>
+              <span className="text-xs font-semibold">Galeriden Fotoğraf</span>
+            </button>
+          </div>
+
+          {/* Videolar */}
+          {videos.length > 0 && (
+            <div className="flex gap-3 flex-wrap">
+              {videos.map((v, i) => (
+                <div key={i} className="relative w-24 h-24 rounded-xl overflow-hidden border border-gray-200 shadow-sm bg-black">
+                  <video src={v.preview} className="w-full h-full object-cover" preload="metadata" />
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <div className="w-8 h-8 rounded-full bg-black/50 flex items-center justify-center">
+                      <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_arrow</span>
+                    </div>
+                  </div>
+                  <button onClick={() => removeVideo(i)} className="absolute top-1 right-1 w-5 h-5 bg-red-600 text-white rounded-full flex items-center justify-center shadow">
+                    <span className="material-symbols-outlined text-[12px]">close</span>
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <div className="flex gap-4">
+            <button onClick={() => videoCamRef.current?.click()}
+              className="flex-1 py-5 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 text-gray-500 bg-white hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
+              <span className="material-symbols-outlined text-[32px]">videocam</span>
+              <span className="text-xs font-semibold">Video Çek</span>
+            </button>
+            <button onClick={() => videoGalleryRef.current?.click()}
+              className="flex-1 py-5 rounded-2xl flex flex-col items-center justify-center gap-2 border-2 border-dashed border-gray-300 text-gray-500 bg-white hover:border-blue-700 hover:text-blue-700 transition-all active:scale-95">
+              <span className="material-symbols-outlined text-[32px]">video_library</span>
+              <span className="text-xs font-semibold">Galeriden Video</span>
             </button>
           </div>
 
           <input ref={cameraRef} type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handlePhotoAdd} />
           <input ref={galleryRef} type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoAdd} />
+          <input ref={videoCamRef} type="file" accept="video/*" capture="environment" className="hidden" onChange={handleVideoAdd} />
+          <input ref={videoGalleryRef} type="file" accept="video/*" multiple className="hidden" onChange={handleVideoAdd} />
         </section>
       </main>
 
