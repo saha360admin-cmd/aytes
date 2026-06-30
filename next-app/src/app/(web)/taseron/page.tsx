@@ -123,14 +123,14 @@ export default function TaseronListePage() {
         </div>
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/web/taseron/rapor")}
+            onClick={() => router.push("/taseron/rapor")}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white border border-gray-200 text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors shadow-sm"
           >
             <span className="material-symbols-outlined text-[18px]">bar_chart</span>
             Rapor
           </button>
           <button
-            onClick={() => router.push("/web/taseron/yeni")}
+            onClick={() => router.push("/taseron/yeni")}
             className="flex items-center gap-2 px-4 py-2 rounded-xl text-white text-sm font-bold transition-all active:scale-95 shadow-sm"
             style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}
           >
@@ -213,7 +213,7 @@ export default function TaseronListePage() {
             return (
               <div
                 key={req.id}
-                onClick={() => router.push(`/web/taseron/${req.id}`)}
+                onClick={() => router.push(`/taseron/${req.id}`)}
                 className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 hover:shadow-md hover:border-indigo-200 transition-all cursor-pointer group"
               >
                 <div className="flex items-start gap-4">

@@ -498,7 +498,7 @@ export default function YoneticiPage() {
               )}
             </div>
             <button
-              onClick={() => router.push("/web/taseron")}
+              onClick={() => router.push("/taseron")}
               className="text-xs font-bold text-[#3949AB]"
             >
               Tümü →
@@ -506,7 +506,7 @@ export default function YoneticiPage() {
           </div>
 
           <div
-            onClick={() => router.push("/web/taseron")}
+            onClick={() => router.push("/taseron")}
             className="bg-white rounded-xl shadow-sm border-l-4 border-l-indigo-400 p-4 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer"
           >
             <div>

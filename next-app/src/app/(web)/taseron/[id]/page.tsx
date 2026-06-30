@@ -133,7 +133,7 @@ export default function TaseronDetayPage() {
       <div className="max-w-2xl mx-auto px-4 py-16 text-center">
         <span className="material-symbols-outlined text-gray-300 text-[52px] block mb-3">search_off</span>
         <p className="text-gray-500 font-semibold">Kayıt bulunamadı.</p>
-        <button onClick={() => router.push("/web/taseron")} className="mt-4 text-sm text-indigo-600 font-bold underline">
+        <button onClick={() => router.push("/taseron")} className="mt-4 text-sm text-indigo-600 font-bold underline">
           Listeye Dön
         </button>
       </div>
@@ -154,7 +154,7 @@ export default function TaseronDetayPage() {
       {/* Sayfa başlığı */}
       <div className="flex items-center gap-3 mb-8">
         <button
-          onClick={() => router.push("/web/taseron")}
+          onClick={() => router.push("/taseron")}
           className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500"
         >
           <span className="material-symbols-outlined text-[22px]">arrow_back</span>
@@ -290,7 +290,7 @@ export default function TaseronDetayPage() {
       {/* Butonlar */}
       <div className="flex gap-3">
         <button
-          onClick={() => router.push("/web/taseron")}
+          onClick={() => router.push("/taseron")}
           className="flex-1 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
         >
           Geri Dön

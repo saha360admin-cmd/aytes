@@ -77,7 +77,7 @@ export default function TaseronYeniPage() {
     if (error) {
       showToast("Kayıt oluşturulamadı: " + error.message, false);
     } else {
-      router.push("/web/taseron");
+      router.push("/taseron");
     }
   }
 
@@ -93,7 +93,7 @@ export default function TaseronYeniPage() {
       {/* Sayfa başlığı */}
       <div className="flex items-center gap-3 mb-8">
         <button
-          onClick={() => router.push("/web/taseron")}
+          onClick={() => router.push("/taseron")}
           className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500"
         >
           <span className="material-symbols-outlined text-[22px]">arrow_back</span>
@@ -221,7 +221,7 @@ export default function TaseronYeniPage() {
         <div className="flex gap-3">
           <button
             type="button"
-            onClick={() => router.push("/web/taseron")}
+            onClick={() => router.push("/taseron")}
             className="flex-1 py-3 bg-white border border-gray-200 rounded-xl text-sm font-bold text-gray-600 hover:bg-gray-50 transition-colors"
           >
             İptal

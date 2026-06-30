@@ -365,7 +365,7 @@ export default function OlaylarPage() {
                   {tab === "open" && (
                     <button
                       onClick={() => router.push(
-                        `/web/taseron/yeni?incident_id=${inc.id}&department_id=${personnel?.department_id ?? ""}&description=${encodeURIComponent(inc.description || "")}`
+                        `/taseron/yeni?incident_id=${inc.id}&department_id=${personnel?.department_id ?? ""}&description=${encodeURIComponent(inc.description || "")}`
                       )}
                       className="text-xs text-indigo-600 font-semibold flex items-center gap-1 mt-2 hover:text-indigo-800"
                     >

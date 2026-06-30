@@ -132,7 +132,7 @@ export default function TaseronRaporPage() {
       <div className="flex items-center justify-between mb-6 print:mb-4">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => router.push("/web/taseron")}
+            onClick={() => router.push("/taseron")}
             className="p-2 rounded-xl hover:bg-white hover:shadow-sm transition-all text-gray-500 print:hidden"
           >
             <span className="material-symbols-outlined text-[22px]">arrow_back</span>
