@@ -5,21 +5,22 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
-interface DepartmentOption { id: string; name: string; }
+interface SelectOption { id: string; name: string; }
 
 function TaseronYeniForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { personnel } = useAuth();
 
-  const [departments, setDepartments] = useState<DepartmentOption[]>([]);
+  const [departments, setDepartments] = useState<SelectOption[]>([]);
+  const [locations, setLocations] = useState<SelectOption[]>([]);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   const [contractorName, setContractorName] = useState("");
   const [departmentId, setDepartmentId] = useState("");
   const [description, setDescription] = useState("");
-  const [locationDetail, setLocationDetail] = useState("");
+  const [locationId, setLocationId] = useState("");
   const [incidentId, setIncidentId] = useState("");
   const [contractorTicketNo, setContractorTicketNo] = useState("");
   const [notes, setNotes] = useState("");
@@ -34,8 +35,13 @@ function TaseronYeniForm() {
   }, [searchParams]);
 
   useEffect(() => {
-    supabase.from("departments").select("id, name").order("name")
-      .then(({ data }) => setDepartments((data || []) as DepartmentOption[]));
+    Promise.all([
+      supabase.from("departments").select("id, name").order("name"),
+      supabase.from("locations").select("id, name").order("name"),
+    ]).then(([deptRes, locRes]) => {
+      setDepartments((deptRes.data || []) as SelectOption[]);
+      setLocations((locRes.data || []) as SelectOption[]);
+    });
   }, []);
 
   function showToast(msg: string, ok: boolean) {
@@ -49,6 +55,7 @@ function TaseronYeniForm() {
       return;
     }
     setSaving(true);
+    const selectedLocation = locations.find(l => l.id === locationId);
     const payload: Record<string, unknown> = {
       contractor_name: contractorName.trim(),
       department_id: departmentId,
@@ -56,11 +63,11 @@ function TaseronYeniForm() {
       status: "open",
       opened_at: new Date().toISOString(),
     };
-    if (incidentId.trim())        payload.incident_id          = incidentId.trim();
+    if (incidentId.trim())         payload.incident_id          = incidentId.trim();
     if (contractorTicketNo.trim()) payload.contractor_ticket_no = contractorTicketNo.trim();
-    if (locationDetail.trim())    payload.location_detail      = locationDetail.trim();
-    if (notes.trim())             payload.notes                = notes.trim();
-    if (personnel?.id)            payload.created_by           = personnel.id;
+    if (selectedLocation)          payload.location_detail      = selectedLocation.name;
+    if (notes.trim())              payload.notes                = notes.trim();
+    if (personnel?.id)             payload.created_by           = personnel.id;
 
     const { error } = await supabase.from("service_requests").insert(payload);
     setSaving(false);
@@ -76,7 +83,7 @@ function TaseronYeniForm() {
 
       {/* Toast */}
       {toast && (
-        <div className={`fixed top-4 left-0 right-0 max-w-[430px] mx-auto z-[60] flex justify-center px-4`}>
+        <div className="fixed top-4 left-0 right-0 max-w-[430px] mx-auto z-[60] flex justify-center px-4">
           <div className={`flex items-center gap-2 px-5 py-3 rounded-full shadow-xl text-sm font-bold text-white ${toast.ok ? "bg-emerald-600" : "bg-red-600"}`}>
             <span className="material-symbols-outlined text-[18px]">{toast.ok ? "check_circle" : "error"}</span>
             {toast.msg}
@@ -138,12 +145,16 @@ function TaseronYeniForm() {
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-sm font-bold text-gray-700">
-              Konum <span className="text-xs font-normal text-gray-400">(opsiyonel)</span>
+            <label className="text-sm font-bold text-gray-700 flex items-center gap-1.5">
+              <span className="material-symbols-outlined text-[16px] text-gray-400">location_on</span>
+              Lokasyon
+              <span className="text-xs font-normal text-gray-400">(opsiyonel)</span>
             </label>
-            <input type="text" value={locationDetail} onChange={e => setLocationDetail(e.target.value)}
-              placeholder="Örn: B Blok, 2. Kat, Oda 204"
-              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none" />
+            <select value={locationId} onChange={e => setLocationId(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none">
+              <option value="">Lokasyon seçin…</option>
+              {locations.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
+            </select>
           </div>
         </div>
 
