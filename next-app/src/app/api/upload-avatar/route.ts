@@ -32,13 +32,14 @@ export async function POST(req: NextRequest) {
     }
 
     const { data: urlData } = adminSupabase.storage.from("avatars").getPublicUrl(data.path);
+    const proxyUrl = `/api/storage-proxy?url=${encodeURIComponent(urlData.publicUrl)}`;
 
     await adminSupabase
       .from("personnel")
-      .update({ avatar_url: urlData.publicUrl })
+      .update({ avatar_url: proxyUrl })
       .eq("id", personnelId);
 
-    return NextResponse.json({ avatar_url: urlData.publicUrl });
+    return NextResponse.json({ avatar_url: proxyUrl });
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? "Sunucu hatası" }, { status: 500 });
   }

@@ -334,7 +334,7 @@ export default function PersonelPage() {
       return;
     }
 
-    const avatar_url = json.avatar_url + `?t=${Date.now()}`;
+    const avatar_url = json.avatar_url;
     setPeople(prev => prev.map(p => p.id === uploadingAvatarFor ? { ...p, avatar_url } : p));
     setUploadingAvatarFor(null);
     setToast("Fotoğraf güncellendi!");

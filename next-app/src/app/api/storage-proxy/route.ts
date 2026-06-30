@@ -4,8 +4,9 @@ export async function GET(req: NextRequest) {
   const url = req.nextUrl.searchParams.get("url");
   if (!url) return new NextResponse("Invalid URL", { status: 400 });
 
-  const photoMatch = url.match(/\/incident-photos\/(.+)$/);
-  const videoMatch = url.match(/\/incident-videos\/(.+)$/);
+  const photoMatch  = url.match(/\/incident-photos\/(.+)$/);
+  const videoMatch  = url.match(/\/incident-videos\/(.+)$/);
+  const avatarMatch = url.match(/\/avatars\/(.+?)(\?.*)?$/);
 
   let bucket: string;
   let path: string;
@@ -16,6 +17,9 @@ export async function GET(req: NextRequest) {
   } else if (videoMatch) {
     bucket = "incident-videos";
     path = videoMatch[1];
+  } else if (avatarMatch) {
+    bucket = "avatars";
+    path = avatarMatch[1];
   } else {
     return new NextResponse("Invalid path", { status: 400 });
   }
