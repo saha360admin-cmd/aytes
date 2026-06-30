@@ -28,6 +28,7 @@ interface ServiceRequest {
   contractor_name: string;
   contractor_ticket_no: string | null;
   description: string;
+  location_detail: string | null;
   status: string;
   opened_at: string;
   resolved_at: string | null;
@@ -48,7 +49,7 @@ export default function TaseronRaporPage() {
   useEffect(() => {
     supabase
       .from("service_requests")
-      .select(`id, department_id, contractor_name, contractor_ticket_no, description, status, opened_at, resolved_at, department:departments(id,name)`)
+      .select(`id, department_id, contractor_name, contractor_ticket_no, description, location_detail, status, opened_at, resolved_at, department:departments(id,name)`)
       .order("opened_at", { ascending: false })
       .then(({ data }) => {
         const d = (data || []) as ServiceRequest[];
@@ -83,10 +84,11 @@ export default function TaseronRaporPage() {
 
   function downloadCSV() {
     const BOM = "﻿";
-    const header = ["Tarih", "Birim", "Taşeron", "Bilet No", "Açıklama", "Durum"];
+    const header = ["Tarih", "Birim", "Lokasyon", "Taşeron", "Bilet No", "Açıklama", "Durum"];
     const rows = filtered.map(r => [
       formatDate(r.opened_at),
       r.department?.name ?? "",
+      r.location_detail ?? "",
       r.contractor_name,
       r.contractor_ticket_no ?? "",
       r.description.replace(/"/g, '""'),
@@ -238,6 +240,12 @@ export default function TaseronRaporPage() {
                             </>
                           )}
                         </div>
+                        {r.location_detail && (
+                          <div className="flex items-center gap-1">
+                            <span className="material-symbols-outlined text-gray-300 text-[12px]">location_on</span>
+                            <span className="text-xs text-gray-400">{r.location_detail}</span>
+                          </div>
+                        )}
                         <p className="text-xs text-gray-400">{formatDate(r.opened_at)}</p>
                       </div>
                     ))
