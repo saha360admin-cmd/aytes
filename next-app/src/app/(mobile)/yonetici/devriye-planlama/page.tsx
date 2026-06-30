@@ -333,47 +333,44 @@ export default function DevriyePlanlama() {
     setLoadingEligible(true);
     setEligiblePersonnel([]);
 
-    const { data: personnelData } = await supabase
-      .from("personnel")
-      .select("id, full_name")
-      .eq("department_id", plan.department_id)
-      .neq("status", "archived");
-
-    const deptPersonnel = personnelData || [];
-    let eligible = deptPersonnel;
-
-    if (deptPersonnel.length > 0) {
-      const personnelIds = deptPersonnel.map((p: any) => p.id);
-      const { data: shiftAssignData } = await supabase
+    const [personnelRes, shiftAssignRes] = await Promise.all([
+      supabase
+        .from("personnel")
+        .select("id, full_name")
+        .eq("department_id", plan.department_id)
+        .neq("status", "archived"),
+      supabase
         .from("shift_assignments")
         .select("personnel_id, shift_code")
         .eq("shift_date", atamaDate)
         .eq("status", "published")
-        .in("personnel_id", personnelIds);
+        .eq("department_id", plan.department_id),
+    ]);
 
-      const shiftAssigns = shiftAssignData || [];
-      if (shiftAssigns.length > 0) {
-        const codes = [...new Set(shiftAssigns.map((s: any) => s.shift_code))];
-        const { data: shiftTypes } = await supabase
-          .from("shift_types")
-          .select("code, start_time, end_time")
-          .eq("department_id", plan.department_id)
-          .in("code", codes);
+    const deptPersonnel = personnelRes.data || [];
+    const shiftAssigns = shiftAssignRes.data || [];
 
-        const shiftTypeMap = Object.fromEntries((shiftTypes || []).map((st: any) => [st.code, st]));
-        const eligibleIds = new Set(
-          shiftAssigns
-            .filter((sa: any) => {
-              const st = shiftTypeMap[sa.shift_code];
-              if (!st) return false;
-              return shiftCovers(st.start_time, st.end_time, plan.start_time, plan.end_time);
-            })
-            .map((sa: any) => sa.personnel_id)
-        );
-        eligible = deptPersonnel.filter((p: any) => eligibleIds.has(p.id));
-      } else {
-        eligible = [];
-      }
+    let eligible = deptPersonnel;
+
+    if (shiftAssigns.length > 0) {
+      const codes = [...new Set(shiftAssigns.map((s: any) => s.shift_code))];
+      const { data: shiftTypes } = await supabase
+        .from("shift_types")
+        .select("code, start_time, end_time")
+        .eq("department_id", plan.department_id)
+        .in("code", codes);
+
+      const shiftTypeMap = Object.fromEntries((shiftTypes || []).map((st: any) => [st.code, st]));
+      const eligibleIds = new Set(
+        shiftAssigns
+          .filter((sa: any) => {
+            const st = shiftTypeMap[sa.shift_code];
+            if (!st) return false;
+            return shiftCovers(st.start_time, st.end_time, plan.start_time, plan.end_time);
+          })
+          .map((sa: any) => sa.personnel_id)
+      );
+      eligible = deptPersonnel.filter((p: any) => eligibleIds.has(p.id));
     }
 
     setEligiblePersonnel(eligible as { id: string; full_name: string }[]);
@@ -421,25 +418,24 @@ export default function DevriyePlanlama() {
 
   // Helper: resolve eligible personnel for a plan on a given date
   async function resolveEligible(plan: PatrolPlan, date: string): Promise<{ id: string; full_name: string }[]> {
-    const { data: personnelData } = await supabase
-      .from("personnel")
-      .select("id, full_name")
-      .eq("department_id", plan.department_id)
-      .neq("status", "archived");
+    const [personnelRes, shiftAssignRes] = await Promise.all([
+      supabase
+        .from("personnel")
+        .select("id, full_name")
+        .eq("department_id", plan.department_id)
+        .neq("status", "archived"),
+      supabase
+        .from("shift_assignments")
+        .select("personnel_id, shift_code")
+        .eq("shift_date", date)
+        .eq("status", "published")
+        .eq("department_id", plan.department_id),
+    ]);
 
-    const deptPersonnel = personnelData || [];
-    if (deptPersonnel.length === 0) return [];
+    const deptPersonnel = personnelRes.data || [];
+    const shiftAssigns = shiftAssignRes.data || [];
 
-    const personnelIds = deptPersonnel.map((p: any) => p.id);
-    const { data: shiftAssignData } = await supabase
-      .from("shift_assignments")
-      .select("personnel_id, shift_code")
-      .eq("shift_date", date)
-      .eq("status", "published")
-      .in("personnel_id", personnelIds);
-
-    const shiftAssigns = shiftAssignData || [];
-    if (shiftAssigns.length === 0) return [];
+    if (shiftAssigns.length === 0) return deptPersonnel as { id: string; full_name: string }[];
 
     const codes = [...new Set(shiftAssigns.map((s: any) => s.shift_code))];
     const { data: shiftTypes } = await supabase
