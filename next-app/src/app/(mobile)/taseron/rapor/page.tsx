@@ -120,6 +120,22 @@ export default function TaseronRaporPage() {
   }
   const deptSummary = Array.from(deptSummaryMap.values()).sort((a, b) => b.total_active - a.total_active);
 
+  function toWin1254(str: string): Uint8Array {
+    const map: Record<number, number> = {
+      8364:0x80, 8218:0x82, 402:0x83, 8222:0x84, 8230:0x85, 8224:0x86, 8225:0x87,
+      710:0x88, 8240:0x89, 352:0x8A, 8249:0x8B, 338:0x8C, 381:0x8E,
+      8216:0x91, 8217:0x92, 8220:0x93, 8221:0x94, 8226:0x95, 8211:0x96, 8212:0x97,
+      732:0x98, 8482:0x99, 353:0x9A, 8250:0x9B, 339:0x9C, 382:0x9E, 376:0x9F,
+      286:0xD0, 304:0xDD, 350:0xDE, 287:0xF0, 305:0xFD, 351:0xFE,
+    };
+    const bytes = new Uint8Array(str.length);
+    for (let i = 0; i < str.length; i++) {
+      const cp = str.charCodeAt(i);
+      bytes[i] = cp < 0x80 ? cp : (map[cp] ?? (cp <= 0xFF ? cp : 0x3F));
+    }
+    return bytes;
+  }
+
   function downloadCSV() {
     const header = ["Tarih", "Birim", "Lokasyon", "Taşeron", "Bilet No", "Açıklama", "Durum"];
     const rows = filtered.map(r => [
@@ -132,9 +148,7 @@ export default function TaseronRaporPage() {
       STATUS_LABELS[r.status] ?? r.status,
     ]);
     const csv = "sep=;\n" + [header, ...rows].map(row => row.map(c => `"${c}"`).join(";")).join("\n");
-    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
-    const encoded = new TextEncoder().encode(csv);
-    const blob = new Blob([bom, encoded], { type: "text/csv;charset=utf-8;" });
+    const blob = new Blob([toWin1254(csv)], { type: "text/csv;charset=windows-1254;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `taseron-rapor-${new Date().toISOString().slice(0, 10)}.csv`;
