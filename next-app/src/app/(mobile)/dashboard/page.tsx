@@ -5,12 +5,23 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Task, Announcement, Shift } from "@/lib/types";
+import type { Task, Announcement } from "@/lib/types";
+
+interface ActiveShift {
+  shift_code: string;
+  name: string;
+  start_time: string;
+  end_time: string;
+}
+
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default function DashboardPage() {
   const { personnel } = useAuth();
   const router = useRouter();
-  const [shift, setShift] = useState<Shift | null>(null);
+  const [shift, setShift] = useState<ActiveShift | null>(null);
   const [patrolStatus, setPatrolStatus] = useState({ completed: 0, total: 0, hasActive: false });
   const [pendingIncidents, setPendingIncidents] = useState(0);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -28,16 +39,34 @@ export default function DashboardPage() {
     if (!personnel) return;
     const deptId = personnel.department_id;
     const pId = personnel.id;
+    const today = toDateStr(new Date());
 
-    const [shiftRes, patrolRes, incidentRes, taskRes, annRes] = await Promise.all([
-      supabase.from("shifts").select("*").eq("department_id", deptId).limit(1).maybeSingle(),
+    const [assignmentRes, patrolRes, incidentRes, taskRes, annRes] = await Promise.all([
+      supabase
+        .from("shift_assignments")
+        .select("shift_code")
+        .eq("personnel_id", pId)
+        .eq("shift_date", today)
+        .eq("status", "published")
+        .maybeSingle(),
       supabase.from("patrols").select("*").eq("personnel_id", pId).eq("status", "active").limit(1).maybeSingle(),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "open"),
       supabase.from("tasks").select("*, assigned:assigned_to(full_name)").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
       supabase.from("announcements").select("*, creator:created_by(full_name)").eq("department_id", deptId).order("is_pinned", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    if (shiftRes.data) setShift(shiftRes.data);
+    if (assignmentRes.data?.shift_code) {
+      const { data: typeData } = await supabase
+        .from("shift_types")
+        .select("name, start_time, end_time")
+        .eq("department_id", deptId)
+        .eq("code", assignmentRes.data.shift_code)
+        .maybeSingle();
+      if (typeData) {
+        setShift({ shift_code: assignmentRes.data.shift_code, ...typeData });
+      }
+    }
+
     if (patrolRes.data) {
       setPatrolStatus({ completed: patrolRes.data.completed_checkpoints, total: patrolRes.data.total_checkpoints, hasActive: true });
     }
@@ -88,11 +117,18 @@ export default function DashboardPage() {
             <div className="p-3 bg-indigo-100 rounded-xl text-indigo-700 flex-shrink-0">
               <span className="material-symbols-outlined">schedule</span>
             </div>
-            <div className="flex-1">
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Aktif Vardiya</p>
-              <p className="text-xl font-bold text-gray-800 mt-0.5">{shift ? `${shift.start_time.slice(0, 5)} – ${shift.end_time.slice(0, 5)}` : "—"}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Bugünkü Vardiya</p>
+              {shift ? (
+                <>
+                  <p className="text-xl font-bold text-gray-800 mt-0.5">{shift.start_time.slice(0, 5)} – {shift.end_time.slice(0, 5)}</p>
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">{shift.name} · {shift.shift_code}</p>
+                </>
+              ) : (
+                <p className="text-base font-semibold text-gray-400 mt-0.5">Bugün vardiya yok</p>
+              )}
             </div>
-            <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold">Aktif</span>
+            {shift && <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex-shrink-0">Aktif</span>}
           </div>
 
           <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#00BCD4]">
