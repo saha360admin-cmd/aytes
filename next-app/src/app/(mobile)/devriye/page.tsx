@@ -17,23 +17,6 @@ interface AvailableRoute {
   points: { name: string; point_order: number }[];
 }
 
-interface PatrolPlanRef {
-  id: string;
-  name: string;
-  start_time: string;
-  end_time: string;
-  interval_minutes: number;
-}
-
-interface MyAssignment {
-  id: string;
-  plan_id: string;
-  assigned_date: string;
-  status: "assigned" | "started" | "completed" | "missed";
-  patrol_id: string | null;
-  plan: PatrolPlanRef | null;
-}
-
 const patrolTips = [
   {
     emoji: "🎯",
@@ -101,28 +84,6 @@ const patrolTips = [
   },
 ];
 
-function timeToMin(t: string) {
-  const [h, m] = t.slice(0, 5).split(":").map(Number);
-  return h * 60 + m;
-}
-
-function calcCheckpoints(startTime: string, endTime: string, intervalMin: number): number {
-  let ps = timeToMin(startTime), pe = timeToMin(endTime);
-  if (pe < ps) pe += 1440;
-  return Math.floor((pe - ps) / intervalMin) + 1;
-}
-
-function StatusBadge({ status }: { status: string }) {
-  const map: Record<string, { label: string; cls: string }> = {
-    assigned:  { label: "Atandı",     cls: "bg-amber-100 text-amber-700" },
-    started:   { label: "Başladı",    cls: "bg-blue-100 text-blue-700" },
-    completed: { label: "Tamamlandı", cls: "bg-emerald-100 text-emerald-700" },
-    missed:    { label: "Kaçırıldı",  cls: "bg-red-100 text-red-700" },
-  };
-  const { label, cls } = map[status] ?? { label: status, cls: "bg-gray-100 text-gray-600" };
-  return <span className={`rounded-full text-xs font-bold px-2.5 py-1 ${cls}`}>{label}</span>;
-}
-
 export default function DevriyePage() {
   const router = useRouter();
   const { personnel } = useAuth();
@@ -134,12 +95,6 @@ export default function DevriyePage() {
   const [availableRoutes, setAvailableRoutes] = useState<AvailableRoute[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
 
-  // My assignments for today
-  const [myAssignments, setMyAssignments] = useState<MyAssignment[]>([]);
-  const [startingAssignmentId, setStartingAssignmentId] = useState<string | null>(null);
-
-  const todayStr = new Date().toISOString().slice(0, 10);
-
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
   const progress = total > 0 ? (completed / total) * 100 : 0;
@@ -150,19 +105,7 @@ export default function DevriyePage() {
     if (!personnel) return;
     loadActivePatrol();
     loadAvailableRoutes();
-    loadMyAssignments();
   }, [personnel]);
-
-  async function loadMyAssignments() {
-    if (!personnel) return;
-    const { data } = await supabase
-      .from("patrol_assignments")
-      .select("*, plan:patrol_plans(id, name, start_time, end_time, interval_minutes)")
-      .eq("personnel_id", personnel.id)
-      .eq("assigned_date", todayStr)
-      .in("status", ["assigned", "started"]);
-    setMyAssignments((data || []) as MyAssignment[]);
-  }
 
   async function loadAvailableRoutes() {
     if (!personnel) return;
@@ -213,44 +156,6 @@ export default function DevriyePage() {
       setCheckpoints(cps || []);
     }
     setLoading(false);
-  }
-
-  async function startFromAssignment(assignment: MyAssignment) {
-    if (!personnel || !assignment.plan) return;
-    setStartingAssignmentId(assignment.id);
-
-    const plan = assignment.plan;
-    const totalCps = calcCheckpoints(plan.start_time, plan.end_time, plan.interval_minutes);
-
-    const { data: newPatrol, error } = await supabase.from("patrols").insert({
-      department_id: personnel.department_id,
-      personnel_id: personnel.id,
-      route_name: plan.name,
-      status: "active",
-      started_at: new Date().toISOString(),
-      total_checkpoints: totalCps,
-      completed_checkpoints: 0,
-    }).select("*").single();
-
-    if (error || !newPatrol) {
-      setStartingAssignmentId(null);
-      return;
-    }
-
-    await supabase.from("patrol_assignments").update({
-      patrol_id: newPatrol.id,
-      status: "started",
-    }).eq("id", assignment.id);
-
-    // update local assignment state
-    setMyAssignments(prev => prev.map(a =>
-      a.id === assignment.id ? { ...a, status: "started", patrol_id: newPatrol.id } : a
-    ));
-
-    setPatrol(newPatrol);
-    setSeconds(0);
-    setCheckpoints([]);
-    setStartingAssignmentId(null);
   }
 
   async function startNewPatrol() {
@@ -324,13 +229,6 @@ export default function DevriyePage() {
       completed_at: new Date().toISOString(),
       duration_seconds: seconds,
     }).eq("id", patrol.id);
-
-    // Also mark assignment as completed if exists
-    const relatedAssignment = myAssignments.find(a => a.patrol_id === patrol.id);
-    if (relatedAssignment) {
-      await supabase.from("patrol_assignments").update({ status: "completed" }).eq("id", relatedAssignment.id);
-    }
-
     router.push("/dashboard");
   }
 
@@ -348,130 +246,57 @@ export default function DevriyePage() {
   if (!patrol) {
     const selectedRoute = availableRoutes.find(r => r.id === selectedRouteId);
     return (
-      <div className="bg-[#f0f2ff] min-h-screen pb-10">
-
-        {/* Header */}
-        <header className="sticky top-0 z-40 flex items-center gap-3 px-4 h-16 shadow-sm"
-          style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
-          <button onClick={() => router.push("/dashboard")}
-            className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/15 active:scale-90 transition-all">
-            <span className="material-symbols-outlined text-white">arrow_back</span>
-          </button>
-          <div className="flex-1">
-            <h1 className="font-bold text-white text-lg leading-tight">Devriye</h1>
-          </div>
-        </header>
-
-        <div className="px-4 pt-4 space-y-4">
-
-          {/* ── Bugünkü Atamalarım ── */}
-          {myAssignments.length > 0 && (
-            <div>
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">Bugünkü Atamalarım</p>
-              <div className="space-y-3">
-                {myAssignments.map(asgn => (
-                  <div key={asgn.id} className="bg-white rounded-2xl shadow-sm px-4 py-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                        <span className="material-symbols-outlined text-white text-[22px]" style={{ fontVariationSettings: "'FILL' 1" }}>schedule</span>
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-gray-800 text-sm">{asgn.plan?.name ?? "Devriye"}</p>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          {asgn.plan?.start_time?.slice(0, 5) ?? ""} – {asgn.plan?.end_time?.slice(0, 5) ?? ""}
-                        </p>
-                        <div className="mt-1.5">
-                          <StatusBadge status={asgn.status} />
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-3">
-                      {asgn.status === "assigned" && (
-                        <button
-                          onClick={() => startFromAssignment(asgn)}
-                          disabled={startingAssignmentId === asgn.id}
-                          className="w-full py-3 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-60"
-                          style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                          {startingAssignmentId === asgn.id
-                            ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                            : <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>}
-                          {startingAssignmentId === asgn.id ? "Başlatılıyor..." : "Devriyi Başlat"}
-                        </button>
-                      )}
-                      {asgn.status === "started" && (
-                        <button
-                          onClick={() => router.push("/devriye")}
-                          className="w-full py-3 text-white rounded-xl font-bold flex items-center justify-center gap-2 active:scale-95 transition-all"
-                          style={{ background: "linear-gradient(135deg, #1B5E20, #388E3C)" }}>
-                          <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
-                          Devam Et
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* ── Manuel Devriye Başlatma ── */}
-          <div className="bg-white rounded-2xl shadow-sm px-4 py-6 flex flex-col items-center gap-4">
-            <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center">
-              <span className="material-symbols-outlined text-blue-800 text-[36px]">route</span>
-            </div>
-            <div className="text-center">
-              <h2 className="text-lg font-bold text-gray-900">Manuel Devriye</h2>
-              <p className="text-gray-500 text-sm mt-1">Rota seçip hızlıca başlat</p>
-            </div>
-
-            {availableRoutes.length > 0 && (
-              <div className="w-full space-y-2">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Rota Seç</p>
-                {availableRoutes.map(r => (
-                  <button key={r.id} onClick={() => setSelectedRouteId(r.id)}
-                    className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all ${selectedRouteId === r.id ? "border-blue-700 bg-blue-50" : "border-gray-200 bg-white"}`}>
-                    <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${selectedRouteId === r.id ? "bg-blue-700" : "bg-gray-100"}`}>
-                      <span className={`material-symbols-outlined text-[16px] ${selectedRouteId === r.id ? "text-white" : "text-gray-400"}`} style={{ fontVariationSettings: "'FILL' 1" }}>route</span>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm font-bold truncate ${selectedRouteId === r.id ? "text-blue-800" : "text-gray-700"}`}>{r.name}</p>
-                      <p className="text-xs text-gray-400">{r.points.length} kontrol noktası</p>
-                    </div>
-                    {selectedRouteId === r.id && (
-                      <span className="material-symbols-outlined text-blue-700 text-[20px]">check_circle</span>
-                    )}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {selectedRoute && selectedRoute.points.length > 0 && (
-              <div className="w-full bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Kontrol Noktaları</p>
-                <div className="space-y-1.5">
-                  {selectedRoute.points.map(pt => (
-                    <div key={pt.point_order} className="flex items-center gap-2.5">
-                      <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                        <span className="text-[10px] font-bold text-blue-700">{pt.point_order}</span>
-                      </div>
-                      <span className="text-sm text-gray-600">{pt.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            <button onClick={startNewPatrol}
-              className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
-              style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
-              Devriye Başlat
-            </button>
-          </div>
-
-          <button onClick={() => router.push("/dashboard")} className="w-full text-center text-blue-800 text-sm font-semibold py-2">Geri Dön</button>
+      <div className="bg-[#f8f9ff] min-h-screen flex flex-col items-center justify-center px-6 gap-6">
+        <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
+          <span className="material-symbols-outlined text-blue-800 text-[40px]">route</span>
         </div>
+        <h2 className="text-2xl font-bold text-gray-900 text-center">Aktif Devriye Yok</h2>
+        <p className="text-gray-500 text-center text-sm">Devriye rotasını seçip başlatın.</p>
+
+        {availableRoutes.length > 0 && (
+          <div className="w-full space-y-2">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Rota Seç</p>
+            {availableRoutes.map(r => (
+              <button key={r.id} onClick={() => setSelectedRouteId(r.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all ${selectedRouteId === r.id ? "border-blue-700 bg-blue-50" : "border-gray-200 bg-white"}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${selectedRouteId === r.id ? "bg-blue-700" : "bg-gray-100"}`}>
+                  <span className={`material-symbols-outlined text-[16px] ${selectedRouteId === r.id ? "text-white" : "text-gray-400"}`} style={{ fontVariationSettings: "'FILL' 1" }}>route</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-bold truncate ${selectedRouteId === r.id ? "text-blue-800" : "text-gray-700"}`}>{r.name}</p>
+                  <p className="text-xs text-gray-400">{r.points.length} kontrol noktası</p>
+                </div>
+                {selectedRouteId === r.id && (
+                  <span className="material-symbols-outlined text-blue-700 text-[20px]">check_circle</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedRoute && selectedRoute.points.length > 0 && (
+          <div className="w-full bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Kontrol Noktaları</p>
+            <div className="space-y-1.5">
+              {selectedRoute.points.map(pt => (
+                <div key={pt.point_order} className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-bold text-blue-700">{pt.point_order}</span>
+                  </div>
+                  <span className="text-sm text-gray-600">{pt.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button onClick={startNewPatrol}
+          className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
+          style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
+          Devriye Başlat
+        </button>
+        <button onClick={() => router.push("/dashboard")} className="text-blue-800 text-sm font-semibold">Geri Dön</button>
       </div>
     );
   }
