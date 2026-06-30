@@ -173,7 +173,7 @@ function OlayBildirForm() {
         </div>
       )}
 
-      <header className="sticky top-0 z-50 flex justify-between items-center px-6 h-16 w-full"
+      <header className="sticky top-0 z-50 flex justify-between items-center px-6 h-16"
         style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 active:scale-90 transition-all">
@@ -340,7 +340,7 @@ function OlayBildirForm() {
         </section>
       </main>
 
-      <div className="sticky bottom-0 w-full bg-white px-6 pt-4 pb-6 shadow-[0_-10px_20px_rgba(0,0,0,0.08)] rounded-t-2xl z-50 mt-4">
+      <div className="sticky bottom-0 bg-white px-6 pt-4 pb-6 shadow-[0_-10px_20px_rgba(0,0,0,0.08)] rounded-t-2xl z-50 mt-4">
         <button onClick={handleSubmit} disabled={sending || !selectedType || !severity || !description}
           className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
           style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
