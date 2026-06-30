@@ -101,7 +101,7 @@ export default function TaseronListePage() {
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 active:scale-90 transition-all">
           <span className="material-symbols-outlined text-white text-[20px]">bar_chart</span>
         </button>
-        <button onClick={() => router.push("/taseron/yeni")}
+        <button onClick={() => router.push("/taseron/firma/yeni")}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/20 hover:bg-white/30 active:scale-90 transition-all">
           <span className="material-symbols-outlined text-white text-[22px]">add</span>
         </button>
