@@ -172,7 +172,7 @@ export default function YoneticiPage() {
       )}
 
       {/* Header */}
-      <header className="fixed top-0 w-full z-50 flex justify-between items-center px-4 h-16"
+      <header className="fixed top-0 left-0 right-0 max-w-[430px] mx-auto z-50 flex justify-between items-center px-4 h-16"
         style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
         <div className="flex items-center gap-3">
           <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield</span>
