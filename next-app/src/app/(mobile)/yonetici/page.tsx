@@ -54,6 +54,8 @@ export default function YoneticiPage() {
   const [activePatrolList, setActivePatrolList] = useState<ActivePatrol[]>([]);
   const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
 
+  const [openServiceRequests, setOpenServiceRequests] = useState(0);
+
   // Vardiya form
   const [shiftName, setShiftName] = useState("Gündüz Vardiyası");
   const [shiftStart, setShiftStart] = useState("08:00");
@@ -82,6 +84,7 @@ export default function YoneticiPage() {
       pendingReqRes,
       activePatrolRes,
       incidentRes,
+      serviceReqCount,
     ] = await Promise.all([
       supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open"),
@@ -91,6 +94,7 @@ export default function YoneticiPage() {
       supabase.from("requests").select("*, requester:personnel_id(full_name)").eq("department_id", deptId).eq("status", "pending").order("created_at", { ascending: false }).limit(10),
       supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as any,
       supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").order("created_at", { ascending: false }).limit(5),
+      supabase.from("service_requests").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
     ]);
 
     setStats({
@@ -106,6 +110,7 @@ export default function YoneticiPage() {
     setPendingRequestsList((pendingReqRes.data || []) as PendingRequest[]);
     setActivePatrolList(((activePatrolRes as any).data || []) as ActivePatrol[]);
     setRecentIncidents((incidentRes.data || []) as unknown as Incident[]);
+    setOpenServiceRequests(serviceReqCount.count || 0);
     setLoading(false);
   }
 
@@ -478,6 +483,46 @@ export default function YoneticiPage() {
               </Link>
             </div>
           )}
+        </section>
+
+        {/* ── TAŞERON TAKİP ── */}
+        <section>
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-indigo-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-indigo-600 text-[16px]">engineering</span>
+              </div>
+              <h3 className="font-bold text-gray-800">Taşeron Takip</h3>
+              {openServiceRequests > 0 && (
+                <span className="bg-indigo-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{openServiceRequests}</span>
+              )}
+            </div>
+            <button
+              onClick={() => router.push("/web/taseron")}
+              className="text-xs font-bold text-[#3949AB]"
+            >
+              Tümü →
+            </button>
+          </div>
+
+          <div
+            onClick={() => router.push("/web/taseron")}
+            className="bg-white rounded-xl shadow-sm border-l-4 border-l-indigo-400 p-4 flex items-center justify-between active:scale-[0.98] transition-all cursor-pointer"
+          >
+            <div>
+              <p className="text-2xl font-bold text-gray-800">{String(openServiceRequests).padStart(2, "0")}</p>
+              <p className="text-xs text-gray-400 font-semibold mt-0.5">Açık / Devam Eden Kayıt</p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <div className="w-10 h-10 rounded-xl bg-indigo-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-indigo-600 text-[22px]">engineering</span>
+              </div>
+              <span className="text-[10px] font-bold text-indigo-500 flex items-center gap-0.5">
+                Takibe Git
+                <span className="material-symbols-outlined text-[11px]">arrow_forward</span>
+              </span>
+            </div>
+          </div>
         </section>
 
       </main>

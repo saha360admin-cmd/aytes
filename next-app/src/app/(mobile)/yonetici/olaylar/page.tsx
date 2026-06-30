@@ -361,6 +361,18 @@ export default function OlaylarPage() {
                       <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-500">✓ Biriminiz kapattı</span>
                     </div>
                   )}
+
+                  {tab === "open" && (
+                    <button
+                      onClick={() => router.push(
+                        `/web/taseron/yeni?incident_id=${inc.id}&department_id=${personnel?.department_id ?? ""}&description=${encodeURIComponent(inc.description || "")}`
+                      )}
+                      className="text-xs text-indigo-600 font-semibold flex items-center gap-1 mt-2 hover:text-indigo-800"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">engineering</span>
+                      Taşeron Kaydı Aç
+                    </button>
+                  )}
                 </div>
               </div>
             );
