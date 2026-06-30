@@ -22,6 +22,13 @@ const STATUS_BADGE: Record<string, string> = {
   cancelled:   "bg-gray-100 text-gray-500",
 };
 
+const STATUS_CHIP: Record<string, string> = {
+  open:        "bg-amber-100 text-amber-700 border-amber-200",
+  in_progress: "bg-blue-100 text-blue-700 border-blue-200",
+  resolved:    "bg-emerald-100 text-emerald-700 border-emerald-200",
+  cancelled:   "bg-gray-100 text-gray-500 border-gray-200",
+};
+
 interface ServiceRequest {
   id: string;
   department_id: string;
@@ -42,9 +49,14 @@ export default function TaseronRaporPage() {
   const [records, setRecords] = useState<ServiceRequest[]>([]);
   const [filtered, setFiltered] = useState<ServiceRequest[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
   const [showDetail, setShowDetail] = useState(false);
+
+  // Filtreler
+  const [dateFrom, setDateFrom]       = useState("");
+  const [dateTo, setDateTo]           = useState("");
+  const [filterDept, setFilterDept]   = useState("");
+  const [filterStatus, setFilterStatus] = useState("");
+  const [filterLocation, setFilterLocation] = useState("");
 
   useEffect(() => {
     supabase
@@ -61,11 +73,37 @@ export default function TaseronRaporPage() {
 
   useEffect(() => {
     let result = [...records];
-    if (dateFrom) result = result.filter(r => r.opened_at >= dateFrom);
-    if (dateTo)   result = result.filter(r => r.opened_at <= dateTo + "T23:59:59");
+    if (dateFrom)      result = result.filter(r => r.opened_at >= dateFrom);
+    if (dateTo)        result = result.filter(r => r.opened_at <= dateTo + "T23:59:59");
+    if (filterDept)    result = result.filter(r => r.department_id === filterDept);
+    if (filterStatus)  result = result.filter(r => r.status === filterStatus);
+    if (filterLocation) result = result.filter(r => r.location_detail === filterLocation);
     setFiltered(result);
-  }, [dateFrom, dateTo, records]);
+  }, [dateFrom, dateTo, filterDept, filterStatus, filterLocation, records]);
 
+  // Benzersiz birim ve lokasyon listesi
+  const deptOptions = Array.from(
+    new Map(records.map(r => [r.department_id, r.department?.name ?? ""])).entries()
+  ).sort((a, b) => a[1].localeCompare(b[1], "tr"));
+
+  const locationOptions = Array.from(
+    new Set(records.map(r => r.location_detail).filter(Boolean) as string[])
+  ).sort((a, b) => a.localeCompare(b, "tr"));
+
+  const hasActiveFilter = dateFrom || dateTo || filterDept || filterStatus || filterLocation;
+
+  function clearFilters() {
+    setDateFrom(""); setDateTo("");
+    setFilterDept(""); setFilterStatus(""); setFilterLocation("");
+  }
+
+  // Özet sayaçlar
+  const totalOpen       = filtered.filter(r => r.status === "open").length;
+  const totalInProgress = filtered.filter(r => r.status === "in_progress").length;
+  const totalResolved   = filtered.filter(r => r.status === "resolved").length;
+  const totalCancelled  = filtered.filter(r => r.status === "cancelled").length;
+
+  // Birim özet
   const deptSummaryMap = new Map<string, DeptSummary>();
   for (const r of filtered) {
     if (!deptSummaryMap.has(r.department_id)) {
@@ -76,11 +114,6 @@ export default function TaseronRaporPage() {
     if (r.status === "in_progress") { e.in_progress++; e.total_active++; }
   }
   const deptSummary = Array.from(deptSummaryMap.values()).sort((a, b) => b.total_active - a.total_active);
-
-  const totalOpen        = filtered.filter(r => r.status === "open").length;
-  const totalInProgress  = filtered.filter(r => r.status === "in_progress").length;
-  const totalResolved    = filtered.filter(r => r.status === "resolved").length;
-  const totalCancelled   = filtered.filter(r => r.status === "cancelled").length;
 
   function downloadCSV() {
     const BOM = "﻿";
@@ -113,7 +146,9 @@ export default function TaseronRaporPage() {
         </button>
         <div className="flex-1 min-w-0">
           <h1 className="font-bold text-white text-lg leading-tight">Taşeron Raporu</h1>
-          <p className="text-white/70 text-xs">{filtered.length} kayıt</p>
+          <p className="text-white/70 text-xs">
+            {filtered.length} kayıt{hasActiveFilter ? " · Filtre aktif" : ""}
+          </p>
         </div>
         <button onClick={downloadCSV}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 active:scale-90 transition-all">
@@ -123,9 +158,19 @@ export default function TaseronRaporPage() {
 
       <div className="px-4 pt-4 space-y-4 pb-4">
 
-        {/* Tarih filtresi */}
-        <div className="bg-white rounded-2xl shadow-sm p-4 space-y-3">
-          <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Tarih Aralığı</h2>
+        {/* Filtre kartı */}
+        <div className="bg-white rounded-2xl shadow-sm p-4 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-widest">Filtreler</h2>
+            {hasActiveFilter && (
+              <button onClick={clearFilters} className="text-xs font-bold text-[#3949AB] flex items-center gap-1">
+                <span className="material-symbols-outlined text-[14px]">close</span>
+                Temizle
+              </button>
+            )}
+          </div>
+
+          {/* Tarih */}
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <label className="text-xs font-bold text-gray-500">Başlangıç</label>
@@ -138,11 +183,44 @@ export default function TaseronRaporPage() {
                 className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none" />
             </div>
           </div>
-          {(dateFrom || dateTo) && (
-            <button onClick={() => { setDateFrom(""); setDateTo(""); }}
-              className="text-xs font-bold text-gray-400 underline">
-              Filtreyi Temizle
-            </button>
+
+          {/* Durum chip'leri */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500">Durum</label>
+            <div className="flex flex-wrap gap-2">
+              {(["", "open", "in_progress", "resolved", "cancelled"] as const).map(s => (
+                <button key={s} onClick={() => setFilterStatus(s)}
+                  className={`px-3 py-1.5 rounded-full text-xs font-bold border transition-all ${
+                    filterStatus === s
+                      ? s === "" ? "bg-[#1A237E] text-white border-[#1A237E]" : `${STATUS_CHIP[s]} border`
+                      : "bg-gray-50 text-gray-400 border-gray-200"
+                  }`}>
+                  {s === "" ? "Tümü" : STATUS_LABELS[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Birim */}
+          <div className="space-y-1.5">
+            <label className="text-xs font-bold text-gray-500">Birim</label>
+            <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
+              className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none">
+              <option value="">Tüm birimler</option>
+              {deptOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+            </select>
+          </div>
+
+          {/* Lokasyon */}
+          {locationOptions.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-gray-500">Lokasyon</label>
+              <select value={filterLocation} onChange={e => setFilterLocation(e.target.value)}
+                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none">
+                <option value="">Tüm lokasyonlar</option>
+                {locationOptions.map(l => <option key={l} value={l}>{l}</option>)}
+              </select>
+            </div>
           )}
         </div>
 
@@ -217,11 +295,11 @@ export default function TaseronRaporPage() {
                   {filtered.length === 0 ? (
                     <div className="py-10 text-center">
                       <span className="material-symbols-outlined text-gray-300 text-[36px] block mb-2">inbox</span>
-                      <p className="text-sm text-gray-400">Bu aralıkta kayıt yok</p>
+                      <p className="text-sm text-gray-400">Filtreyle eşleşen kayıt yok</p>
                     </div>
                   ) : (
                     filtered.map(r => (
-                      <div key={r.id} className="px-4 py-3 space-y-1"
+                      <div key={r.id} className="px-4 py-3 space-y-1 active:bg-gray-50 cursor-pointer"
                         onClick={() => router.push(`/taseron/${r.id}`)}>
                         <div className="flex items-start justify-between gap-2">
                           <p className="text-sm font-semibold text-gray-800 flex-1 line-clamp-1">{r.description}</p>
