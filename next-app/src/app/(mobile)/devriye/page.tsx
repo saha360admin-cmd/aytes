@@ -11,6 +11,12 @@ const defaultCheckpoints = [
   "Depo Bölgesi", "C Blok Yanı", "Teknik Oda", "Ana Giriş (Dönüş)",
 ];
 
+interface AvailableRoute {
+  id: string;
+  name: string;
+  points: { name: string; point_order: number }[];
+}
+
 const patrolTips = [
   {
     emoji: "🎯",
@@ -86,6 +92,8 @@ export default function DevriyePage() {
   const [seconds, setSeconds] = useState(0);
   const [paused, setPaused] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [availableRoutes, setAvailableRoutes] = useState<AvailableRoute[]>([]);
+  const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -96,7 +104,27 @@ export default function DevriyePage() {
   useEffect(() => {
     if (!personnel) return;
     loadActivePatrol();
+    loadAvailableRoutes();
   }, [personnel]);
+
+  async function loadAvailableRoutes() {
+    if (!personnel) return;
+    const { data } = await supabase
+      .from("patrol_routes")
+      .select("id, name, points:patrol_route_points(name, point_order)")
+      .eq("is_active", true)
+      .or(`location_id.eq.${personnel.location_id ?? "00000000-0000-0000-0000-000000000000"},location_id.is.null`)
+      .order("created_at", { ascending: false });
+
+    if (data) {
+      const routes = data.map((r: any) => ({
+        ...r,
+        points: [...(r.points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
+      }));
+      setAvailableRoutes(routes);
+      if (routes.length > 0) setSelectedRouteId(routes[0].id);
+    }
+  }
 
   useEffect(() => {
     if (paused || !patrol) return;
@@ -132,18 +160,25 @@ export default function DevriyePage() {
 
   async function startNewPatrol() {
     if (!personnel) return;
+
+    const route = availableRoutes.find(r => r.id === selectedRouteId);
+    const cpNames = route && route.points.length > 0
+      ? route.points.map(p => p.name)
+      : defaultCheckpoints;
+    const routeName = route ? route.name : "Ana Bina Çevresi";
+
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
       department_id: personnel.department_id,
       personnel_id: personnel.id,
-      route_name: "Ana Bina Çevresi",
+      route_name: routeName,
       status: "active",
-      total_checkpoints: defaultCheckpoints.length,
+      total_checkpoints: cpNames.length,
       completed_checkpoints: 0,
     }).select().single();
 
     if (error || !newPatrol) return;
 
-    const cpInserts = defaultCheckpoints.map((name, i) => ({
+    const cpInserts = cpNames.map((name, i) => ({
       patrol_id: newPatrol.id,
       checkpoint_order: i + 1,
       name,
@@ -209,15 +244,56 @@ export default function DevriyePage() {
   }
 
   if (!patrol) {
+    const selectedRoute = availableRoutes.find(r => r.id === selectedRouteId);
     return (
       <div className="bg-[#f8f9ff] min-h-screen flex flex-col items-center justify-center px-6 gap-6">
         <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
           <span className="material-symbols-outlined text-blue-800 text-[40px]">route</span>
         </div>
         <h2 className="text-2xl font-bold text-gray-900 text-center">Aktif Devriye Yok</h2>
-        <p className="text-gray-500 text-center">Yeni bir devriye başlatarak kontrol noktalarını taramaya başlayın.</p>
-        <button onClick={startNewPatrol} className="bg-blue-800 text-white py-4 px-8 rounded-full text-lg font-semibold shadow-lg active:scale-95 transition-all flex items-center gap-3">
-          <span className="material-symbols-outlined">play_circle</span>
+        <p className="text-gray-500 text-center text-sm">Devriye rotasını seçip başlatın.</p>
+
+        {availableRoutes.length > 0 && (
+          <div className="w-full space-y-2">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider text-center">Rota Seç</p>
+            {availableRoutes.map(r => (
+              <button key={r.id} onClick={() => setSelectedRouteId(r.id)}
+                className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all ${selectedRouteId === r.id ? "border-blue-700 bg-blue-50" : "border-gray-200 bg-white"}`}>
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${selectedRouteId === r.id ? "bg-blue-700" : "bg-gray-100"}`}>
+                  <span className={`material-symbols-outlined text-[16px] ${selectedRouteId === r.id ? "text-white" : "text-gray-400"}`} style={{ fontVariationSettings: "'FILL' 1" }}>route</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-bold truncate ${selectedRouteId === r.id ? "text-blue-800" : "text-gray-700"}`}>{r.name}</p>
+                  <p className="text-xs text-gray-400">{r.points.length} kontrol noktası</p>
+                </div>
+                {selectedRouteId === r.id && (
+                  <span className="material-symbols-outlined text-blue-700 text-[20px]">check_circle</span>
+                )}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {selectedRoute && selectedRoute.points.length > 0 && (
+          <div className="w-full bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2">Kontrol Noktaları</p>
+            <div className="space-y-1.5">
+              {selectedRoute.points.map(pt => (
+                <div key={pt.point_order} className="flex items-center gap-2.5">
+                  <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                    <span className="text-[10px] font-bold text-blue-700">{pt.point_order}</span>
+                  </div>
+                  <span className="text-sm text-gray-600">{pt.name}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <button onClick={startNewPatrol}
+          className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
+          style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+          <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
           Devriye Başlat
         </button>
         <button onClick={() => router.push("/dashboard")} className="text-blue-800 text-sm font-semibold">Geri Dön</button>

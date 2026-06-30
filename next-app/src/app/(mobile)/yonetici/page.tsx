@@ -382,6 +382,7 @@ export default function YoneticiPage() {
                 <span className="bg-teal-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{activePatrolList.length}</span>
               )}
             </div>
+            <Link href="/yonetici/devriye-planlama" className="text-xs font-bold text-[#3949AB]">Planla →</Link>
           </div>
 
           {activePatrolList.length === 0 ? (
