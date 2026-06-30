@@ -19,6 +19,7 @@ const adminItems = [
   { href: "/vardiya-olustur",           label: "Vardiya",  icon: "edit_calendar",  color: "#00897B" },
   { href: "/yonetici/devriye-planlama", label: "Devriye",  icon: "route",          color: "#7B1FA2" },
   { href: "/yonetici/olaylar",          label: "Olaylar",  icon: "report_problem", color: "#C62828" },
+  { href: "/yonetici/taseron",          label: "Taşeron",  icon: "engineering",    color: "#00695C" },
   { href: "/yonetici/talepler",         label: "Talepler", icon: "assignment",     color: "#E65100" },
   { href: "/ayarlar",                   label: "Profil",   icon: "person",         color: "#546E7A" },
 ];
@@ -29,6 +30,7 @@ const supervisorItems = [
   { href: "/vardiya-olustur",           label: "Vardiya",  icon: "edit_calendar",  color: "#00897B" },
   { href: "/yonetici/devriye-planlama", label: "Devriye",  icon: "route",          color: "#7B1FA2" },
   { href: "/yonetici/olaylar",          label: "Olaylar",  icon: "report_problem", color: "#C62828" },
+  { href: "/yonetici/taseron",          label: "Taşeron",  icon: "engineering",    color: "#00695C" },
   { href: "/yonetici/talepler",         label: "Talepler", icon: "assignment",     color: "#E65100" },
   { href: "/ayarlar",                   label: "Profil",   icon: "person",         color: "#546E7A" },
 ];
