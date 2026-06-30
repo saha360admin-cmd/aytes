@@ -54,13 +54,17 @@ export default function DashboardPage() {
       supabase.from("announcements").select("*, creator:created_by(full_name)").eq("department_id", deptId).order("is_pinned", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
-    // Lokasyondaki açık olay sayısı — iki adımlı
+    // Lokasyondaki açık olay sayısı — incident_departments.status üzerinden
     if (personnel.location_id) {
       const { data: peers } = await supabase.from("personnel").select("id").eq("location_id", personnel.location_id);
-      const ids = (peers || []).map((p: { id: string }) => p.id);
-      if (ids.length > 0) {
-        const { count } = await supabase.from("incidents").select("id", { count: "exact", head: true }).in("reported_by", ids).eq("status", "open");
-        setPendingIncidents(count || 0);
+      const peerIds = (peers || []).map((p: { id: string }) => p.id);
+      if (peerIds.length > 0) {
+        const { data: myIncs } = await supabase.from("incidents").select("id").in("reported_by", peerIds);
+        const myIncIds = (myIncs || []).map((i: { id: string }) => i.id);
+        if (myIncIds.length > 0) {
+          const { count } = await supabase.from("incident_departments").select("id", { count: "exact", head: true }).in("incident_id", myIncIds).eq("status", "open");
+          setPendingIncidents(count || 0);
+        }
       }
     }
 

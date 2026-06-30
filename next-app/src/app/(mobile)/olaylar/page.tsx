@@ -80,7 +80,7 @@ export default function OlaylarPage() {
     if (!personnel?.location_id) return;
     setLoading(true);
 
-    // 1. Aynı lokasyondaki tüm personel ID'lerini al
+    // 1. Aynı lokasyondaki personel ID'leri
     const { data: peers } = await supabase
       .from("personnel")
       .select("id")
@@ -89,20 +89,39 @@ export default function OlaylarPage() {
     if (!peers || peers.length === 0) { setIncidents([]); setLoading(false); return; }
     const peerIds = peers.map((p: { id: string }) => p.id);
 
-    // 2. Bu personellerin bildirdiği olayları çek
+    // 2. Bu personellerin bildirdiği incident ID'leri
+    const { data: myIncs } = await supabase
+      .from("incidents")
+      .select("id")
+      .in("reported_by", peerIds);
+
+    const myIncIds = (myIncs || []).map((i: { id: string }) => i.id);
+    if (myIncIds.length === 0) { setIncidents([]); setLoading(false); return; }
+
+    // 3. incident_departments'tan status'a göre filtrele (admin ile aynı kaynak)
+    const { data: deptRecs } = await supabase
+      .from("incident_departments")
+      .select("incident_id, status")
+      .in("incident_id", myIncIds)
+      .eq("status", tab);
+
+    const filteredIds = [...new Set((deptRecs || []).map((r: { incident_id: string }) => r.incident_id))];
+    if (filteredIds.length === 0) { setIncidents([]); setLoading(false); return; }
+
+    // 4. Detayları çek
     const { data } = await supabase
       .from("incidents")
-      .select("id, type, severity, title, description, location, created_at, status, photo_urls, video_urls, reporter:reported_by(full_name)")
-      .in("reported_by", peerIds)
-      .eq("status", tab)
+      .select("id, type, severity, title, description, location, created_at, photo_urls, video_urls, reporter:reported_by(full_name)")
+      .in("id", filteredIds)
       .order("created_at", { ascending: false })
       .limit(50);
 
     setIncidents(
       (data || []).map((inc: any) => ({
         ...inc,
+        status: tab,
         reporter: Array.isArray(inc.reporter) ? inc.reporter[0] ?? null : inc.reporter,
-        is_mine: peerIds.includes(personnel.id) && inc.reporter?.full_name === personnel.full_name,
+        is_mine: inc.reporter?.[0]?.full_name === personnel.full_name || inc.reporter?.full_name === personnel.full_name,
       }))
     );
     setLoading(false);
