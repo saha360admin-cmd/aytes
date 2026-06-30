@@ -106,12 +106,14 @@ function getMondayOfWeek(d: Date) {
   return monday;
 }
 
-function timeToMin(t: string) {
+function timeToMin(t: string | null | undefined): number {
+  if (!t) return 0;
   const [h, m] = t.slice(0, 5).split(":").map(Number);
   return h * 60 + m;
 }
 
-function shiftCovers(shiftStart: string, shiftEnd: string, planStart: string, planEnd: string) {
+function shiftCovers(shiftStart: string | null, shiftEnd: string | null, planStart: string | null, planEnd: string | null): boolean {
+  if (!shiftStart || !shiftEnd || !planStart || !planEnd) return false;
   let ss = timeToMin(shiftStart), se = timeToMin(shiftEnd);
   let ps = timeToMin(planStart), pe = timeToMin(planEnd);
   if (se < ss) se += 1440;
