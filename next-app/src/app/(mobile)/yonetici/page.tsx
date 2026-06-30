@@ -65,13 +65,6 @@ export default function YoneticiPage() {
   const [openServiceRequests, setOpenServiceRequests] = useState(0);
   const [locationShortages, setLocationShortages] = useState<LocationShortage[]>([]);
 
-  // Vardiya form
-  const [shiftName, setShiftName] = useState("Gündüz Vardiyası");
-  const [shiftStart, setShiftStart] = useState("08:00");
-  const [shiftEnd, setShiftEnd] = useState("16:00");
-  const [shiftSending, setShiftSending] = useState(false);
-  const [shiftToast, setShiftToast] = useState<string | null>(null);
-
   // Request action state
   const [updatingReq, setUpdatingReq] = useState<string | null>(null);
 
@@ -143,26 +136,6 @@ export default function YoneticiPage() {
     setLoading(false);
   }
 
-  async function createShift() {
-    if (!personnel || !shiftName || !shiftStart || !shiftEnd) return;
-    setShiftSending(true);
-    const { error } = await supabase.from("shifts").insert({
-      department_id: personnel.department_id,
-      name: shiftName,
-      start_time: shiftStart,
-      end_time: shiftEnd,
-    });
-    setShiftSending(false);
-    if (!error) {
-      setShiftToast("Vardiya oluşturuldu!");
-      setStats((s) => ({ ...s, todayShifts: s.todayShifts + 1 }));
-      setTimeout(() => setShiftToast(null), 3000);
-    } else {
-      setShiftToast("Hata: " + error.message);
-      setTimeout(() => setShiftToast(null), 4000);
-    }
-  }
-
   async function handleRequest(id: string, status: "approved" | "rejected") {
     setUpdatingReq(id);
     const { error } = await supabase.from("requests").update({ status }).eq("id", id);
@@ -198,14 +171,6 @@ export default function YoneticiPage() {
 
   return (
     <div className="bg-[#f0f2ff] min-h-screen pb-32">
-      {/* Toast */}
-      {shiftToast && (
-        <div className={`fixed top-20 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-full shadow-xl flex items-center gap-2 text-sm font-bold text-white ${shiftToast.startsWith("Hata") ? "bg-red-600" : "bg-emerald-600"}`}>
-          <span className="material-symbols-outlined text-[18px]">{shiftToast.startsWith("Hata") ? "error" : "check_circle"}</span>
-          {shiftToast}
-        </div>
-      )}
-
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 max-w-[430px] mx-auto z-50 flex justify-between items-center px-4 h-16"
         style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
@@ -332,56 +297,7 @@ export default function YoneticiPage() {
           </section>
         )}
 
-        {/* ── VARDİYA OLUŞTUR ── */}
-        <section className="bg-white rounded-xl shadow-sm overflow-hidden">
-          <div className="flex items-center gap-3 px-4 pt-4 pb-3 border-b border-gray-100">
-            <div className="w-9 h-9 rounded-lg bg-purple-100 flex items-center justify-center">
-              <span className="material-symbols-outlined text-purple-600 text-[20px]">calendar_add_on</span>
-            </div>
-            <h3 className="font-bold text-gray-800">Vardiya Oluştur</h3>
-          </div>
-          <div className="p-4 space-y-3">
-            <div className="space-y-1">
-              <label className="text-xs font-bold text-gray-400">Vardiya Adı</label>
-              <input
-                value={shiftName}
-                onChange={(e) => setShiftName(e.target.value)}
-                placeholder="Örn: Sabah Vardiyası, Gece Vardiyası"
-                className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none transition-all"
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400">Başlangıç</label>
-                <input
-                  type="time"
-                  value={shiftStart}
-                  onChange={(e) => setShiftStart(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none transition-all"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-gray-400">Bitiş</label>
-                <input
-                  type="time"
-                  value={shiftEnd}
-                  onChange={(e) => setShiftEnd(e.target.value)}
-                  className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none transition-all"
-                />
-              </div>
-            </div>
-            <button
-              onClick={createShift}
-              disabled={shiftSending || !shiftName}
-              className="w-full py-3 text-white font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50"
-              style={{ background: "linear-gradient(135deg, #6A1B9A, #9C27B0)" }}>
-              {shiftSending
-                ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
-                : <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>add_circle</span>}
-              {shiftSending ? "Oluşturuluyor..." : "Vardiyayı Kaydet"}
-            </button>
-          </div>
-        </section>
+
 
         {/* ── BEKLEYEN TALEPLER ÖZET ── */}
         <section>
