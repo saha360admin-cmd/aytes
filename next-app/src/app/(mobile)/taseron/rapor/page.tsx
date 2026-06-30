@@ -121,7 +121,6 @@ export default function TaseronRaporPage() {
   const deptSummary = Array.from(deptSummaryMap.values()).sort((a, b) => b.total_active - a.total_active);
 
   function downloadCSV() {
-    const BOM = "﻿";
     const header = ["Tarih", "Birim", "Lokasyon", "Taşeron", "Bilet No", "Açıklama", "Durum"];
     const rows = filtered.map(r => [
       formatDateCSV(r.opened_at),
@@ -132,9 +131,12 @@ export default function TaseronRaporPage() {
       r.description.replace(/"/g, '""'),
       STATUS_LABELS[r.status] ?? r.status,
     ]);
-    const csv = BOM + "sep=;\n" + [header, ...rows].map(row => row.map(c => `"${c}"`).join(";")).join("\n");
+    const csv = "sep=;\n" + [header, ...rows].map(row => row.map(c => `"${c}"`).join(";")).join("\n");
+    const bom = new Uint8Array([0xEF, 0xBB, 0xBF]);
+    const encoded = new TextEncoder().encode(csv);
+    const blob = new Blob([bom, encoded], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8;" }));
+    link.href = URL.createObjectURL(blob);
     link.download = `taseron-rapor-${new Date().toISOString().slice(0, 10)}.csv`;
     link.click();
   }
