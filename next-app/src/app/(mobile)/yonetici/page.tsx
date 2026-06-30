@@ -26,6 +26,14 @@ interface PersonnelItem {
   position: string | null;
 }
 
+interface LocationShortage {
+  id: string;
+  name: string;
+  target: number;
+  actual: number;
+  deficit: number;
+}
+
 const typeLabels: Record<string, string> = {
   unpaid: "Ücretsiz İzin",
   annual: "Yıllık İzin",
@@ -55,6 +63,7 @@ export default function YoneticiPage() {
   const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
 
   const [openServiceRequests, setOpenServiceRequests] = useState(0);
+  const [locationShortages, setLocationShortages] = useState<LocationShortage[]>([]);
 
   // Vardiya form
   const [shiftName, setShiftName] = useState("Gündüz Vardiyası");
@@ -85,6 +94,8 @@ export default function YoneticiPage() {
       activePatrolRes,
       incidentRes,
       serviceReqCount,
+      locationsRes,
+      personnelLocsRes,
     ] = await Promise.all([
       supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open"),
@@ -95,6 +106,8 @@ export default function YoneticiPage() {
       supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as any,
       supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").order("created_at", { ascending: false }).limit(5),
       supabase.from("service_requests").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
+      supabase.from("locations").select("id, name, target_count").gt("target_count", 0),
+      supabase.from("personnel").select("id, location_id, role").eq("department_id", deptId).neq("status", "archived"),
     ]);
 
     setStats({
@@ -111,6 +124,22 @@ export default function YoneticiPage() {
     setActivePatrolList(((activePatrolRes as any).data || []) as ActivePatrol[]);
     setRecentIncidents((incidentRes.data || []) as unknown as Incident[]);
     setOpenServiceRequests(serviceReqCount.count || 0);
+
+    // Lokasyon eksik güvenlik hesaplama
+    const locs = (locationsRes.data || []) as { id: string; name: string; target_count: number }[];
+    const genelMudId = locs.find(l => l.name === "Genel Müdürlük")?.id;
+    const locCounts: Record<string, number> = {};
+    for (const p of (personnelLocsRes.data || []) as { id: string; location_id: string | null; role: string }[]) {
+      let locId = p.location_id;
+      if ((p.role === "admin" || p.role === "supervisor") && genelMudId) locId = genelMudId;
+      if (locId) locCounts[locId] = (locCounts[locId] || 0) + 1;
+    }
+    const shortages = locs
+      .map(l => ({ id: l.id, name: l.name, target: l.target_count, actual: locCounts[l.id] || 0, deficit: l.target_count - (locCounts[l.id] || 0) }))
+      .filter(l => l.deficit > 0)
+      .sort((a, b) => b.deficit - a.deficit);
+    setLocationShortages(shortages);
+
     setLoading(false);
   }
 
@@ -263,6 +292,45 @@ export default function YoneticiPage() {
             </div>
           </div>
         </section>
+
+        {/* ── EKSİK GÜVENLİK ── */}
+        {locationShortages.length > 0 && (
+          <section className="bg-white rounded-xl shadow-sm overflow-hidden border-l-4 border-l-red-500">
+            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100">
+              <div className="flex items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-red-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_alert</span>
+                </div>
+                <div>
+                  <h3 className="font-bold text-gray-800">Eksik Güvenlik</h3>
+                  <p className="text-xs text-gray-400">{locationShortages.length} lokasyonda personel eksik</p>
+                </div>
+              </div>
+              <span className="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">
+                {locationShortages.reduce((s, l) => s + l.deficit, 0)} eksik
+              </span>
+            </div>
+            <div className="divide-y divide-gray-50">
+              {locationShortages.map(loc => (
+                <div key={loc.id} className="flex items-center justify-between px-4 py-3">
+                  <div className="flex-1 min-w-0 pr-3">
+                    <p className="text-sm font-semibold text-gray-800 truncate">{loc.name}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-red-400 rounded-full transition-all"
+                          style={{ width: `${Math.round((loc.actual / loc.target) * 100)}%` }} />
+                      </div>
+                      <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">{loc.actual}/{loc.target}</span>
+                    </div>
+                  </div>
+                  <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                    -{loc.deficit}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
 
         {/* ── VARDİYA OLUŞTUR ── */}
         <section className="bg-white rounded-xl shadow-sm overflow-hidden">
