@@ -64,7 +64,7 @@ export default function TaseronFirmaYeniPage() {
             <input
               type="text"
               value={name}
-              onChange={e => setName(e.target.value)}
+              onChange={e => setName(e.target.value.replace(/\b\S/g, c => c.toLocaleUpperCase("tr-TR")))}
               placeholder="Örn: ABC Teknik Servis"
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none"
             />
