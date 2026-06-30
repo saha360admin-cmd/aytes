@@ -482,17 +482,6 @@ export default function YoneticiPage() {
 
       </main>
 
-      {/* FAB - Olay Bildir */}
-      <div className="fixed bottom-0 left-0 right-0 max-w-[430px] mx-auto pointer-events-none z-40">
-        <div className="flex justify-end pb-[8.5rem] pr-4">
-          <Link
-            href="/olay-bildir"
-            className="pointer-events-auto w-14 h-14 rounded-xl shadow-lg flex items-center justify-center active:scale-90 transition-transform"
-            style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-            <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>add</span>
-          </Link>
-        </div>
-      </div>
     </div>
   );
 }
