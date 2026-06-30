@@ -320,14 +320,21 @@ export default function PersonelPage() {
     if (!file || !uploadingAvatarFor) { setUploadingAvatarFor(null); return; }
     if (!file.type.startsWith("image/")) { setUploadingAvatarFor(null); return; }
 
-    const ext = file.name.split(".").pop() ?? "jpg";
-    const path = `personnel/${uploadingAvatarFor}.${ext}`;
-    const { data: up, error } = await supabase.storage.from("avatars").upload(path, file, { upsert: true });
-    if (error || !up) { setToast("Yükleme hatası: " + (error?.message ?? "")); setTimeout(() => setToast(""), 3000); setUploadingAvatarFor(null); return; }
+    const fd = new FormData();
+    fd.append("file", file);
+    fd.append("personnelId", uploadingAvatarFor);
 
-    const { data: urlData } = supabase.storage.from("avatars").getPublicUrl(up.path);
-    const avatar_url = urlData.publicUrl + `?t=${Date.now()}`;
-    await supabase.from("personnel").update({ avatar_url }).eq("id", uploadingAvatarFor);
+    const res = await fetch("/api/upload-avatar", { method: "POST", body: fd });
+    const json = await res.json();
+
+    if (!res.ok) {
+      setToast("Yükleme hatası: " + (json.error ?? ""));
+      setTimeout(() => setToast(""), 3000);
+      setUploadingAvatarFor(null);
+      return;
+    }
+
+    const avatar_url = json.avatar_url + `?t=${Date.now()}`;
     setPeople(prev => prev.map(p => p.id === uploadingAvatarFor ? { ...p, avatar_url } : p));
     setUploadingAvatarFor(null);
     setToast("Fotoğraf güncellendi!");
