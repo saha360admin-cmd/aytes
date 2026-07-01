@@ -271,7 +271,7 @@ export default function YoneticiPage() {
                   <span className="material-symbols-outlined text-red-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_alert</span>
                 </div>
                 <div>
-                  <h3 className="font-bold text-gray-800">Eksik Güvenlik</h3>
+                  <h3 className="font-bold text-gray-800">Eksik {personnel?.departments?.name || "Personel"}</h3>
                   <p className="text-xs text-gray-400">{locationShortages.length} lokasyonda personel eksik</p>
                 </div>
               </div>
