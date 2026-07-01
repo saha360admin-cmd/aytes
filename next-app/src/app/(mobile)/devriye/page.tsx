@@ -210,12 +210,11 @@ export default function DevriyePage() {
       points: [...(matchedRoute.patrol_route_points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
     });
 
-    // Farklı rotadan kalan eski atamaları temizle (vardiya değişimi sonrası)
+    // Bugünkü pending/missed atamaları temizle (vardiya değişimi sonrası eski slotlar kalmasın)
     await supabase.from("patrol_assignments")
       .delete()
       .eq("personnel_id", personnel.id)
       .eq("date", dateStr)
-      .neq("route_id", matchedRoute.id)
       .in("status", ["pending", "missed"]);
 
     // Zaman dilimlerini oluştur ve upsert et
