@@ -93,6 +93,31 @@ export interface PatrolAssignment {
   created_at: string;
 }
 
+export interface Communication {
+  id: string;
+  type: "duyuru" | "gorev" | "talimat";
+  priority: "normal" | "urgent";
+  title: string;
+  content: string;
+  target_type: "all" | "location";
+  location_id: string | null;
+  department_id: string;
+  created_by: string;
+  expires_at: string | null;
+  created_at: string;
+  creator?: { full_name: string } | null;
+  location?: { name: string } | null;
+  read_count?: number;
+  total_target?: number;
+}
+
+export interface CommunicationRead {
+  id: string;
+  communication_id: string;
+  personnel_id: string;
+  read_at: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;

@@ -26,6 +26,7 @@ export default function DashboardPage() {
   const [pendingIncidents, setPendingIncidents] = useState(0);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [unreadComms, setUnreadComms] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -85,6 +86,25 @@ export default function DashboardPage() {
     }
     setTasks(taskRes.data || []);
     if (annRes.data) setAnnouncement(annRes.data);
+
+    // Okunmamış iletişim sayısı
+    const locFilter = personnel.location_id
+      ? `target_type.eq.all,and(target_type.eq.location,location_id.eq.${personnel.location_id})`
+      : "target_type.eq.all";
+    const { data: allComms } = await supabase.from("communications")
+      .select("id")
+      .eq("department_id", deptId)
+      .or(locFilter)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
+    const commIds = (allComms || []).map((c: any) => c.id);
+    if (commIds.length > 0) {
+      const { data: myReads } = await supabase.from("communication_reads")
+        .select("communication_id")
+        .eq("personnel_id", pId)
+        .in("communication_id", commIds);
+      setUnreadComms(commIds.length - (myReads?.length ?? 0));
+    }
+
     setLoading(false);
   }
 
@@ -109,9 +129,14 @@ export default function DashboardPage() {
           </div>
           <h1 className="text-lg font-bold text-white">Güvenlik Paneli</h1>
         </div>
-        <button className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
-          <span className="material-symbols-outlined text-[20px]">notifications</span>
-        </button>
+        <Link href="/iletisim" className="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
+          <span className="material-symbols-outlined text-[20px]">forum</span>
+          {unreadComms > 0 && (
+            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center px-1">
+              {unreadComms > 9 ? "9+" : unreadComms}
+            </span>
+          )}
+        </Link>
       </header>
 
       {/* Karşılama bandı */}

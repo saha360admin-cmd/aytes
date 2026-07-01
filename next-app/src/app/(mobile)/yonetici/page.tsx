@@ -183,9 +183,9 @@ export default function YoneticiPage() {
           <Link href="/personel" className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
             <span className="material-symbols-outlined text-white text-[22px]">group</span>
           </Link>
-          <button className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
-            <span className="material-symbols-outlined text-white text-[22px]">notifications</span>
-          </button>
+          <Link href="/yonetici/iletisim" className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
+            <span className="material-symbols-outlined text-white text-[22px]">forum</span>
+          </Link>
         </div>
       </header>
 
