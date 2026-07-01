@@ -47,7 +47,6 @@ export default function BeaconlarPage() {
         .order("created_at", { ascending: false }),
       supabase.from("locations")
         .select("id, name")
-        .eq("department_id", personnel.department_id)
         .order("name"),
     ]);
     setBeacons(bRes.data || []);
