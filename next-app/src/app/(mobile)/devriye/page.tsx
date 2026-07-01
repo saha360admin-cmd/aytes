@@ -103,6 +103,8 @@ export default function DevriyePage() {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
   const [noPatrolDuty, setNoPatrolDuty] = useState(false);
+  const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
+  const [slotBlockedMsg, setSlotBlockedMsg] = useState<string | null>(null);
   const [schedMeta, setSchedMeta] = useState<{ startMin: number; endMin: number; crossMidnight: boolean } | null>(null);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
@@ -270,12 +272,41 @@ export default function DevriyePage() {
       missedIds.includes(a.id) ? { ...a, status: "missed" as const } : a
     );
     setAssignments(finalAssignments);
-    setNoPatrolDuty(false); // atama bulundu, "görev yok" ekranını kapat
+    setNoPatrolDuty(false);
+
+    // Aynı rotada başkalarının aktif/tamamlanmış slotlarını getir
+    const { data: others } = await supabase
+      .from("patrol_assignments")
+      .select("scheduled_time")
+      .eq("route_id", matchedRoute.id)
+      .eq("date", dateStr)
+      .in("status", ["active", "completed"])
+      .neq("personnel_id", personnel.id);
+    setOccupiedSlots((others || []).map((o: any) => o.scheduled_time.slice(0, 5)));
   }
 
   async function startAssignedPatrol(assignment: PatrolAssignment) {
     if (!personnel || !assignmentRoute) return;
     setStartingAssignment(assignment.id);
+    setSlotBlockedMsg(null);
+
+    // Son kontrol: slot başkası tarafından alındı mı?
+    const { data: conflict } = await supabase
+      .from("patrol_assignments")
+      .select("id")
+      .eq("route_id", assignmentRoute.id)
+      .eq("date", assignment.date)
+      .eq("scheduled_time", assignment.scheduled_time)
+      .in("status", ["active", "completed"])
+      .neq("personnel_id", personnel.id)
+      .maybeSingle();
+
+    if (conflict) {
+      setSlotBlockedMsg("Bu saat dilimi başka bir personel tarafından alındı.");
+      setStartingAssignment(null);
+      await loadTodayAssignments();
+      return;
+    }
 
     const cpNames = assignmentRoute.points.length > 0
       ? assignmentRoute.points.map(p => p.name)
@@ -511,25 +542,31 @@ export default function DevriyePage() {
                 slotMin += 24 * 60;
                 if (nowMin < schedMeta.startMin && nowMin <= schedMeta.endMin) adjustedNow += 24 * 60;
               }
-              const canStart = a.status === "pending" && adjustedNow >= slotMin - 15;
-              const cfg = statusCfg[a.status] ?? statusCfg.pending;
+              const timeStr = a.scheduled_time.slice(0, 5);
+              const isOccupied = a.status === "pending" && occupiedSlots.includes(timeStr);
+              const canStart = a.status === "pending" && !isOccupied && adjustedNow >= slotMin - 15;
+              const cfg = isOccupied
+                ? { label: "Meşgul", bg: "bg-orange-100", text: "text-orange-600", icon: "person", border: "border-l-orange-300" }
+                : (statusCfg[a.status] ?? statusCfg.pending);
               return (
                 <div key={a.id} className={`bg-white rounded-2xl p-4 shadow-sm border-l-4 ${cfg.border}`}>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 ${
+                        isOccupied              ? "bg-orange-50" :
                         a.status === "completed" ? "bg-emerald-100" :
                         a.status === "missed"    ? "bg-red-100" :
                         a.status === "active"    ? "bg-blue-100" : "bg-indigo-50"
                       }`}>
                         <span className={`text-base font-bold leading-tight ${
+                          isOccupied              ? "text-orange-500" :
                           a.status === "completed" ? "text-emerald-700" :
                           a.status === "missed"    ? "text-red-600" :
                           a.status === "active"    ? "text-blue-700" : "text-indigo-700"
-                        }`}>{a.scheduled_time.slice(0, 5)}</span>
+                        }`}>{timeStr}</span>
                       </div>
                       <div>
-                        <p className="font-bold text-gray-800 text-sm">{a.scheduled_time.slice(0, 5)} Devriyesi</p>
+                        <p className="font-bold text-gray-800 text-sm">{timeStr} Devriyesi</p>
                         <p className="text-xs text-gray-400 mt-0.5">{assignmentRoute?.name ?? "—"}</p>
                       </div>
                     </div>
@@ -556,6 +593,13 @@ export default function DevriyePage() {
               );
             })}
           </div>
+
+          {slotBlockedMsg && (
+            <div className="bg-orange-50 rounded-2xl p-4 flex gap-3 border border-orange-100">
+              <span className="material-symbols-outlined text-orange-500 text-[20px] flex-shrink-0">warning</span>
+              <p className="text-xs text-orange-700 font-semibold leading-relaxed">{slotBlockedMsg}</p>
+            </div>
+          )}
 
           <div className="bg-blue-50 rounded-2xl p-4 flex gap-3 border border-blue-100">
             <span className="material-symbols-outlined text-blue-600 text-[20px] flex-shrink-0">info</span>
