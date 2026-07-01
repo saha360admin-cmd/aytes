@@ -53,6 +53,7 @@ export default function VardiyaOlusturmaPage() {
 
   const locRef = useRef<HTMLDivElement>(null);
   const monthRef = useRef<HTMLDivElement>(null);
+  const savedCells = useRef<Record<string, string>>({});
 
   const today = useMemo(() => {
     const d = new Date(); d.setHours(0, 0, 0, 0); return d;
@@ -146,6 +147,7 @@ export default function VardiyaOlusturmaPage() {
     const newCells: Record<string, string> = {};
     (saData || []).forEach(sa => { newCells[`${sa.personnel_id}_${sa.shift_date}`] = sa.shift_code; });
     setCells(newCells);
+    savedCells.current = { ...newCells };
   }
 
   // Dinamik döngü: shift_types sırasıyla → boş
@@ -181,33 +183,66 @@ export default function VardiyaOlusturmaPage() {
     if (!selectedLocId || !personnel) return;
     status === "draft" ? setSaving(true) : setPublishing(true);
 
-    const upserts: object[] = [];
+    // Sadece değişen veya yeni eklenen hücreler
+    const upserts: { personnel_id: string; location_id: string; shift_date: string; shift_code: string; status: string; created_by: string }[] = [];
     personnelList.forEach(p => {
       monthDays.forEach(day => {
         const dateStr = toDateStr(day);
-        const code = cells[`${p.id}_${dateStr}`];
-        if (code) {
+        const key = `${p.id}_${dateStr}`;
+        const code = cells[key];
+        if (code && code !== savedCells.current[key]) {
           upserts.push({ personnel_id: p.id, location_id: selectedLocId, shift_date: dateStr, shift_code: code, status, created_by: personnel.id });
         }
       });
     });
 
-    const deletes: object[] = [];
-    personnelList.forEach(p => {
-      monthDays.forEach(day => {
-        const dateStr = toDateStr(day);
-        const code = cells[`${p.id}_${dateStr}`];
-        if (!code) deletes.push({ personnel_id: p.id, shift_date: dateStr });
-      });
-    });
+    // Sadece DB'de olan ama kullanıcının temizlediği hücreler
+    const toDelete = personnelList.flatMap(p =>
+      monthDays
+        .filter(day => {
+          const key = `${p.id}_${toDateStr(day)}`;
+          return savedCells.current[key] && !cells[key];
+        })
+        .map(day => ({ personnel_id: p.id, shift_date: toDateStr(day) }))
+    );
 
     let err = null;
+
     if (upserts.length > 0) {
       const res = await supabase.from("shift_assignments").upsert(upserts, { onConflict: "personnel_id,shift_date" });
       if (res.error) err = res.error;
     }
-    for (const d of deletes as { personnel_id: string; shift_date: string }[]) {
-      await supabase.from("shift_assignments").delete().eq("personnel_id", d.personnel_id).eq("shift_date", d.shift_date).eq("location_id", selectedLocId);
+
+    // Yayınlamada tüm ay satırlarını tek sorguda published yap
+    if (!err && status === "published") {
+      const res = await supabase.from("shift_assignments")
+        .update({ status: "published" })
+        .eq("location_id", selectedLocId)
+        .gte("shift_date", toDateStr(monthDays[0]))
+        .lte("shift_date", toDateStr(monthDays[monthDays.length - 1]));
+      if (res.error) err = res.error;
+    }
+
+    // Silmeleri paralel gönder
+    if (!err && toDelete.length > 0) {
+      const results = await Promise.all(
+        toDelete.map(d =>
+          supabase.from("shift_assignments").delete()
+            .eq("personnel_id", d.personnel_id)
+            .eq("shift_date", d.shift_date)
+            .eq("location_id", selectedLocId)
+        )
+      );
+      const deleteErr = results.find(r => r.error)?.error;
+      if (deleteErr) err = deleteErr;
+    }
+
+    if (!err) {
+      // Başarılıysa savedCells'i güncelle
+      const newSaved = { ...savedCells.current };
+      upserts.forEach(u => { newSaved[`${u.personnel_id}_${u.shift_date}`] = u.shift_code; });
+      toDelete.forEach(d => { delete newSaved[`${d.personnel_id}_${d.shift_date}`]; });
+      savedCells.current = newSaved;
     }
 
     status === "draft" ? setSaving(false) : setPublishing(false);
