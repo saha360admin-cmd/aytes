@@ -31,7 +31,6 @@ export default function TaseronFirmaYeniPage() {
     const { error } = await supabase.from("contractors").insert(payload);
     setSaving(false);
     if (error) {
-      console.error("contractors insert:", error);
       showToast("Kayıt oluşturulamadı. Lütfen tekrar deneyin.", false);
     } else {
       router.push("/yonetici");

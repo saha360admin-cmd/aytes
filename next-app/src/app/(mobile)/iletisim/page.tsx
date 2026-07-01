@@ -182,7 +182,7 @@ export default function IletisimPersonelPage() {
                     <div>
                       <h2 className="text-xl font-bold text-gray-800">{selected.title}</h2>
                       <p className="text-[11px] text-gray-400 mt-1">
-                        {(selected.creator as any)?.full_name ?? "—"} · {new Date(selected.created_at).toLocaleString("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
+                        {selected.creator?.full_name ?? "—"} · {new Date(selected.created_at).toLocaleString("tr-TR", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit" })}
                       </p>
                     </div>
 

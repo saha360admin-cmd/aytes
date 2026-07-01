@@ -28,7 +28,6 @@ export default function AyarlarPage() {
 
   // Şifre değiştirme
   const [showPwForm, setShowPwForm] = useState(false);
-  const [currentPw, setCurrentPw] = useState("");
   const [newPw, setNewPw] = useState("");
   const [newPwConfirm, setNewPwConfirm] = useState("");
   const [pwSaving, setPwSaving] = useState(false);
@@ -99,7 +98,7 @@ export default function AyarlarPage() {
     if (!error) {
       setSaveToast("Şifre başarıyla değiştirildi!");
       setShowPwForm(false);
-      setCurrentPw(""); setNewPw(""); setNewPwConfirm("");
+      setNewPw(""); setNewPwConfirm("");
       setTimeout(() => setSaveToast(null), 3000);
     } else {
       setSaveToast("Hata: " + error.message);

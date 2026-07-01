@@ -79,12 +79,6 @@ export default function GirisCikisPage() {
     setErrorMsg("");
 
     try {
-      // Beacon UUID'lerinden filtre listesi oluştur
-      // Web Bluetooth API için beacon UUID'leri servis olarak aranır
-      const filters = beacons.map(b => ({
-        name: b.name,
-      }));
-
       // İlk önce isim filtresiyle dene, bulamazsa herhangi bir BLE cihazını ara
       let device: BluetoothDevice | null = null;
       try {
