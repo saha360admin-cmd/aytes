@@ -82,7 +82,6 @@ export default function DashboardPage() {
     if (patrolRes.data) {
       setPatrolStatus({ completed: patrolRes.data.completed_checkpoints, total: patrolRes.data.total_checkpoints, hasActive: true });
     }
-    setTasks(taskRes.data || []);
     // Görev iletişimleri (type = gorev)
     const locFilter = personnel.location_id
       ? `target_type.eq.all,and(target_type.eq.location,location_id.eq.${personnel.location_id})`
