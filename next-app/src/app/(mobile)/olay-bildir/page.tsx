@@ -58,7 +58,7 @@ function OlayBildirForm() {
     const depts = selectedDepts.length > 0 ? selectedDepts : [personnel.department_id];
 
     const { data: inc, error } = await supabase.from("incidents").insert({
-      department_id: depts[0],
+      department_id: personnel.department_id,
       reported_by: personnel.id,
       type: selectedType,
       severity,
