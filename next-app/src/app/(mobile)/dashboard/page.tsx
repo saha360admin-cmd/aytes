@@ -28,6 +28,7 @@ export default function DashboardPage() {
   const [latestComm, setLatestComm] = useState<{ id: string; type: string; priority: string; title: string; content: string; isRead: boolean } | null>(null);
   const [unreadComms, setUnreadComms] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [helpModal, setHelpModal] = useState(false);
 
   useEffect(() => {
     if (!personnel) return;
@@ -133,6 +134,13 @@ export default function DashboardPage() {
     }
 
     setLoading(false);
+  }
+
+  function openHelpWhatsApp() {
+    const now = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const msg = `🚨 ACİL YARDIM ÇAĞRISI!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${now}\n\nLütfen hemen iletişime geçin!`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
+    setHelpModal(false);
   }
 
   const name = personnel?.full_name || "Görevli";
@@ -245,6 +253,7 @@ export default function DashboardPage() {
               Olay Bildir
             </Link>
             <button
+              onClick={() => setHelpModal(true)}
               className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold text-white active:scale-95 transition-all shadow-md shadow-rose-200 ring-4 ring-rose-100"
               style={{ background: "linear-gradient(135deg, #C62828, #E53935)" }}>
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
@@ -334,6 +343,47 @@ export default function DashboardPage() {
           );
         })()}
       </main>
+
+      {/* ── Yardım Çağır Modal ── */}
+      {helpModal && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/60" onClick={() => setHelpModal(false)} />
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden">
+            {/* Kırmızı başlık */}
+            <div className="px-6 pt-6 pb-5 flex flex-col items-center gap-3 text-center"
+              style={{ background: "linear-gradient(135deg, #B71C1C, #E53935)" }}>
+              <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                <span className="material-symbols-outlined text-white text-[36px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
+              </div>
+              <h2 className="text-xl font-bold text-white">Yardım Çağır</h2>
+              <p className="text-sm text-white/80">WhatsApp üzerinden acil mesaj gönderilecek</p>
+            </div>
+
+            {/* Mesaj önizleme */}
+            <div className="px-6 py-5 space-y-4">
+              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Gönderilecek Mesaj</p>
+                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+                  {`🚨 ACİL YARDIM ÇAĞRISI!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n\nLütfen hemen iletişime geçin!`}
+                </p>
+              </div>
+              <p className="text-xs text-gray-400 text-center">WhatsApp açıldıktan sonra göndermek istediğiniz kişiyi seçin</p>
+
+              <button onClick={openHelpWhatsApp}
+                className="w-full py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-green-200"
+                style={{ background: "linear-gradient(135deg, #1B5E20, #2E7D32)" }}>
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>whatsapp</span>
+                WhatsApp'ta Gönder
+              </button>
+
+              <button onClick={() => setHelpModal(false)}
+                className="w-full py-3.5 rounded-2xl text-gray-600 font-semibold bg-gray-100 active:scale-95 transition-all">
+                İptal
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
