@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Task } from "@/lib/types";
+interface GorevComm { id: string; title: string; content: string; priority: string; isRead: boolean }
 
 interface ActiveShift {
   shift_code: string;
@@ -24,7 +24,7 @@ export default function DashboardPage() {
   const [shift, setShift] = useState<ActiveShift | null>(null);
   const [patrolStatus, setPatrolStatus] = useState({ completed: 0, total: 0, hasActive: false });
   const [pendingIncidents, setPendingIncidents] = useState(0);
-  const [tasks, setTasks] = useState<Task[]>([]);
+  const [gorevler, setGorevler] = useState<GorevComm[]>([]);
   const [latestComm, setLatestComm] = useState<{ id: string; type: string; priority: string; title: string; content: string; isRead: boolean } | null>(null);
   const [unreadComms, setUnreadComms] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -42,7 +42,7 @@ export default function DashboardPage() {
     const pId = personnel.id;
     const today = toDateStr(new Date());
 
-    const [assignmentRes, patrolRes, taskRes] = await Promise.all([
+    const [assignmentRes, patrolRes] = await Promise.all([
       supabase
         .from("shift_assignments")
         .select("shift_code")
@@ -51,7 +51,6 @@ export default function DashboardPage() {
         .eq("status", "published")
         .maybeSingle(),
       supabase.from("patrols").select("*").eq("personnel_id", pId).eq("status", "active").limit(1).maybeSingle(),
-      supabase.from("tasks").select("*, assigned:assigned_to(full_name)").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
     ]);
 
     // Lokasyondaki açık olay sayısı — incident_departments.status üzerinden
@@ -84,10 +83,29 @@ export default function DashboardPage() {
       setPatrolStatus({ completed: patrolRes.data.completed_checkpoints, total: patrolRes.data.total_checkpoints, hasActive: true });
     }
     setTasks(taskRes.data || []);
-    // Okunmamış iletişim sayısı
+    // Görev iletişimleri (type = gorev)
     const locFilter = personnel.location_id
       ? `target_type.eq.all,and(target_type.eq.location,location_id.eq.${personnel.location_id})`
       : "target_type.eq.all";
+    const { data: gorevComms } = await supabase.from("communications")
+      .select("id, title, content, priority")
+      .eq("department_id", deptId)
+      .eq("type", "gorev")
+      .or(locFilter)
+      .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+      .order("created_at", { ascending: false })
+      .limit(5);
+
+    if (gorevComms && gorevComms.length > 0) {
+      const { data: gorevReads } = await supabase.from("communication_reads")
+        .select("communication_id")
+        .eq("personnel_id", pId)
+        .in("communication_id", gorevComms.map((g: any) => g.id));
+      const readSet = new Set((gorevReads || []).map((r: any) => r.communication_id));
+      setGorevler(gorevComms.map((g: any) => ({ ...g, isRead: readSet.has(g.id) })));
+    }
+
+    // Okunmamış iletişim sayısı
     const { data: allComms } = await supabase.from("communications")
       .select("id")
       .eq("department_id", deptId)
@@ -241,35 +259,38 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Tasks */}
+        {/* Görevler */}
         <section className="space-y-3">
           <div className="flex justify-between items-center">
-            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Bugünkü Görevler</h3>
-            <Link href="/gorevler" className="text-blue-800 text-sm font-semibold">Tümünü Gör</Link>
+            <h3 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Görevler</h3>
+            <Link href="/iletisim" className="text-blue-800 text-sm font-semibold">Tümünü Gör</Link>
           </div>
           <div className="bg-white rounded-2xl shadow-sm overflow-hidden border border-gray-100">
-            {tasks.length === 0 ? (
-              <p className="text-center text-gray-400 py-8">Henüz görev yok</p>
-            ) : (
-              tasks.map((t, i) => (
-                <div key={t.id}>
-                  {i > 0 && <div className="h-px bg-gray-100 mx-6" />}
-                  <div className={`p-6 flex items-center justify-between hover:bg-gray-50 transition-colors ${t.status === "completed" ? "opacity-50 bg-gray-50" : ""}`}>
-                    <div className="flex items-center gap-4">
-                      <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${t.status === "completed" ? "bg-green-100" : "bg-gray-100"}`}>
-                        <span className={`material-symbols-outlined ${t.status === "completed" ? "text-green-600" : "text-blue-800"}`}>
-                          {t.status === "completed" ? "check_circle" : "security"}
-                        </span>
-                      </div>
-                      <div>
-                        <p className={`text-lg font-medium ${t.status === "completed" ? "line-through" : ""}`}>{t.title}</p>
-                        <p className="text-xs font-semibold text-gray-400">{t.description || ""}</p>
-                      </div>
-                    </div>
+            {gorevler.length === 0 ? (
+              <p className="text-center text-gray-400 py-8">Atanmış görev yok</p>
+            ) : gorevler.map((g, i) => (
+              <Link key={g.id} href="/iletisim">
+                {i > 0 && <div className="h-px bg-gray-100 mx-6" />}
+                <div className="p-4 flex items-center gap-4 hover:bg-gray-50 active:bg-gray-100 transition-colors">
+                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${g.isRead ? "bg-emerald-100" : "bg-amber-100"}`}>
+                    <span className={`material-symbols-outlined text-[20px] ${g.isRead ? "text-emerald-600" : "text-amber-600"}`}
+                      style={{ fontVariationSettings: "'FILL' 1" }}>
+                      {g.isRead ? "check_circle" : "assignment"}
+                    </span>
                   </div>
+                  <div className="flex-1 min-w-0">
+                    <p className={`text-sm font-bold truncate ${g.isRead ? "text-gray-400 line-through" : "text-gray-800"}`}>{g.title}</p>
+                    <p className="text-xs text-gray-400 truncate mt-0.5">{g.content}</p>
+                  </div>
+                  {!g.isRead && g.priority === "urgent" && (
+                    <span className="flex-shrink-0 text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded-full">Acil</span>
+                  )}
+                  {g.isRead && (
+                    <span className="material-symbols-outlined text-emerald-400 text-[18px] flex-shrink-0">done_all</span>
+                  )}
                 </div>
-              ))
-            )}
+              </Link>
+            ))}
           </div>
         </section>
 
