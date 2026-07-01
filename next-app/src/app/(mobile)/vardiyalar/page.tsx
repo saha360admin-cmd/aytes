@@ -100,7 +100,7 @@ export default function VardiyalarPage() {
   async function loadDetails(code: string, dateStr: string) {
     if (!personnel || !personnel.location_id) return;
 
-    const overlapMap: Record<string, string[]> = { "5": ["1", "2", "5"], "6": ["2", "3", "6"] };
+    const overlapMap: Record<string, string[]> = { "5": ["1", "2", "5"], "6": ["2", "3", "6"], "7": ["1", "2", "7"], "8": ["2", "3", "8"] };
     const codesToQuery = overlapMap[code] ?? [code];
 
     const [cwRes, shiftRes] = await Promise.all([
