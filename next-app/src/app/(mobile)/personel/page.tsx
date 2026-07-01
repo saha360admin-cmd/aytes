@@ -352,7 +352,6 @@ export default function PersonelPage() {
     supabase
       .from("locations")
       .select("id, name")
-      .eq("department_id", personnel.department_id)
       .order("name")
       .then(({ data }) => setLocations((data || []) as Location[]));
   }, [personnel]);
