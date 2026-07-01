@@ -103,7 +103,7 @@ export default function DevriyePage() {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
   const [noPatrolDuty, setNoPatrolDuty] = useState(false);
-  const [schedMeta, setSchedMeta] = useState<{ startMin: number; crossMidnight: boolean } | null>(null);
+  const [schedMeta, setSchedMeta] = useState<{ startMin: number; endMin: number; crossMidnight: boolean } | null>(null);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -210,6 +210,14 @@ export default function DevriyePage() {
       points: [...(matchedRoute.patrol_route_points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
     });
 
+    // Farklı rotadan kalan eski atamaları temizle (vardiya değişimi sonrası)
+    await supabase.from("patrol_assignments")
+      .delete()
+      .eq("personnel_id", personnel.id)
+      .eq("date", dateStr)
+      .neq("route_id", matchedRoute.id)
+      .in("status", ["pending", "missed"]);
+
     // Zaman dilimlerini oluştur ve upsert et
     const slots = generateTimeSlots(matchedSched.start_time, matchedSched.interval_minutes, matchedSched.end_time);
     if (slots.length > 0) {
@@ -237,14 +245,14 @@ export default function DevriyePage() {
     const nowMin = today.getHours() * 60 + today.getMinutes();
     const [startH, startM] = matchedSched.start_time.slice(0, 5).split(":").map(Number);
     const startMin = startH * 60 + startM;
-    const isCrossMidnight = (() => {
-      if (!matchedSched.end_time) return false;
-      const [eh, em] = matchedSched.end_time.slice(0, 5).split(":").map(Number);
-      return eh * 60 + em < startMin;
-    })();
-    setSchedMeta({ startMin, crossMidnight: isCrossMidnight });
-    // Gece geçişinde gece yarısı sonrası saatlerde +24 saat ekle
-    const adjustedNow = isCrossMidnight && nowMin < startMin ? nowMin + 24 * 60 : nowMin;
+    const endMin = matchedSched.end_time
+      ? (() => { const [eh, em] = matchedSched.end_time.slice(0, 5).split(":").map(Number); return eh * 60 + em; })()
+      : startMin;
+    const isCrossMidnight = endMin < startMin;
+    setSchedMeta({ startMin, endMin, crossMidnight: isCrossMidnight });
+    // Gece geçişinde +24h sadece gece yarısı geçildikten sonra uygulanır (gündüz değil)
+    const isPostMidnight = isCrossMidnight && nowMin < startMin && nowMin <= endMin;
+    const adjustedNow = isPostMidnight ? nowMin + 24 * 60 : nowMin;
     const missedIds = existing
       .filter(a => {
         const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
@@ -501,7 +509,7 @@ export default function DevriyePage() {
               let adjustedNow = nowMin;
               if (schedMeta?.crossMidnight && slotMin < schedMeta.startMin) {
                 slotMin += 24 * 60;
-                if (nowMin < schedMeta.startMin) adjustedNow += 24 * 60;
+                if (nowMin < schedMeta.startMin && nowMin <= schedMeta.endMin) adjustedNow += 24 * 60;
               }
               const canStart = a.status === "pending" && adjustedNow >= slotMin - 15;
               const cfg = statusCfg[a.status] ?? statusCfg.pending;
