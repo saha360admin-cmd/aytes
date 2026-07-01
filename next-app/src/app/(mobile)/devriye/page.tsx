@@ -158,12 +158,13 @@ export default function DevriyePage() {
     if (!personnel) return;
     const today = new Date();
     const dow = today.getDay();
-    if (dow === 0 || dow === 6) return; // hafta sonu
+    const isWeekend = dow === 0 || dow === 6;
 
-    // Hafta içi personel için varsayılan: görev yok (atama bulunursa kaldırılır)
+    // Personel için varsayılan: görev yok (atama bulunursa kaldırılır)
     if (personnel.role === "personel") setNoPatrolDuty(true);
 
     const dateStr = toDateStr(today);
+    const dayTypes = isWeekend ? ["weekend", "everyday"] : ["weekday", "everyday"];
 
     // Bugünkü vardiya kodu
     const { data: sa } = await supabase
@@ -176,12 +177,12 @@ export default function DevriyePage() {
 
     if (!sa?.shift_code) return;
 
-    // Bu vardiyaya ait aktif plan
+    // Bu vardiyaya ait aktif planlar (vardiyaya özel + herkese açık "Hepsi" planlar)
     const { data: scheds } = await supabase
       .from("patrol_schedules")
       .select("id, start_time, interval_minutes, end_time, route_id")
-      .eq("shift_code", sa.shift_code)
-      .in("day_type", ["weekday", "everyday"])
+      .or(`shift_code.eq.${sa.shift_code},shift_code.is.null`)
+      .in("day_type", dayTypes)
       .eq("is_active", true);
 
     if (!scheds || scheds.length === 0) return;
