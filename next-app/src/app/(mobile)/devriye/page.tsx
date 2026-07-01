@@ -154,17 +154,15 @@ export default function DevriyePage() {
     if (!personnel) return;
     const today = new Date();
     const dow = today.getDay();
-    console.log("[devriye] dow:", dow, "role:", personnel.role);
     if (dow === 0 || dow === 6) return; // hafta sonu
 
     // Hafta içi personel için varsayılan: görev yok (atama bulunursa kaldırılır)
     if (personnel.role === "personel") setNoPatrolDuty(true);
 
     const dateStr = toDateStr(today);
-    console.log("[devriye] dateStr:", dateStr, "personnel_id:", personnel.id);
 
     // Bugünkü vardiya kodu
-    const { data: sa, error: saErr } = await supabase
+    const { data: sa } = await supabase
       .from("shift_assignments")
       .select("shift_code")
       .eq("personnel_id", personnel.id)
@@ -172,18 +170,16 @@ export default function DevriyePage() {
       .eq("status", "published")
       .maybeSingle();
 
-    console.log("[devriye] sa:", sa, "saErr:", saErr);
     if (!sa?.shift_code) return;
 
     // Bu vardiyaya ait aktif plan
-    const { data: scheds, error: schedsErr } = await supabase
+    const { data: scheds } = await supabase
       .from("patrol_schedules")
       .select("id, start_time, interval_minutes, end_time, route_id")
       .eq("shift_code", sa.shift_code)
       .in("day_type", ["weekday", "everyday"])
       .eq("is_active", true);
 
-    console.log("[devriye] scheds:", scheds, "schedsErr:", schedsErr);
     if (!scheds || scheds.length === 0) return;
 
     // Personelin lokasyonuyla eşleşen rota bul
@@ -192,15 +188,13 @@ export default function DevriyePage() {
       ? `location_id.eq.${personnel.location_id},location_id.is.null`
       : "location_id.is.null";
 
-    console.log("[devriye] routeIds:", routeIds, "locFilter:", locFilter);
-    const { data: routes, error: routesErr } = await supabase
+    const { data: routes } = await supabase
       .from("patrol_routes")
       .select("id, name, location_id, patrol_route_points(id, name, point_order)")
       .in("id", routeIds)
       .eq("is_active", true)
       .or(locFilter);
 
-    console.log("[devriye] routes:", routes, "routesErr:", routesErr);
     if (!routes || routes.length === 0) return;
 
     const matchedRoute = routes[0] as any;
