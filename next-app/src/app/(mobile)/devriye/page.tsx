@@ -103,6 +103,7 @@ export default function DevriyePage() {
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
   const [noPatrolDuty, setNoPatrolDuty] = useState(false);
+  const [schedMeta, setSchedMeta] = useState<{ startMin: number; crossMidnight: boolean } | null>(null);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -140,11 +141,14 @@ export default function DevriyePage() {
     const slots: string[] = [];
     const [sh, sm] = startTime.split(":").map(Number);
     let cur = sh * 60 + sm;
-    const end = endTime
+    let end = endTime
       ? (() => { const [eh, em] = endTime.split(":").map(Number); return eh * 60 + em; })()
       : cur;
+    // Gece geçişi: bitiş saati başlangıçtan küçükse (+24 saat)
+    if (endTime && end < cur) end += 24 * 60;
     while (cur <= end) {
-      slots.push(`${String(Math.floor(cur / 60)).padStart(2, "0")}:${String(cur % 60).padStart(2, "0")}`);
+      const wrapped = cur % (24 * 60);
+      slots.push(`${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`);
       cur += intervalMinutes;
     }
     return slots;
@@ -231,10 +235,22 @@ export default function DevriyePage() {
     if (!existing) return;
 
     const nowMin = today.getHours() * 60 + today.getMinutes();
+    const [startH, startM] = matchedSched.start_time.slice(0, 5).split(":").map(Number);
+    const startMin = startH * 60 + startM;
+    const isCrossMidnight = (() => {
+      if (!matchedSched.end_time) return false;
+      const [eh, em] = matchedSched.end_time.slice(0, 5).split(":").map(Number);
+      return eh * 60 + em < startMin;
+    })();
+    setSchedMeta({ startMin, crossMidnight: isCrossMidnight });
+    // Gece geçişinde gece yarısı sonrası saatlerde +24 saat ekle
+    const adjustedNow = isCrossMidnight && nowMin < startMin ? nowMin + 24 * 60 : nowMin;
     const missedIds = existing
       .filter(a => {
         const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
-        return a.status === "pending" && nowMin > h * 60 + m + matchedSched.interval_minutes;
+        let slotMin = h * 60 + m;
+        if (isCrossMidnight && slotMin < startMin) slotMin += 24 * 60;
+        return a.status === "pending" && adjustedNow > slotMin + matchedSched.interval_minutes;
       })
       .map(a => a.id);
 
@@ -481,8 +497,13 @@ export default function DevriyePage() {
           <div className="space-y-3">
             {assignments.map(a => {
               const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
-              const slotMin = h * 60 + m;
-              const canStart = a.status === "pending" && nowMin >= slotMin - 15;
+              let slotMin = h * 60 + m;
+              let adjustedNow = nowMin;
+              if (schedMeta?.crossMidnight && slotMin < schedMeta.startMin) {
+                slotMin += 24 * 60;
+                if (nowMin < schedMeta.startMin) adjustedNow += 24 * 60;
+              }
+              const canStart = a.status === "pending" && adjustedNow >= slotMin - 15;
               const cfg = statusCfg[a.status] ?? statusCfg.pending;
               return (
                 <div key={a.id} className={`bg-white rounded-2xl p-4 shadow-sm border-l-4 ${cfg.border}`}>
