@@ -4,7 +4,11 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import type { Patrol, PatrolCheckpoint } from "@/lib/types";
+import type { Patrol, PatrolCheckpoint, PatrolAssignment } from "@/lib/types";
+
+function toDateStr(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 const defaultCheckpoints = [
   "Ana Giriş", "Otopark A1", "B Blok Girişi", "Arka Bahçe",
@@ -94,6 +98,10 @@ export default function DevriyePage() {
   const [loading, setLoading] = useState(true);
   const [availableRoutes, setAvailableRoutes] = useState<AvailableRoute[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState<string | null>(null);
+  const [assignments, setAssignments] = useState<PatrolAssignment[]>([]);
+  const [assignmentRoute, setAssignmentRoute] = useState<AvailableRoute | null>(null);
+  const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
+  const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -105,6 +113,7 @@ export default function DevriyePage() {
     if (!personnel) return;
     loadActivePatrol();
     loadAvailableRoutes();
+    loadTodayAssignments();
   }, [personnel]);
 
   async function loadAvailableRoutes() {
@@ -124,6 +133,159 @@ export default function DevriyePage() {
       setAvailableRoutes(routes);
       if (routes.length > 0) setSelectedRouteId(routes[0].id);
     }
+  }
+
+  function generateTimeSlots(startTime: string, intervalMinutes: number, endTime: string | null): string[] {
+    const slots: string[] = [];
+    const [sh, sm] = startTime.split(":").map(Number);
+    let cur = sh * 60 + sm;
+    const end = endTime
+      ? (() => { const [eh, em] = endTime.split(":").map(Number); return eh * 60 + em; })()
+      : cur;
+    while (cur <= end) {
+      slots.push(`${String(Math.floor(cur / 60)).padStart(2, "0")}:${String(cur % 60).padStart(2, "0")}`);
+      cur += intervalMinutes;
+    }
+    return slots;
+  }
+
+  async function loadTodayAssignments() {
+    if (!personnel) return;
+    const today = new Date();
+    const dow = today.getDay();
+    if (dow === 0 || dow === 6) return; // hafta sonu
+
+    const dateStr = toDateStr(today);
+
+    // Bugünkü vardiya kodu
+    const { data: sa } = await supabase
+      .from("shift_assignments")
+      .select("shift_code")
+      .eq("personnel_id", personnel.id)
+      .eq("shift_date", dateStr)
+      .eq("status", "published")
+      .maybeSingle();
+
+    if (!sa?.shift_code) return;
+
+    // Bu vardiyaya ait aktif plan
+    const { data: scheds } = await supabase
+      .from("patrol_schedules")
+      .select("id, start_time, interval_minutes, end_time, route_id")
+      .eq("shift_code", sa.shift_code)
+      .in("day_type", ["weekday", "everyday"])
+      .eq("is_active", true);
+
+    if (!scheds || scheds.length === 0) return;
+
+    // Personelin lokasyonuyla eşleşen rota bul
+    const routeIds = scheds.map((s: any) => s.route_id);
+    const locFilter = personnel.location_id
+      ? `location_id.eq.${personnel.location_id},location_id.is.null`
+      : "location_id.is.null";
+
+    const { data: routes } = await supabase
+      .from("patrol_routes")
+      .select("id, name, location_id, patrol_route_points(id, name, point_order)")
+      .in("id", routeIds)
+      .eq("is_active", true)
+      .or(locFilter);
+
+    if (!routes || routes.length === 0) return;
+
+    const matchedRoute = routes[0] as any;
+    const matchedSched = scheds.find((s: any) => s.route_id === matchedRoute.id) ?? scheds[0] as any;
+
+    setAssignmentRoute({
+      id: matchedRoute.id,
+      name: matchedRoute.name,
+      points: [...(matchedRoute.patrol_route_points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
+    });
+
+    // Zaman dilimlerini oluştur ve upsert et
+    const slots = generateTimeSlots(matchedSched.start_time, matchedSched.interval_minutes, matchedSched.end_time);
+    if (slots.length > 0) {
+      await supabase.from("patrol_assignments").upsert(
+        slots.map(time => ({
+          personnel_id: personnel.id,
+          route_id: matchedRoute.id,
+          date: dateStr,
+          scheduled_time: time,
+        })),
+        { onConflict: "personnel_id,date,scheduled_time", ignoreDuplicates: true }
+      );
+    }
+
+    // Mevcut atamaları yükle, geçirilenleri güncelle
+    const { data: existing } = await supabase
+      .from("patrol_assignments")
+      .select("*")
+      .eq("personnel_id", personnel.id)
+      .eq("date", dateStr)
+      .order("scheduled_time");
+
+    if (!existing) return;
+
+    const nowMin = today.getHours() * 60 + today.getMinutes();
+    const missedIds = existing
+      .filter(a => {
+        const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
+        return a.status === "pending" && nowMin > h * 60 + m + matchedSched.interval_minutes;
+      })
+      .map(a => a.id);
+
+    if (missedIds.length > 0) {
+      await supabase.from("patrol_assignments").update({ status: "missed" }).in("id", missedIds);
+    }
+
+    setAssignments(existing.map(a =>
+      missedIds.includes(a.id) ? { ...a, status: "missed" as const } : a
+    ));
+  }
+
+  async function startAssignedPatrol(assignment: PatrolAssignment) {
+    if (!personnel || !assignmentRoute) return;
+    setStartingAssignment(assignment.id);
+
+    const cpNames = assignmentRoute.points.length > 0
+      ? assignmentRoute.points.map(p => p.name)
+      : defaultCheckpoints;
+
+    const { data: newPatrol, error } = await supabase.from("patrols").insert({
+      department_id: personnel.department_id,
+      personnel_id: personnel.id,
+      route_name: assignmentRoute.name,
+      status: "active",
+      total_checkpoints: cpNames.length,
+      completed_checkpoints: 0,
+    }).select().single();
+
+    if (error || !newPatrol) { setStartingAssignment(null); return; }
+
+    await supabase.from("patrol_assignments")
+      .update({ status: "active", patrol_id: newPatrol.id })
+      .eq("id", assignment.id);
+
+    setActiveAssignmentId(assignment.id);
+
+    const cpInserts = cpNames.map((name, i) => ({
+      patrol_id: newPatrol.id,
+      checkpoint_order: i + 1,
+      name,
+      status: i === 0 ? "active" : "pending",
+    }));
+    await supabase.from("patrol_checkpoints").insert(cpInserts);
+
+    setPatrol(newPatrol);
+    setSeconds(0);
+    setStartingAssignment(null);
+
+    const { data: cps } = await supabase
+      .from("patrol_checkpoints")
+      .select("*")
+      .eq("patrol_id", newPatrol.id)
+      .order("checkpoint_order");
+    setCheckpoints(cps || []);
   }
 
   useEffect(() => {
@@ -148,12 +310,12 @@ export default function DevriyePage() {
       if (data.status === "paused") setPaused(true);
       const elapsed = Math.floor((Date.now() - new Date(data.started_at).getTime()) / 1000);
       setSeconds(elapsed);
-      const { data: cps } = await supabase
-        .from("patrol_checkpoints")
-        .select("*")
-        .eq("patrol_id", data.id)
-        .order("checkpoint_order");
-      setCheckpoints(cps || []);
+      const [cpsRes, assignRes] = await Promise.all([
+        supabase.from("patrol_checkpoints").select("*").eq("patrol_id", data.id).order("checkpoint_order"),
+        supabase.from("patrol_assignments").select("id").eq("patrol_id", data.id).maybeSingle(),
+      ]);
+      setCheckpoints(cpsRes.data || []);
+      if (assignRes.data) setActiveAssignmentId(assignRes.data.id);
     }
     setLoading(false);
   }
@@ -229,7 +391,18 @@ export default function DevriyePage() {
       completed_at: new Date().toISOString(),
       duration_seconds: seconds,
     }).eq("id", patrol.id);
-    router.push("/dashboard");
+
+    if (activeAssignmentId) {
+      await supabase.from("patrol_assignments").update({ status: "completed" }).eq("id", activeAssignmentId);
+      setPatrol(null);
+      setCheckpoints([]);
+      setSeconds(0);
+      setPaused(false);
+      setActiveAssignmentId(null);
+      await loadTodayAssignments();
+    } else {
+      router.push("/dashboard");
+    }
   }
 
   const formatTime = (s: number) => {
@@ -241,6 +414,104 @@ export default function DevriyePage() {
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-blue-800 text-[40px]">progress_activity</span></div>;
+  }
+
+  if (!patrol && assignments.length > 0) {
+    const now = new Date();
+    const nowMin = now.getHours() * 60 + now.getMinutes();
+    const statusCfg = {
+      pending:   { label: "Bekleniyor",  bg: "bg-gray-100",    text: "text-gray-500",    icon: "schedule",     border: "border-l-gray-200" },
+      active:    { label: "Aktif",        bg: "bg-blue-100",    text: "text-blue-700",    icon: "play_circle",  border: "border-l-blue-600" },
+      completed: { label: "Tamamlandı",  bg: "bg-emerald-100", text: "text-emerald-700", icon: "check_circle", border: "border-l-emerald-400" },
+      missed:    { label: "Geçirildi",   bg: "bg-red-100",     text: "text-red-600",     icon: "cancel",       border: "border-l-red-400" },
+    };
+    return (
+      <div className="bg-[#f8f9ff] min-h-screen pb-24">
+        <header className="bg-white shadow-sm sticky top-0 z-50 flex justify-between items-center px-6 h-16">
+          <div className="flex items-center gap-4">
+            <button onClick={() => router.push("/dashboard")} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 transition-all">
+              <span className="material-symbols-outlined text-blue-800">arrow_back</span>
+            </button>
+            <h1 className="text-xl font-bold text-blue-800">Devriye Görevleri</h1>
+          </div>
+          <span className="text-xs font-semibold text-gray-400">
+            {now.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" })}
+          </span>
+        </header>
+
+        <main className="px-6 pt-5 space-y-4">
+          {assignmentRoute && (
+            <div className="bg-indigo-50 rounded-2xl p-4 flex items-center gap-3 border border-indigo-100">
+              <div className="w-10 h-10 rounded-xl bg-[#3949AB] flex items-center justify-center flex-shrink-0">
+                <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>route</span>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Atanmış Rota</p>
+                <p className="text-sm font-bold text-indigo-800">{assignmentRoute.name}</p>
+                <p className="text-xs text-indigo-400">{assignmentRoute.points.length} kontrol noktası</p>
+              </div>
+            </div>
+          )}
+
+          <div className="space-y-3">
+            {assignments.map(a => {
+              const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
+              const slotMin = h * 60 + m;
+              const canStart = a.status === "pending" && nowMin >= slotMin - 15;
+              const cfg = statusCfg[a.status] ?? statusCfg.pending;
+              return (
+                <div key={a.id} className={`bg-white rounded-2xl p-4 shadow-sm border-l-4 ${cfg.border}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-14 h-14 rounded-2xl flex flex-col items-center justify-center flex-shrink-0 ${
+                        a.status === "completed" ? "bg-emerald-100" :
+                        a.status === "missed"    ? "bg-red-100" :
+                        a.status === "active"    ? "bg-blue-100" : "bg-indigo-50"
+                      }`}>
+                        <span className={`text-base font-bold leading-tight ${
+                          a.status === "completed" ? "text-emerald-700" :
+                          a.status === "missed"    ? "text-red-600" :
+                          a.status === "active"    ? "text-blue-700" : "text-indigo-700"
+                        }`}>{a.scheduled_time.slice(0, 5)}</span>
+                      </div>
+                      <div>
+                        <p className="font-bold text-gray-800 text-sm">{a.scheduled_time.slice(0, 5)} Devriyesi</p>
+                        <p className="text-xs text-gray-400 mt-0.5">{assignmentRoute?.name ?? "—"}</p>
+                      </div>
+                    </div>
+                    <span className={`flex items-center gap-1.5 ${cfg.bg} ${cfg.text} text-[11px] font-bold px-3 py-1.5 rounded-full flex-shrink-0`}>
+                      <span className="material-symbols-outlined text-[13px]" style={{ fontVariationSettings: "'FILL' 1" }}>{cfg.icon}</span>
+                      {cfg.label}
+                    </span>
+                  </div>
+
+                  {canStart && (
+                    <button
+                      onClick={() => startAssignedPatrol(a)}
+                      disabled={!!startingAssignment}
+                      className="w-full mt-3 py-3.5 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-60 active:scale-95 transition-all shadow-sm"
+                      style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}
+                    >
+                      {startingAssignment === a.id
+                        ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
+                        : <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>}
+                      {startingAssignment === a.id ? "Başlatılıyor..." : "Devriyeyi Başlat"}
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="bg-blue-50 rounded-2xl p-4 flex gap-3 border border-blue-100">
+            <span className="material-symbols-outlined text-blue-600 text-[20px] flex-shrink-0">info</span>
+            <p className="text-xs text-blue-700 font-semibold leading-relaxed">
+              Devriyeleri 15 dakika erken başlatabilirsin. Tüm noktaları tamamladıktan sonra devriyeyi bitir.
+            </p>
+          </div>
+        </main>
+      </div>
+    );
   }
 
   if (!patrol) {

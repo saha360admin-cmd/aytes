@@ -82,6 +82,17 @@ export interface Task {
   assigned?: { full_name: string } | null;
 }
 
+export interface PatrolAssignment {
+  id: string;
+  personnel_id: string;
+  route_id: string;
+  date: string;
+  scheduled_time: string;
+  status: "pending" | "active" | "completed" | "missed";
+  patrol_id: string | null;
+  created_at: string;
+}
+
 export interface Announcement {
   id: string;
   title: string;

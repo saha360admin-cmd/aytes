@@ -14,6 +14,7 @@ interface Schedule {
   interval_minutes: number;
   end_time: string | null;
   is_active: boolean;
+  shift_code: string | null;
 }
 interface PatrolRoute {
   id: string; name: string; location_id: string | null;
@@ -59,6 +60,7 @@ export default function DevriyePlanlama() {
   const [schedStart, setSchedStart]     = useState("08:00");
   const [schedInterval, setSchedInterval] = useState(60);
   const [schedEnd, setSchedEnd]         = useState("");
+  const [schedShiftCode, setSchedShiftCode] = useState("");
   const [savingSched, setSavingSched]   = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -75,7 +77,7 @@ export default function DevriyePlanlama() {
       supabase.from("patrol_routes").select(`
         id, name, location_id, is_active,
         points:patrol_route_points(id, name, point_order),
-        schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active)
+        schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active, shift_code)
       `).order("created_at", { ascending: false }),
     ]);
     setLocations(locRes.data || []);
@@ -132,8 +134,9 @@ export default function DevriyePlanlama() {
       setSchedStart(sched.start_time.slice(0, 5));
       setSchedInterval(sched.interval_minutes);
       setSchedEnd(sched.end_time ? sched.end_time.slice(0, 5) : "");
+      setSchedShiftCode(sched.shift_code ?? "");
     } else {
-      setSchedDayType("weekday"); setSchedStart("08:00"); setSchedInterval(60); setSchedEnd("");
+      setSchedDayType("weekday"); setSchedStart("08:00"); setSchedInterval(60); setSchedEnd(""); setSchedShiftCode("");
     }
   }
 
@@ -141,10 +144,10 @@ export default function DevriyePlanlama() {
     if (!editingSched) return;
     const { routeId, sched } = editingSched;
     setSavingSched(true);
-    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true };
+    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true, shift_code: schedShiftCode || null };
 
     if (sched) {
-      const { data, error } = await supabase.from("patrol_schedules").update(payload).eq("id", sched.id).select("id, day_type, start_time, interval_minutes, end_time, is_active").single();
+      const { data, error } = await supabase.from("patrol_schedules").update(payload).eq("id", sched.id).select("id, day_type, start_time, interval_minutes, end_time, is_active, shift_code").single();
       if (!error && data) {
         setRoutes(p => p.map(r => r.id === routeId ? { ...r, schedules: r.schedules.map(s => s.id === sched.id ? data : s) } : r));
         flash("Plan güncellendi", true);
@@ -152,7 +155,7 @@ export default function DevriyePlanlama() {
     } else {
       const { data, error } = await supabase.from("patrol_schedules")
         .insert({ route_id: routeId, ...payload })
-        .select("id, day_type, start_time, interval_minutes, end_time, is_active").single();
+        .select("id, day_type, start_time, interval_minutes, end_time, is_active, shift_code").single();
       if (!error && data) {
         setRoutes(p => p.map(r => r.id === routeId ? { ...r, schedules: [...r.schedules, data] } : r));
         flash("Plan kaydedildi", true);
@@ -361,6 +364,7 @@ export default function DevriyePlanlama() {
                                   {s.start_time.slice(0, 5)} başlar · her{" "}
                                   {s.interval_minutes >= 60 ? `${s.interval_minutes / 60} saat` : `${s.interval_minutes} dk`}
                                   {s.end_time ? ` · ${s.end_time.slice(0, 5)}'e kadar` : ""}
+                                  {s.shift_code ? ` · Vardiya ${s.shift_code}` : ""}
                                 </p>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -509,12 +513,27 @@ export default function DevriyePlanlama() {
                 </div>
               </div>
 
+              {/* Hedef Vardiya */}
+              <div>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Hedef Vardiya (isteğe bağlı)</label>
+                <div className="grid grid-cols-5 gap-2">
+                  {["", "1", "2", "3", "4", "5", "6", "7", "8"].map(v => (
+                    <button key={v} onClick={() => setSchedShiftCode(v)}
+                      className={`h-11 rounded-xl text-sm font-bold transition-all active:scale-95 ${schedShiftCode === v ? "text-white" : "bg-gray-100 text-gray-500"}`}
+                      style={schedShiftCode === v ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                      {v === "" ? "Hepsi" : v}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* Özet */}
               <div className="bg-indigo-50 rounded-2xl px-4 py-3 flex items-center gap-3">
                 <span className="material-symbols-outlined text-[#3949AB] text-[20px]">info</span>
                 <p className="text-xs text-[#3949AB] font-semibold leading-relaxed">
                   {DAY_LABEL[schedDayType]}, {schedStart} başlar · Her {schedInterval < 60 ? `${schedInterval} dk'da` : `${schedInterval / 60} saatte`} bir devriye
                   {schedEnd ? ` · ${schedEnd}'e kadar` : ""}
+                  {schedShiftCode ? ` · Vardiya ${schedShiftCode}` : " · Tüm vardiyalar"}
                 </p>
               </div>
 
