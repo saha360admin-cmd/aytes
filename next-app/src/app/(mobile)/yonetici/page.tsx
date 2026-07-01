@@ -111,10 +111,7 @@ export default function YoneticiPage() {
     });
 
     const allP = personnelRes.data || [];
-    // Yönetici (admin) her zaman aktif sayılır; normal personel status ile kontrol edilir
-    const managerCount = allP.filter((p: any) => p.role === "admin").length;
-    const activeRegular = allP.filter((p: any) => p.role !== "admin" && p.status === "active").length;
-    setShiftFill({ active: activeRegular + managerCount, total: allP.length });
+    setShiftFill({ active: 0, total: allP.length });
     setPersonnelList(allP.filter((p) => p.status === "active") as PersonnelItem[]);
     setPendingRequestsList((pendingReqRes.data || []) as PendingRequest[]);
     setActivePatrolList(((activePatrolRes as any).data || []) as ActivePatrol[]);
@@ -159,7 +156,8 @@ export default function YoneticiPage() {
   }
 
   const TOTAL_PERSONNEL = 103;
-  const percent = Math.round((shiftFill.active / TOTAL_PERSONNEL) * 100);
+  const totalDeficit = locationShortages.reduce((s, l) => s + l.deficit, 0);
+  const percent = Math.round(((TOTAL_PERSONNEL - totalDeficit) / TOTAL_PERSONNEL) * 100);
   const circumference = 2 * Math.PI * 40;
   const offset = circumference - (percent / 100) * circumference;
   const name = personnel?.full_name || "Yönetici";
@@ -197,7 +195,7 @@ export default function YoneticiPage() {
           <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <p className="text-sm text-white/75">Yönetici Paneli • {shiftFill.active}/{TOTAL_PERSONNEL} Personel Aktif</p>
+            <p className="text-sm text-white/75">Yönetici Paneli • {TOTAL_PERSONNEL - totalDeficit}/{TOTAL_PERSONNEL} Personel Aktif</p>
           </div>
         </div>
       </div>
@@ -251,7 +249,7 @@ export default function YoneticiPage() {
             <div className="flex-1 space-y-2">
               <div>
                 <p className="text-xs font-semibold text-gray-400">Aktif Personel</p>
-                <p className="font-bold text-gray-800">{shiftFill.active} / {TOTAL_PERSONNEL} kişi</p>
+                <p className="font-bold text-gray-800">{TOTAL_PERSONNEL - totalDeficit} / {TOTAL_PERSONNEL} kişi</p>
               </div>
               <div className="pt-2 border-t border-gray-100">
                 <p className="text-xs font-semibold text-gray-400">Bekleyen Talepler</p>
