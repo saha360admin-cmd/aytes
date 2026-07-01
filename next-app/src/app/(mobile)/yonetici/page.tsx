@@ -94,7 +94,7 @@ export default function YoneticiPage() {
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open"),
       supabase.from("patrols").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "active"),
       supabase.from("shifts").select("id", { count: "exact", head: true }).eq("department_id", deptId),
-      supabase.from("personnel").select("id, full_name, status, position").eq("department_id", deptId).neq("status", "archived").order("full_name"),
+      supabase.from("personnel").select("id, full_name, status, position, role").eq("department_id", deptId).neq("status", "archived").order("full_name"),
       supabase.from("requests").select("*, requester:personnel_id(full_name)").eq("department_id", deptId).eq("status", "pending").order("created_at", { ascending: false }).limit(10),
       supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as any,
       supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").order("created_at", { ascending: false }).limit(5),
@@ -111,7 +111,10 @@ export default function YoneticiPage() {
     });
 
     const allP = personnelRes.data || [];
-    setShiftFill({ active: allP.filter((p) => p.status === "active").length, total: allP.length });
+    // Yönetici (admin) her zaman aktif sayılır; normal personel status ile kontrol edilir
+    const managerCount = allP.filter((p: any) => p.role === "admin").length;
+    const activeRegular = allP.filter((p: any) => p.role !== "admin" && p.status === "active").length;
+    setShiftFill({ active: activeRegular + managerCount, total: allP.length });
     setPersonnelList(allP.filter((p) => p.status === "active") as PersonnelItem[]);
     setPendingRequestsList((pendingReqRes.data || []) as PendingRequest[]);
     setActivePatrolList(((activePatrolRes as any).data || []) as ActivePatrol[]);
