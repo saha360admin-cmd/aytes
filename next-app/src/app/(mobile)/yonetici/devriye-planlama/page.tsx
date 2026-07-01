@@ -78,7 +78,7 @@ export default function DevriyePlanlama() {
         id, name, location_id, is_active,
         points:patrol_route_points(id, name, point_order),
         schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active, shift_code)
-      `).order("created_at", { ascending: false }),
+      `).eq("department_id", personnel.department_id).order("created_at", { ascending: false }),
     ]);
     setLocations(locRes.data || []);
     setRoutes((routeRes.data || []).map((r: any) => ({

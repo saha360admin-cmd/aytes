@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -36,7 +36,6 @@ export default function GirisCikisPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   const isBluetoothSupported = typeof navigator !== "undefined" && "bluetooth" in navigator;
-
   useEffect(() => { if (personnel) load(); }, [personnel]);
 
   async function load() {
@@ -126,8 +125,8 @@ export default function GirisCikisPage() {
     setScanState("recording");
 
     const matchedBeacon = beacons.find(b =>
-      beaconName.toLowerCase().includes(b.name.toLowerCase().slice(0, 3)) || true
-    );
+      beaconName.toLowerCase().includes(b.name.toLowerCase().slice(0, 3))
+    ) ?? beacons[0];
 
     const { error } = await supabase.from("attendance_records").insert({
       personnel_id: personnel.id,
@@ -136,7 +135,7 @@ export default function GirisCikisPage() {
       type,
       beacon_uuid: matchedBeacon?.uuid || null,
       rssi,
-      verified: true,
+      verified: false,
       recorded_at: new Date().toISOString(),
     });
 

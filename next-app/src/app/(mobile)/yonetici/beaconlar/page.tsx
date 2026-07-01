@@ -100,12 +100,14 @@ export default function BeaconlarPage() {
   }
 
   async function toggleActive(b: Beacon) {
-    await supabase.from("beacons").update({ active: !b.active }).eq("id", b.id);
+    const { error } = await supabase.from("beacons").update({ active: !b.active }).eq("id", b.id);
+    if (error) { setToast("Güncellenemedi: " + error.message); setTimeout(() => setToast(""), 3000); return; }
     setBeacons(prev => prev.map(x => x.id === b.id ? { ...x, active: !x.active } : x));
   }
 
   async function deleteBeacon(id: string) {
-    await supabase.from("beacons").delete().eq("id", id);
+    const { error } = await supabase.from("beacons").delete().eq("id", id);
+    if (error) { setToast("Silinemedi: " + error.message); setTimeout(() => setToast(""), 3000); return; }
     setBeacons(prev => prev.filter(x => x.id !== id));
   }
 

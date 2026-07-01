@@ -92,6 +92,7 @@ export default function DevamPage() {
   function calcDuration(entry: string | null, exit: string | null): string {
     if (!entry || !exit) return "";
     const diff = new Date(exit).getTime() - new Date(entry).getTime();
+    if (diff < 0) return "Hatalı";
     const hrs = Math.floor(diff / 3600000);
     const mins = Math.floor((diff % 3600000) / 60000);
     return `${hrs}s ${mins}dk`;

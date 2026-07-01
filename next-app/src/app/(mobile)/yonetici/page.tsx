@@ -91,14 +91,14 @@ export default function YoneticiPage() {
       personnelLocsRes,
     ] = await Promise.all([
       supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
-      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open"),
+      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open").eq("department_id", deptId),
       supabase.from("patrols").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "active"),
       supabase.from("shifts").select("id", { count: "exact", head: true }).eq("department_id", deptId),
       supabase.from("personnel").select("id, full_name, status, position, role").eq("department_id", deptId).neq("status", "archived").order("full_name"),
       supabase.from("requests").select("*, requester:personnel_id(full_name)").eq("department_id", deptId).eq("status", "pending").order("created_at", { ascending: false }).limit(10),
       supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as any,
-      supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").order("created_at", { ascending: false }).limit(5),
-      supabase.from("service_requests").select("id", { count: "exact", head: true }).in("status", ["open", "in_progress"]),
+      supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
+      supabase.from("service_requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).in("status", ["open", "in_progress"]),
       supabase.from("locations").select("id, name, target_count").gt("target_count", 0),
       supabase.from("personnel").select("id, location_id, role").eq("department_id", deptId).neq("status", "archived"),
     ]);
@@ -155,7 +155,7 @@ export default function YoneticiPage() {
     return `${Math.floor(h / 24)} gün önce`;
   }
 
-  const TOTAL_PERSONNEL = 103;
+  const TOTAL_PERSONNEL = Math.max(shiftFill.total, 1);
   const totalDeficit = locationShortages.reduce((s, l) => s + l.deficit, 0);
   const percent = Math.round(((TOTAL_PERSONNEL - totalDeficit) / TOTAL_PERSONNEL) * 100);
   const circumference = 2 * Math.PI * 40;

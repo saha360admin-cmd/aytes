@@ -294,7 +294,7 @@ export default function VardiyalarPage() {
                   )}
                 </div>
                 <span className="bg-secondary-container text-on-secondary-container px-3 py-1 rounded-full text-label-sm font-semibold">
-                  {selectedStr === todayStr ? "Aktif" : "Yaklaşan"}
+                  {selectedStr === todayStr ? "Aktif" : selectedStr < todayStr ? "Geçmiş" : "Yaklaşan"}
                 </span>
               </div>
 

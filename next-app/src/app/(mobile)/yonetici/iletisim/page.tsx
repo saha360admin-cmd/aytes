@@ -99,7 +99,7 @@ export default function IletisimPage() {
       location_id: fTarget === "location" ? fLocId || null : null,
       department_id: personnel.department_id,
       created_by: personnel.id,
-      expires_at: fExpires || null,
+      expires_at: fExpires ? new Date(fExpires).toISOString() : null,
     });
     if (!error) {
       flash("Mesaj gönderildi", true);
@@ -111,7 +111,8 @@ export default function IletisimPage() {
   }
 
   async function deleteComm(id: string) {
-    await supabase.from("communications").delete().eq("id", id);
+    const { error } = await supabase.from("communications").delete().eq("id", id);
+    if (error) { flash("Silinemedi: " + error.message, false); return; }
     setComms(p => p.filter(c => c.id !== id));
     if (detailId === id) setDetailId(null);
     flash("Silindi", true);

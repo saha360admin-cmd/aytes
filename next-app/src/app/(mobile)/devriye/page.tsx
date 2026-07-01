@@ -317,6 +317,7 @@ export default function DevriyePage() {
       personnel_id: personnel.id,
       route_name: assignmentRoute.name,
       status: "active",
+      started_at: new Date().toISOString(),
       total_checkpoints: cpNames.length,
       completed_checkpoints: 0,
     }).select().single();
@@ -743,7 +744,10 @@ export default function DevriyePage() {
             Olay Bildir
           </button>
           <button
-            onClick={() => {}}
+            onClick={() => {
+              const msg = `🚨 ACİL SOS!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n\nDevriye sırasında acil yardım gerekiyor!`;
+              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
+            }}
             className="relative flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-all shadow-sm overflow-hidden"
           >
             <span className="absolute inset-0 rounded-2xl animate-ping bg-red-400 opacity-30" />
