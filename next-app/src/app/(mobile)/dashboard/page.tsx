@@ -426,7 +426,7 @@ export default function DashboardPage() {
                             onClick={() => sendHelpToColleague(c.phone!)}
                             className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-all"
                             style={{ background: "linear-gradient(135deg, #1B5E20, #2E7D32)" }}>
-                            <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>whatsapp</span>
+                            <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>send</span>
                           </button>
                         ) : (
                           <div className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-gray-200">
