@@ -186,6 +186,9 @@ export default function YoneticiPage() {
           <Link href="/yonetici/iletisim" className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
             <span className="material-symbols-outlined text-white text-[22px]">forum</span>
           </Link>
+          <Link href="/yonetici/beaconlar" className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
+            <span className="material-symbols-outlined text-white text-[22px]">bluetooth</span>
+          </Link>
         </div>
       </header>
 
@@ -509,6 +512,29 @@ export default function YoneticiPage() {
               </span>
             </div>
           </div>
+        </section>
+
+        {/* ── DEVAM TAKİBİ ── */}
+        <section>
+          <div className="flex justify-between items-center mb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-emerald-600 text-[16px]">login</span>
+              </div>
+              <h3 className="font-bold text-gray-800">Devam Takibi</h3>
+            </div>
+            <Link href="/yonetici/devam" className="text-xs font-bold text-[#3949AB]">Tümü →</Link>
+          </div>
+          <Link href="/yonetici/devam"
+            className="bg-white rounded-xl shadow-sm border-l-4 border-l-emerald-400 p-4 flex items-center justify-between active:scale-[0.98] transition-all">
+            <div>
+              <p className="text-sm font-bold text-gray-800">Bugünkü Giriş / Çıkış Kayıtları</p>
+              <p className="text-xs text-gray-400 mt-0.5">Beacon doğrulamalı personel devam listesi</p>
+            </div>
+            <div className="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center flex-shrink-0">
+              <span className="material-symbols-outlined text-emerald-600 text-[22px]">fact_check</span>
+            </div>
+          </Link>
         </section>
 
       </main>

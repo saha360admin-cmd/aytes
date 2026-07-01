@@ -286,6 +286,11 @@ export default function DashboardPage() {
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
               Yardım Çağır
             </button>
+            <Link href="/giris-cikis"
+              className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 active:scale-95 transition-all">
+              <span className="material-symbols-outlined text-teal-600">login</span>
+              Giriş / Çıkış
+            </Link>
             <Link href="/vardiyalar"
               className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 active:scale-95 transition-all">
               <span className="material-symbols-outlined text-emerald-600">calendar_month</span>
