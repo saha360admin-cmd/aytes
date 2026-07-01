@@ -18,6 +18,8 @@ CREATE TABLE IF NOT EXISTS patrol_assignments (
 
 ALTER TABLE patrol_assignments ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "patrol_assignments_all" ON patrol_assignments;
+
 CREATE POLICY "patrol_assignments_all" ON patrol_assignments
   FOR ALL USING (auth.uid() IS NOT NULL)
   WITH CHECK (auth.uid() IS NOT NULL);

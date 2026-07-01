@@ -1,0 +1,18 @@
+{
+  "name": "AYTES Güvenlik",
+  "short_name": "AYTES",
+  "description": "AYTES Güvenlik Yönetim Sistemi",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f0f2ff",
+  "theme_color": "#1A237E",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/globe.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
