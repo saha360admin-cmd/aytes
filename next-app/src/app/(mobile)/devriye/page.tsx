@@ -156,6 +156,9 @@ export default function DevriyePage() {
     const dow = today.getDay();
     if (dow === 0 || dow === 6) return; // hafta sonu
 
+    // Hafta içi personel için varsayılan: görev yok (atama bulunursa kaldırılır)
+    if (personnel.role === "personel") setNoPatrolDuty(true);
+
     const dateStr = toDateStr(today);
 
     // Bugünkü vardiya kodu
@@ -177,10 +180,7 @@ export default function DevriyePage() {
       .in("day_type", ["weekday", "everyday"])
       .eq("is_active", true);
 
-    if (!scheds || scheds.length === 0) {
-      setNoPatrolDuty(true);
-      return;
-    }
+    if (!scheds || scheds.length === 0) return;
 
     // Personelin lokasyonuyla eşleşen rota bul
     const routeIds = scheds.map((s: any) => s.route_id);
@@ -195,10 +195,7 @@ export default function DevriyePage() {
       .eq("is_active", true)
       .or(locFilter);
 
-    if (!routes || routes.length === 0) {
-      setNoPatrolDuty(true);
-      return;
-    }
+    if (!routes || routes.length === 0) return;
 
     const matchedRoute = routes[0] as any;
     const matchedSched = scheds.find((s: any) => s.route_id === matchedRoute.id) ?? scheds[0] as any;
@@ -245,9 +242,11 @@ export default function DevriyePage() {
       await supabase.from("patrol_assignments").update({ status: "missed" }).in("id", missedIds);
     }
 
-    setAssignments(existing.map(a =>
+    const finalAssignments = existing.map(a =>
       missedIds.includes(a.id) ? { ...a, status: "missed" as const } : a
-    ));
+    );
+    setAssignments(finalAssignments);
+    setNoPatrolDuty(false); // atama bulundu, "görev yok" ekranını kapat
   }
 
   async function startAssignedPatrol(assignment: PatrolAssignment) {
