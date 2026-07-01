@@ -29,6 +29,8 @@ export default function DashboardPage() {
   const [unreadComms, setUnreadComms] = useState(0);
   const [loading, setLoading] = useState(true);
   const [helpModal, setHelpModal] = useState(false);
+  const [helpColleagues, setHelpColleagues] = useState<{ id: string; full_name: string; phone: string | null }[]>([]);
+  const [helpLoading, setHelpLoading] = useState(false);
 
   useEffect(() => {
     if (!personnel) return;
@@ -136,11 +138,36 @@ export default function DashboardPage() {
     setLoading(false);
   }
 
-  function openHelpWhatsApp() {
+  async function openHelpModal() {
+    if (!personnel) return;
+    setHelpModal(true);
+    setHelpLoading(true);
+    setHelpColleagues([]);
+    const today = toDateStr(new Date());
+    const { data: saData } = await supabase
+      .from("shift_assignments")
+      .select("personnel_id")
+      .eq("location_id", personnel.location_id)
+      .eq("shift_date", today)
+      .eq("status", "published")
+      .neq("personnel_id", personnel.id)
+      .limit(20);
+    if (saData && saData.length > 0) {
+      const ids = saData.map((r: { personnel_id: string }) => r.personnel_id);
+      const { data: pData } = await supabase
+        .from("personnel")
+        .select("id, full_name, phone")
+        .in("id", ids);
+      setHelpColleagues(pData || []);
+    }
+    setHelpLoading(false);
+  }
+
+  function sendHelpToColleague(phone: string) {
     const now = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
     const msg = `🚨 ACİL YARDIM ÇAĞRISI!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${now}\n\nLütfen hemen iletişime geçin!`;
-    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
-    setHelpModal(false);
+    const cleaned = phone.replace(/\s/g, "").replace(/^0/, "");
+    window.open(`https://wa.me/90${cleaned}?text=${encodeURIComponent(msg)}`, "_blank");
   }
 
   const name = personnel?.full_name || "Görevli";
@@ -253,7 +280,7 @@ export default function DashboardPage() {
               Olay Bildir
             </Link>
             <button
-              onClick={() => setHelpModal(true)}
+              onClick={openHelpModal}
               className="w-full flex items-center justify-center gap-3 py-4 px-6 rounded-2xl text-sm font-bold text-white active:scale-95 transition-all shadow-md shadow-rose-200 ring-4 ring-rose-100"
               style={{ background: "linear-gradient(135deg, #C62828, #E53935)" }}>
               <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
@@ -348,34 +375,72 @@ export default function DashboardPage() {
       {helpModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center">
           <div className="absolute inset-0 bg-black/60" onClick={() => setHelpModal(false)} />
-          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden">
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl overflow-hidden max-h-[85vh] flex flex-col">
             {/* Kırmızı başlık */}
-            <div className="px-6 pt-6 pb-5 flex flex-col items-center gap-3 text-center"
+            <div className="px-6 pt-6 pb-5 flex flex-col items-center gap-3 text-center flex-shrink-0"
               style={{ background: "linear-gradient(135deg, #B71C1C, #E53935)" }}>
-              <div className="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
-                <span className="material-symbols-outlined text-white text-[36px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
+              <div className="w-14 h-14 rounded-full bg-white/20 flex items-center justify-center">
+                <span className="material-symbols-outlined text-white text-[32px]" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
               </div>
-              <h2 className="text-xl font-bold text-white">Yardım Çağır</h2>
-              <p className="text-sm text-white/80">WhatsApp üzerinden acil mesaj gönderilecek</p>
+              <div>
+                <h2 className="text-xl font-bold text-white">Yardım Çağır</h2>
+                <p className="text-sm text-white/80 mt-0.5">Vardiya arkadaşına WhatsApp mesajı gönder</p>
+              </div>
             </div>
 
-            {/* Mesaj önizleme */}
-            <div className="px-6 py-5 space-y-4">
-              <div className="bg-gray-50 rounded-2xl p-4 border border-gray-100">
-                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Gönderilecek Mesaj</p>
-                <p className="text-sm text-gray-700 leading-relaxed whitespace-pre-line">
+            {/* İçerik */}
+            <div className="px-5 py-4 overflow-y-auto flex-1 space-y-3">
+              {/* Mesaj önizleme */}
+              <div className="bg-red-50 rounded-2xl p-3.5 border border-red-100">
+                <p className="text-[10px] font-bold text-red-400 uppercase tracking-wide mb-1.5">Gönderilecek Mesaj</p>
+                <p className="text-sm text-red-800 leading-relaxed whitespace-pre-line">
                   {`🚨 ACİL YARDIM ÇAĞRISI!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n\nLütfen hemen iletişime geçin!`}
                 </p>
               </div>
-              <p className="text-xs text-gray-400 text-center">WhatsApp açıldıktan sonra göndermek istediğiniz kişiyi seçin</p>
 
-              <button onClick={openHelpWhatsApp}
-                className="w-full py-4 rounded-2xl text-white font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-green-200"
-                style={{ background: "linear-gradient(135deg, #1B5E20, #2E7D32)" }}>
-                <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>whatsapp</span>
-                WhatsApp'ta Gönder
-              </button>
+              {/* Kişi listesi */}
+              <div>
+                <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-2">Bugün Vardiyada Olanlar</p>
+                {helpLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <span className="material-symbols-outlined animate-spin text-red-400 text-[28px]">progress_activity</span>
+                  </div>
+                ) : helpColleagues.length === 0 ? (
+                  <div className="bg-gray-50 rounded-2xl p-5 text-center">
+                    <span className="material-symbols-outlined text-gray-300 text-[32px]">group_off</span>
+                    <p className="text-sm text-gray-400 mt-2">Bugün vardiyada başka personel yok</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {helpColleagues.map(c => (
+                      <div key={c.id} className="flex items-center gap-3 bg-gray-50 rounded-2xl p-3.5">
+                        <div className="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                          <span className="material-symbols-outlined text-red-500 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-800 truncate">{c.full_name}</p>
+                          <p className="text-xs text-gray-400">{c.phone ? c.phone : "Telefon yok"}</p>
+                        </div>
+                        {c.phone ? (
+                          <button
+                            onClick={() => sendHelpToColleague(c.phone!)}
+                            className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center active:scale-90 transition-all"
+                            style={{ background: "linear-gradient(135deg, #1B5E20, #2E7D32)" }}>
+                            <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>whatsapp</span>
+                          </button>
+                        ) : (
+                          <div className="flex-shrink-0 w-11 h-11 rounded-full flex items-center justify-center bg-gray-200">
+                            <span className="material-symbols-outlined text-gray-400 text-[20px]">phone_disabled</span>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
 
+            <div className="px-5 pb-6 pt-2 flex-shrink-0">
               <button onClick={() => setHelpModal(false)}
                 className="w-full py-3.5 rounded-2xl text-gray-600 font-semibold bg-gray-100 active:scale-95 transition-all">
                 İptal
