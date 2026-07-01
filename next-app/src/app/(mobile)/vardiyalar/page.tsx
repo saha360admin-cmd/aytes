@@ -100,14 +100,17 @@ export default function VardiyalarPage() {
   async function loadDetails(code: string, dateStr: string) {
     if (!personnel || !personnel.location_id) return;
 
+    const overlapMap: Record<string, string[]> = { "5": ["1", "2", "5"], "6": ["2", "3", "6"] };
+    const codesToQuery = overlapMap[code] ?? [code];
+
     const [cwRes, shiftRes] = await Promise.all([
-      // Aynı lokasyon + aynı tarih + aynı vardiya koduna sahip diğer personel
+      // Aynı lokasyon + aynı tarih + örtüşen vardiya kodlarına sahip diğer personel
       supabase
         .from("shift_assignments")
         .select("personnel_id")
         .eq("location_id", personnel.location_id)
         .eq("shift_date", dateStr)
-        .eq("shift_code", code)
+        .in("shift_code", codesToQuery)
         .eq("status", "published")
         .neq("personnel_id", personnel.id)
         .limit(10),
