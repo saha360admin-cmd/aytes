@@ -102,6 +102,7 @@ export default function DevriyePage() {
   const [assignmentRoute, setAssignmentRoute] = useState<AvailableRoute | null>(null);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
+  const [noPatrolDuty, setNoPatrolDuty] = useState(false);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -176,7 +177,10 @@ export default function DevriyePage() {
       .in("day_type", ["weekday", "everyday"])
       .eq("is_active", true);
 
-    if (!scheds || scheds.length === 0) return;
+    if (!scheds || scheds.length === 0) {
+      setNoPatrolDuty(true);
+      return;
+    }
 
     // Personelin lokasyonuyla eşleşen rota bul
     const routeIds = scheds.map((s: any) => s.route_id);
@@ -191,7 +195,10 @@ export default function DevriyePage() {
       .eq("is_active", true)
       .or(locFilter);
 
-    if (!routes || routes.length === 0) return;
+    if (!routes || routes.length === 0) {
+      setNoPatrolDuty(true);
+      return;
+    }
 
     const matchedRoute = routes[0] as any;
     const matchedSched = scheds.find((s: any) => s.route_id === matchedRoute.id) ?? scheds[0] as any;
@@ -414,6 +421,25 @@ export default function DevriyePage() {
 
   if (loading) {
     return <div className="min-h-screen flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-blue-800 text-[40px]">progress_activity</span></div>;
+  }
+
+  if (!patrol && noPatrolDuty && personnel?.role === "personel") {
+    return (
+      <div className="bg-[#f8f9ff] min-h-screen flex flex-col items-center justify-center px-6 gap-5">
+        <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
+          <span className="material-symbols-outlined text-gray-400 text-[40px]">event_busy</span>
+        </div>
+        <div className="text-center space-y-2">
+          <h2 className="text-xl font-bold text-gray-700">Bugün Devriye Göreviniz Yok</h2>
+          <p className="text-sm text-gray-400">Bu vardiyada planlanmış devriye bulunmuyor.</p>
+        </div>
+        <button onClick={() => router.push("/dashboard")}
+          className="mt-2 px-8 py-3.5 rounded-2xl text-white font-bold active:scale-95 transition-all"
+          style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+          Panele Dön
+        </button>
+      </div>
+    );
   }
 
   if (!patrol && assignments.length > 0) {
