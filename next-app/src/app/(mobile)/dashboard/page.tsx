@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Task, Announcement } from "@/lib/types";
+import type { Task } from "@/lib/types";
 
 interface ActiveShift {
   shift_code: string;
@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const [patrolStatus, setPatrolStatus] = useState({ completed: 0, total: 0, hasActive: false });
   const [pendingIncidents, setPendingIncidents] = useState(0);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [latestComm, setLatestComm] = useState<{ id: string; type: string; priority: string; title: string; content: string; isRead: boolean } | null>(null);
   const [unreadComms, setUnreadComms] = useState(0);
   const [loading, setLoading] = useState(true);
 
@@ -42,7 +42,7 @@ export default function DashboardPage() {
     const pId = personnel.id;
     const today = toDateStr(new Date());
 
-    const [assignmentRes, patrolRes, taskRes, annRes] = await Promise.all([
+    const [assignmentRes, patrolRes, taskRes] = await Promise.all([
       supabase
         .from("shift_assignments")
         .select("shift_code")
@@ -52,7 +52,6 @@ export default function DashboardPage() {
         .maybeSingle(),
       supabase.from("patrols").select("*").eq("personnel_id", pId).eq("status", "active").limit(1).maybeSingle(),
       supabase.from("tasks").select("*, assigned:assigned_to(full_name)").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
-      supabase.from("announcements").select("*, creator:created_by(full_name)").eq("department_id", deptId).order("is_pinned", { ascending: false }).order("created_at", { ascending: false }).limit(1).maybeSingle(),
     ]);
 
     // Lokasyondaki açık olay sayısı — incident_departments.status üzerinden
@@ -85,8 +84,6 @@ export default function DashboardPage() {
       setPatrolStatus({ completed: patrolRes.data.completed_checkpoints, total: patrolRes.data.total_checkpoints, hasActive: true });
     }
     setTasks(taskRes.data || []);
-    if (annRes.data) setAnnouncement(annRes.data);
-
     // Okunmamış iletişim sayısı
     const locFilter = personnel.location_id
       ? `target_type.eq.all,and(target_type.eq.location,location_id.eq.${personnel.location_id})`
@@ -102,7 +99,20 @@ export default function DashboardPage() {
         .select("communication_id")
         .eq("personnel_id", pId)
         .in("communication_id", commIds);
-      setUnreadComms(commIds.length - (myReads?.length ?? 0));
+      const readSet = new Set((myReads || []).map((r: any) => r.communication_id));
+      setUnreadComms(commIds.length - readSet.size);
+
+      // En son mesajı göster (önce okunmamış+acil)
+      const { data: latest } = await supabase.from("communications")
+        .select("id, type, priority, title, content")
+        .eq("department_id", deptId)
+        .or(locFilter)
+        .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`)
+        .order("priority", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (latest) setLatestComm({ ...latest, isRead: readSet.has(latest.id) });
     }
 
     setLoading(false);
@@ -263,15 +273,46 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        {/* Announcement */}
-        {announcement && (
-          <section className="relative overflow-hidden rounded-2xl bg-blue-700 p-8">
-            <div className="text-white max-w-sm">
-              <h4 className="text-2xl font-semibold mb-2">{announcement.title}</h4>
-              <p className="text-base opacity-90">{announcement.content}</p>
-            </div>
-          </section>
-        )}
+        {/* Son İletişim */}
+        {latestComm && (() => {
+          const typeCfg: Record<string, { label: string; icon: string; gradient: string }> = {
+            duyuru:  { label: "Duyuru",  icon: "campaign", gradient: "from-blue-700 to-blue-800" },
+            gorev:   { label: "Görev",   icon: "assignment", gradient: "from-amber-600 to-amber-700" },
+            talimat: { label: "Talimat", icon: "rule", gradient: "from-purple-700 to-purple-800" },
+          };
+          const cfg = typeCfg[latestComm.type] ?? typeCfg.duyuru;
+          return (
+            <Link href="/iletisim">
+              <section className={`relative overflow-hidden rounded-2xl bg-gradient-to-br ${latestComm.priority === "urgent" ? "from-red-700 to-red-800" : cfg.gradient} p-5 active:scale-[0.98] transition-all`}>
+                <div className="absolute -top-4 -right-4 w-20 h-20 rounded-full bg-white/10" />
+                <div className="absolute -bottom-6 -left-2 w-16 h-16 rounded-full bg-white/10" />
+                <div className="relative z-10">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-2">
+                      <span className="bg-white/20 text-white text-[11px] font-bold px-2.5 py-1 rounded-full flex items-center gap-1">
+                        <span className="material-symbols-outlined text-[12px]" style={{ fontVariationSettings: "'FILL' 1" }}>{latestComm.priority === "urgent" ? "priority_high" : cfg.icon}</span>
+                        {latestComm.priority === "urgent" ? "Acil" : cfg.label}
+                      </span>
+                      {!latestComm.isRead && (
+                        <span className="w-2 h-2 rounded-full bg-yellow-300 animate-pulse" />
+                      )}
+                    </div>
+                    <span className="material-symbols-outlined text-white/60 text-[18px]">chevron_right</span>
+                  </div>
+                  <h4 className="text-white font-bold text-base leading-tight">{latestComm.title}</h4>
+                  <p className="text-white/80 text-sm mt-1 line-clamp-2">{latestComm.content}</p>
+                  {latestComm.isRead ? (
+                    <p className="text-white/50 text-[11px] mt-3 flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[13px]">done_all</span> Okundu
+                    </p>
+                  ) : (
+                    <p className="text-yellow-300 text-[11px] mt-3 font-semibold">Okumak için dokun →</p>
+                  )}
+                </div>
+              </section>
+            </Link>
+          );
+        })()}
       </main>
     </div>
   );
