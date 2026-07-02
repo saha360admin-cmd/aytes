@@ -18,6 +18,7 @@ interface Incident {
   video_urls: string[] | null;
   reporter: { full_name: string } | null;
   is_mine: boolean;
+  is_assigned_to_me: boolean;
 }
 
 const TABS = [
@@ -80,8 +81,7 @@ export default function OlaylarPage() {
       router.replace("/yonetici/olaylar");
       return;
     }
-    if (!personnel.location_id) { setLoading(false); return; }
-    loadLocationName();
+    if (personnel.location_id) loadLocationName();
     loadIncidents();
   }, [personnel, tab]);
 
@@ -92,38 +92,48 @@ export default function OlaylarPage() {
   }
 
   async function loadIncidents() {
-    if (!personnel?.location_id) return;
+    if (!personnel) return;
     setLoading(true);
 
-    // 1. Aynı lokasyondaki personel ID'leri
-    const { data: peers } = await supabase
-      .from("personnel")
-      .select("id")
-      .eq("location_id", personnel.location_id);
+    // 1. Aynı lokasyondaki personelin bildirdiği, tab durumundaki olaylar
+    let locationIds: string[] = [];
+    if (personnel.location_id) {
+      const { data: peers } = await supabase
+        .from("personnel")
+        .select("id")
+        .eq("location_id", personnel.location_id);
+      const peerIds = (peers || []).map((p: { id: string }) => p.id);
 
-    if (!peers || peers.length === 0) { setIncidents([]); setLoading(false); return; }
-    const peerIds = peers.map((p: { id: string }) => p.id);
+      if (peerIds.length > 0) {
+        const { data: myIncs } = await supabase
+          .from("incidents")
+          .select("id")
+          .in("reported_by", peerIds);
+        const myIncIds = (myIncs || []).map((i: { id: string }) => i.id);
 
-    // 2. Bu personellerin bildirdiği incident ID'leri
-    const { data: myIncs } = await supabase
-      .from("incidents")
-      .select("id")
-      .in("reported_by", peerIds);
+        if (myIncIds.length > 0) {
+          const { data: deptRecs } = await supabase
+            .from("incident_departments")
+            .select("incident_id")
+            .in("incident_id", myIncIds)
+            .eq("status", tab);
+          locationIds = [...new Set((deptRecs || []).map((r: { incident_id: string }) => r.incident_id))];
+        }
+      }
+    }
 
-    const myIncIds = (myIncs || []).map((i: { id: string }) => i.id);
-    if (myIncIds.length === 0) { setIncidents([]); setLoading(false); return; }
-
-    // 3. incident_departments'tan status'a göre filtrele (admin ile aynı kaynak)
-    const { data: deptRecs } = await supabase
+    // 2. Bana atanmış, tab durumundaki olaylar (lokasyondan bağımsız)
+    const { data: assignedRecs } = await supabase
       .from("incident_departments")
-      .select("incident_id, status")
-      .in("incident_id", myIncIds)
+      .select("incident_id")
+      .eq("assigned_to", personnel.id)
       .eq("status", tab);
+    const assignedIds = [...new Set((assignedRecs || []).map((r: { incident_id: string }) => r.incident_id))];
 
-    const filteredIds = [...new Set((deptRecs || []).map((r: { incident_id: string }) => r.incident_id))];
+    const filteredIds = [...new Set([...locationIds, ...assignedIds])];
     if (filteredIds.length === 0) { setIncidents([]); setLoading(false); return; }
 
-    // 4. Detayları çek
+    // 3. Detayları çek
     const { data } = await supabase
       .from("incidents")
       .select("id, type, severity, title, description, location, created_at, photo_urls, video_urls, reporter:reported_by(full_name)")
@@ -137,6 +147,7 @@ export default function OlaylarPage() {
         status: tab,
         reporter: Array.isArray(inc.reporter) ? inc.reporter[0] ?? null : inc.reporter,
         is_mine: inc.reporter?.[0]?.full_name === personnel.full_name || inc.reporter?.full_name === personnel.full_name,
+        is_assigned_to_me: assignedIds.includes(inc.id),
       }))
     );
     setLoading(false);
@@ -183,7 +194,7 @@ export default function OlaylarPage() {
         <div className="flex items-center justify-center py-20">
           <span className="material-symbols-outlined animate-spin text-red-500 text-[40px]">progress_activity</span>
         </div>
-      ) : !personnel?.location_id ? (
+      ) : !personnel?.location_id && incidents.length === 0 ? (
         <div className="flex flex-col items-center gap-4 py-20 px-8 text-center">
           <div className="w-16 h-16 bg-amber-100 rounded-2xl flex items-center justify-center">
             <span className="material-symbols-outlined text-amber-500 text-[32px]">location_off</span>
@@ -204,11 +215,17 @@ export default function OlaylarPage() {
             const type = tc(inc.type);
             const sev = sc(inc.severity);
             return (
-              <div key={inc.id} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${inc.is_mine ? "ring-2 ring-red-200" : ""}`}>
+              <div key={inc.id} className={`bg-white rounded-2xl shadow-sm overflow-hidden ${inc.is_mine ? "ring-2 ring-red-200" : inc.is_assigned_to_me ? "ring-2 ring-indigo-200" : ""}`}>
                 {inc.is_mine && (
                   <div className="bg-red-50 px-4 py-1.5 flex items-center gap-1.5">
                     <span className="material-symbols-outlined text-red-400 text-[14px]">person</span>
                     <span className="text-[11px] font-bold text-red-500">Benim Bildirimim</span>
+                  </div>
+                )}
+                {inc.is_assigned_to_me && (
+                  <div className="bg-indigo-50 px-4 py-1.5 flex items-center gap-1.5">
+                    <span className="material-symbols-outlined text-indigo-400 text-[14px]">assignment_ind</span>
+                    <span className="text-[11px] font-bold text-indigo-500">Size Atandı</span>
                   </div>
                 )}
 

@@ -26,7 +26,10 @@ interface Incident {
   all_depts: DeptStatus[];
   my_dept_record_id: string;
   my_dept_status: "open" | "in_progress" | "closed";
+  my_dept_assigned_to: string | null;
 }
+
+interface DeptPerson { id: string; full_name: string }
 
 const TABS = [
   { key: "open",        label: "Açık",        dot: "bg-red-500",   text: "text-red-600"   },
@@ -74,7 +77,9 @@ export default function OlaylarPage() {
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [assigningId, setAssigningId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [deptPersonnel, setDeptPersonnel] = useState<DeptPerson[]>([]);
 
   useEffect(() => {
     if (!personnel) return;
@@ -84,6 +89,16 @@ export default function OlaylarPage() {
     setHasMore(false);
     load(0);
   }, [personnel, tab]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    supabase.from("personnel")
+      .select("id, full_name")
+      .eq("department_id", personnel.department_id)
+      .eq("status", "active")
+      .order("full_name")
+      .then(({ data }) => setDeptPersonnel(data || []));
+  }, [personnel]);
 
   async function load(pageIndex: number) {
     if (!personnel) return;
@@ -95,7 +110,7 @@ export default function OlaylarPage() {
     // 1. Tüm incident_departments'ı tab statusuna göre çek (birim filtresi yok)
     const { data: allRecs } = await supabase
       .from("incident_departments")
-      .select("id, status, incident_id, department_id, updated_at")
+      .select("id, status, incident_id, department_id, updated_at, assigned_to")
       .eq("status", tab)
       .order("updated_at", { ascending: false });
 
@@ -148,6 +163,7 @@ export default function OlaylarPage() {
         all_depts: depts,
         my_dept_record_id: myRec?.id ?? "",
         my_dept_status: myRec?.status ?? "open",
+        my_dept_assigned_to: myRec?.assigned_to ?? null,
       };
     });
 
@@ -171,6 +187,26 @@ export default function OlaylarPage() {
       showToast("İşlem başarısız: " + error.message, false);
     }
     setUpdatingId(null);
+  }
+
+  async function assignPersonnel(incidentId: string, recordId: string, personnelId: string, currentStatus: "open" | "in_progress" | "closed") {
+    setAssigningId(incidentId);
+    const patch: { assigned_to: string | null; status?: "in_progress" } = { assigned_to: personnelId || null };
+    if (personnelId && currentStatus === "open") patch.status = "in_progress";
+
+    const { error } = await supabase.from("incident_departments").update(patch).eq("id", recordId);
+
+    if (!error) {
+      if (patch.status && patch.status !== currentStatus) {
+        setIncidents(prev => prev.filter(i => i.id !== incidentId));
+      } else {
+        setIncidents(prev => prev.map(i => i.id === incidentId ? { ...i, my_dept_assigned_to: personnelId || null } : i));
+      }
+      showToast(personnelId ? "Personel atandı" : "Atama kaldırıldı", true);
+    } else {
+      showToast("İşlem başarısız: " + error.message, false);
+    }
+    setAssigningId(null);
   }
 
   function showToast(msg: string, ok: boolean) {
@@ -340,6 +376,29 @@ export default function OlaylarPage() {
                         </div>
                       </div>
                     </div>
+                  )}
+
+                  {/* Personel Ata (kendi birimi için) */}
+                  {tab !== "closed" && deptPersonnel.length > 0 && (
+                    <div className="flex items-center gap-2">
+                      <span className="material-symbols-outlined text-gray-400 text-[16px] flex-shrink-0">assignment_ind</span>
+                      <select
+                        value={inc.my_dept_assigned_to ?? ""}
+                        disabled={assigningId === inc.id}
+                        onChange={e => assignPersonnel(inc.id, inc.my_dept_record_id, e.target.value, inc.my_dept_status)}
+                        className="flex-1 text-xs font-semibold bg-gray-50 border border-gray-200 rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-[#3949AB] disabled:opacity-50"
+                      >
+                        <option value="">— Personel Ata —</option>
+                        {deptPersonnel.map(p => (
+                          <option key={p.id} value={p.id}>{p.full_name}</option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {tab === "closed" && inc.my_dept_assigned_to && (
+                    <p className="text-[11px] text-gray-400 font-semibold">
+                      Atanan: {deptPersonnel.find(p => p.id === inc.my_dept_assigned_to)?.full_name ?? "—"}
+                    </p>
                   )}
 
                   {/* Aksiyon butonu (kendi birimi için) */}
