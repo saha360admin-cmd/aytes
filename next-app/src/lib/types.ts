@@ -45,6 +45,8 @@ export interface PatrolCheckpoint {
   name: string;
   status: "pending" | "active" | "completed";
   scanned_at: string | null;
+  qr_token?: string | null;
+  detail?: string | null;
 }
 
 export interface Incident {

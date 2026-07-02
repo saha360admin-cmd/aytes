@@ -38,12 +38,34 @@ const LOCATIONS = [
   "İstanbul Anadolu Yakası Elektrik Dağıtım Dudullu",
 ];
 
-const POSITIONS = [
-  { value: "guvenlik-gorevlisi",  label: "Güvenlik Görevlisi",       role: "personel" },
-  { value: "cctv-sorumlusu",      label: "CCTV Güvenlik",            role: "personel" },
-  { value: "sabit-guvenlik",      label: "Sabit Güvenlik",           role: "personel" },
-  { value: "guvenlik-sorumlusu",  label: "Güvenlik Sorumlusu",       role: "supervisor" },
-];
+const POSITIONS_BY_DEPT: Record<string, { value: string; label: string; role: string }[]> = {
+  idari: [
+    { value: "ofis-asistani",       label: "Ofis Asistanı",            role: "personel" },
+    { value: "ik-uzmani",           label: "İnsan Kaynakları Uzmanı",  role: "personel" },
+    { value: "muhasebe-sorumlusu",  label: "Muhasebe Sorumlusu",       role: "personel" },
+    { value: "idari-sorumlusu",     label: "İdari İşler Sorumlusu",    role: "supervisor" },
+  ],
+  guvenlik: [
+    { value: "guvenlik-gorevlisi",  label: "Güvenlik Görevlisi",       role: "personel" },
+    { value: "cctv-sorumlusu",      label: "CCTV Güvenlik",            role: "personel" },
+    { value: "sabit-guvenlik",      label: "Sabit Güvenlik",           role: "personel" },
+    { value: "guvenlik-sorumlusu",  label: "Güvenlik Sorumlusu",       role: "supervisor" },
+  ],
+  teknik: [
+    { value: "teknik-personel",     label: "Teknik Personel",          role: "personel" },
+    { value: "bakim-gorevlisi",     label: "Bakım Görevlisi",          role: "personel" },
+    { value: "elektrik-teknisyeni", label: "Elektrik Teknisyeni",      role: "personel" },
+    { value: "teknik-sorumlusu",    label: "Teknik Sorumlusu",         role: "supervisor" },
+  ],
+  temizlik: [
+    { value: "temizlik-gorevlisi",  label: "Temizlik Görevlisi",       role: "personel" },
+    { value: "kat-gorevlisi",       label: "Kat Görevlisi",            role: "personel" },
+    { value: "depo-sorumlusu",      label: "Depo Sorumlusu",           role: "personel" },
+    { value: "temizlik-sorumlusu",  label: "Temizlik Sorumlusu",       role: "supervisor" },
+  ],
+};
+
+const ALL_POSITIONS = Object.values(POSITIONS_BY_DEPT).flat();
 
 interface Location {
   id: string;
@@ -80,7 +102,7 @@ const statusLabel: Record<string, string> = {
 const emptyForm = {
   full_name: "",
   phone: "",
-  position: "guvenlik-gorevlisi",
+  position: "",
   location: "",
   photoFile: null as File | null,
   photoPreview: "",
@@ -93,7 +115,7 @@ function getInitials(name: string) {
 }
 
 function getPositionLabel(pos: string | null) {
-  return POSITIONS.find((p) => p.value === pos)?.label ?? null;
+  return ALL_POSITIONS.find((p) => p.value === pos)?.label ?? null;
 }
 
 function PersonCard({
@@ -192,6 +214,7 @@ function PersonCard({
 export default function PersonelPage() {
   const { personnel, signOut } = useAuth();
   const router = useRouter();
+  const POSITIONS = POSITIONS_BY_DEPT[personnel?.departments?.slug ?? ""] ?? POSITIONS_BY_DEPT.guvenlik;
   const [people, setPeople] = useState<Person[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
   const [search, setSearch] = useState("");
@@ -455,7 +478,7 @@ export default function PersonelPage() {
       .eq("department_id", personnel.department_id)
       .order("full_name");
     setPeople((data || []) as Person[]);
-    setForm({ ...emptyForm, location_id: "" });
+    setForm({ ...emptyForm, location_id: "", position: POSITIONS[0]?.value ?? "" });
     setModalOpen(false);
     setToast("Personel başarıyla eklendi!");
     setTimeout(() => setToast(""), 3000);
@@ -472,7 +495,7 @@ export default function PersonelPage() {
           <div className="flex items-center gap-2">
             {isAdmin && (
               <button
-                onClick={() => setModalOpen(true)}
+                onClick={() => { setForm((f) => ({ ...f, position: f.position || POSITIONS[0]?.value || "" })); setModalOpen(true); }}
                 className="w-9 h-9 flex items-center justify-center rounded-full bg-primary text-on-primary shadow-sm active:scale-90 transition-all"
                 title="Yeni Personel Ekle"
               >
@@ -1069,7 +1092,7 @@ export default function PersonelPage() {
                   </select>
                   <span className="material-symbols-outlined absolute right-4 top-1/2 -translate-y-1/2 text-outline pointer-events-none">expand_more</span>
                 </div>
-                {form.position === "guvenlik-sorumlusu" && (
+                {POSITIONS.find((p) => p.value === form.position)?.role === "supervisor" && (
                   <p className="text-label-sm font-label-sm text-primary ml-1 flex items-center gap-xs">
                     <span className="material-symbols-outlined text-[14px]">info</span>
                     Bu pozisyon yönetici rolü alır

@@ -161,6 +161,10 @@ export default function YoneticiPage() {
   const circumference = 2 * Math.PI * 40;
   const offset = circumference - (percent / 100) * circumference;
   const name = personnel?.full_name || "Yönetici";
+  const isTemizlik = personnel?.departments?.slug === "temizlik";
+  const patrolSectionTitle = isTemizlik ? "Aktif Kat Kontrolleri" : "Aktif Devriyeler";
+  const patrolPlanHref = isTemizlik ? "/yonetici/kat-planlama" : "/yonetici/devriye-planlama";
+  const patrolIcon = isTemizlik ? "cleaning_services" : "route";
 
   if (loading) {
     return (
@@ -211,7 +215,7 @@ export default function YoneticiPage() {
           {[
             { icon: "pending_actions", value: String(stats.pendingRequests).padStart(2, "0"), label: "Bekleyen Talepler", accent: "#FF9800", iconBg: "bg-orange-100", iconColor: "text-orange-600", badge: stats.pendingRequests > 0 ? `${stats.pendingRequests} Yeni` : null },
             { icon: "assignment_late", value: String(stats.openIncidents).padStart(2, "0"), label: "Açık Raporlar", accent: "#EF5350", iconBg: "bg-red-100", iconColor: "text-red-600", badge: null },
-            { icon: "map", value: String(stats.activePatrols).padStart(2, "0"), label: "Aktif Devriyeler", accent: "#00BCD4", iconBg: "bg-teal-100", iconColor: "text-teal-600", badge: null },
+            { icon: "map", value: String(stats.activePatrols).padStart(2, "0"), label: patrolSectionTitle, accent: "#00BCD4", iconBg: "bg-teal-100", iconColor: "text-teal-600", badge: null },
             { icon: "schedule", value: String(stats.todayShifts).padStart(2, "0"), label: "Toplam Vardiyalar", accent: "#9C27B0", iconBg: "bg-purple-100", iconColor: "text-purple-600", badge: null },
           ].map((s) => (
             <div key={s.label} className="bg-white p-4 rounded-xl shadow-sm border-l-4 space-y-2" style={{ borderLeftColor: s.accent }}>
@@ -369,20 +373,20 @@ export default function YoneticiPage() {
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
               <div className="w-7 h-7 rounded-lg bg-teal-100 flex items-center justify-center">
-                <span className="material-symbols-outlined text-teal-600 text-[16px]">route</span>
+                <span className="material-symbols-outlined text-teal-600 text-[16px]">{patrolIcon}</span>
               </div>
-              <h3 className="font-bold text-gray-800">Aktif Devriyeler</h3>
+              <h3 className="font-bold text-gray-800">{patrolSectionTitle}</h3>
               {activePatrolList.length > 0 && (
                 <span className="bg-teal-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">{activePatrolList.length}</span>
               )}
             </div>
-            <Link href="/yonetici/devriye-planlama" className="text-xs font-bold text-[#3949AB]">Planla →</Link>
+            <Link href={patrolPlanHref} className="text-xs font-bold text-[#3949AB]">Planla →</Link>
           </div>
 
           {activePatrolList.length === 0 ? (
             <div className="bg-white rounded-xl p-6 text-center shadow-sm">
-              <span className="material-symbols-outlined text-gray-300 text-[36px] block mb-2">route</span>
-              <p className="text-sm text-gray-400">Aktif devriye yok</p>
+              <span className="material-symbols-outlined text-gray-300 text-[36px] block mb-2">{patrolIcon}</span>
+              <p className="text-sm text-gray-400">{isTemizlik ? "Aktif kat kontrolü yok" : "Aktif devriye yok"}</p>
             </div>
           ) : (
             activePatrolList.map((patrol) => {
@@ -392,7 +396,7 @@ export default function YoneticiPage() {
                   <div className="flex items-start justify-between">
                     <div>
                       <p className="font-bold text-gray-800 text-sm">{patrol.officer?.full_name || "Bilinmiyor"}</p>
-                      <p className="text-xs text-teal-600 font-semibold mt-0.5">{patrol.route_name || "Devriye"}</p>
+                      <p className="text-xs text-teal-600 font-semibold mt-0.5">{patrol.route_name || (isTemizlik ? "Kat Kontrolü" : "Devriye")}</p>
                       <p className="text-xs text-gray-400 mt-0.5">{timeAgo(patrol.started_at)}</p>
                     </div>
                     <span className="flex items-center gap-1 bg-teal-100 text-teal-700 text-[10px] font-bold px-2 py-1 rounded-full">

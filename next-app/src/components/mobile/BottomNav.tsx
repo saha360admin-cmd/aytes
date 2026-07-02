@@ -4,31 +4,37 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 
-const staffItems = [
+const staffPatrolItem = { href: "/devriye",     label: "Devriye",       icon: "route",             color: "#7B1FA2" };
+const staffKatKontrolItem = { href: "/kat-kontrol", label: "Kat Kontrolü", icon: "cleaning_services", color: "#7B1FA2" };
+
+const staffItems = (isTemizlik: boolean) => [
   { href: "/dashboard",   label: "Ana Sayfa", icon: "home",           color: "#3949AB" },
   { href: "/vardiyalar",  label: "Vardiyam",  icon: "calendar_month", color: "#00897B" },
-  { href: "/devriye",     label: "Devriye",   icon: "route",          color: "#7B1FA2" },
+  isTemizlik ? staffKatKontrolItem : staffPatrolItem,
   { href: "/talepler",    label: "Talepler",  icon: "assignment",     color: "#E65100" },
   { href: "/olaylar",     label: "Olaylar",   icon: "report_problem", color: "#C62828" },
   { href: "/ayarlar",     label: "Profil",    icon: "person",         color: "#546E7A" },
 ];
 
-const adminItems = [
+const adminPlanlamaItem = { href: "/yonetici/devriye-planlama", label: "Devriye",       icon: "route",             color: "#7B1FA2" };
+const adminKatPlanlamaItem = { href: "/yonetici/kat-planlama",  label: "Kat Kontrolü", icon: "cleaning_services", color: "#7B1FA2" };
+
+const adminItems = (isTemizlik: boolean) => [
   { href: "/yonetici",                  label: "Panel",    icon: "dashboard",      color: "#3949AB" },
   { href: "/personel",                  label: "Personel", icon: "group",          color: "#1565C0" },
   { href: "/vardiya-olustur",           label: "Vardiya",  icon: "edit_calendar",  color: "#00897B" },
-  { href: "/yonetici/devriye-planlama", label: "Devriye",  icon: "route",          color: "#7B1FA2" },
+  isTemizlik ? adminKatPlanlamaItem : adminPlanlamaItem,
   { href: "/yonetici/olaylar",          label: "Olaylar",  icon: "report_problem", color: "#C62828" },
   { href: "/yonetici/taseron",          label: "Taşeron",  icon: "engineering",    color: "#00695C" },
   { href: "/yonetici/talepler",         label: "Talepler", icon: "assignment",     color: "#E65100" },
   { href: "/ayarlar",                   label: "Profil",   icon: "person",         color: "#546E7A" },
 ];
 
-const supervisorItems = [
+const supervisorItems = (isTemizlik: boolean) => [
   { href: "/yonetici",                  label: "Panel",    icon: "dashboard",      color: "#3949AB" },
   { href: "/personel",                  label: "Ekibim",   icon: "group",          color: "#1565C0" },
   { href: "/vardiya-olustur",           label: "Vardiya",  icon: "edit_calendar",  color: "#00897B" },
-  { href: "/yonetici/devriye-planlama", label: "Devriye",  icon: "route",          color: "#7B1FA2" },
+  isTemizlik ? adminKatPlanlamaItem : adminPlanlamaItem,
   { href: "/yonetici/olaylar",          label: "Olaylar",  icon: "report_problem", color: "#C62828" },
   { href: "/yonetici/taseron",          label: "Taşeron",  icon: "engineering",    color: "#00695C" },
   { href: "/yonetici/talepler",         label: "Talepler", icon: "assignment",     color: "#E65100" },
@@ -75,7 +81,8 @@ export default function BottomNav() {
   const { personnel } = useAuth();
 
   const role = personnel?.role;
-  const items = role === "admin" ? adminItems : role === "supervisor" ? supervisorItems : staffItems;
+  const isTemizlik = personnel?.departments?.slug === "temizlik";
+  const items = role === "admin" ? adminItems(isTemizlik) : role === "supervisor" ? supervisorItems(isTemizlik) : staffItems(isTemizlik);
 
   const mid = Math.ceil(items.length / 2);
   const row1 = items.slice(0, mid);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -10,85 +10,14 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-const defaultCheckpoints = [
-  "Ana Giriş", "Otopark A1", "B Blok Girişi", "Arka Bahçe",
-  "Depo Bölgesi", "C Blok Yanı", "Teknik Oda", "Ana Giriş (Dönüş)",
-];
-
+interface RoutePointRow { name: string; point_order: number; detail: string | null; qr_token: string | null }
 interface AvailableRoute {
   id: string;
   name: string;
-  points: { name: string; point_order: number }[];
+  points: RoutePointRow[];
 }
 
-const patrolTips = [
-  {
-    emoji: "🎯",
-    badge: "Taktik İpucu",
-    title: "Düzeni Kır!",
-    text: "Sürekli aynı yönde ve aynı hızda devriye atma. Düzenli hareket tahmin edilebilir olur — seni izleyen biri varsa fark eder.",
-    gradient: "from-blue-600 to-indigo-700",
-    badgeBg: "bg-white/20",
-  },
-  {
-    emoji: "👁️",
-    badge: "Kör Nokta Uyarısı",
-    title: "Köşelere Dikkat!",
-    text: "Otopark gibi açık alanlarda araçların arasını ve kör köşeleri mutlaka kontrol et. Tehdit her zaman görünür yerden gelmez.",
-    gradient: "from-slate-700 to-gray-800",
-    badgeBg: "bg-yellow-400/30",
-  },
-  {
-    emoji: "💡",
-    badge: "Çevre Taraması",
-    title: "Aydınlatmayı Kontrol Et!",
-    text: "Yanmayan lambalar, kırık kameralar, açık kalmış kapılar — bunlar küçük detay gibi görünse de büyük açıkların habercisidir. Rapor et!",
-    gradient: "from-amber-500 to-orange-600",
-    badgeBg: "bg-white/20",
-  },
-  {
-    emoji: "🌿",
-    badge: "Açık Alan Taraması",
-    title: "Arka Bahçe Sessizce Konuşur",
-    text: "Dış alanlar gece en riskli bölgelerdir. Alışılmadık sesler, hareket veya yabancı objeler gördüğünde durma — önce değerlendir.",
-    gradient: "from-emerald-600 to-teal-700",
-    badgeBg: "bg-white/20",
-  },
-  {
-    emoji: "🔒",
-    badge: "Güvenlik Kontrolü",
-    title: "Kilitleri İki Kez Kontrol Et!",
-    text: "Depo kapıları güvenlik zincirinin en zayıf halkasıdır. Kilit var ama kapı kilitli mi? Her zaman fiziksel olarak dene.",
-    gradient: "from-rose-600 to-red-700",
-    badgeBg: "bg-white/20",
-  },
-  {
-    emoji: "🧠",
-    badge: "Psikoloji",
-    title: "Kararlı Dur, Caydır!",
-    text: "Birileriyle göz teması kur, dimdik yürü. Kararlı duruş tek başına güçlü bir caydırıcıdır — güvensizlik davranışları yansıtma.",
-    gradient: "from-violet-600 to-purple-700",
-    badgeBg: "bg-white/20",
-  },
-  {
-    emoji: "⚡",
-    badge: "Teknik Bölge",
-    title: "Teknik Oda Risk Noktası!",
-    text: "Elektrik panoları, sunucu odaları ve teknik alanlarda olağandışı koku, ses veya ısı varsa hemen bildir. Yangının %60'ı teknik arızadan çıkar.",
-    gradient: "from-yellow-500 to-amber-600",
-    badgeBg: "bg-white/20",
-  },
-  {
-    emoji: "🏆",
-    badge: "Son Nokta!",
-    title: "Neredeyse Bitti, Odaklan!",
-    text: "Son nokta en tehlikeli andır — dikkat dağılmaya başlar. Geri dönüş rotasında da tetikte ol, devriye bitmeden güvenli değilsin.",
-    gradient: "from-green-600 to-emerald-700",
-    badgeBg: "bg-white/20",
-  },
-];
-
-export default function DevriyePage() {
+export default function KatKontrolPage() {
   const router = useRouter();
   const { personnel } = useAuth();
   const [patrol, setPatrol] = useState<Patrol | null>(null);
@@ -102,13 +31,21 @@ export default function DevriyePage() {
   const [assignmentRoute, setAssignmentRoute] = useState<AvailableRoute | null>(null);
   const [activeAssignmentId, setActiveAssignmentId] = useState<string | null>(null);
   const [startingAssignment, setStartingAssignment] = useState<string | null>(null);
-  const [noPatrolDuty, setNoPatrolDuty] = useState(false);
+  const [noDuty, setNoDuty] = useState(false);
   const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
   const [slotBlockedMsg, setSlotBlockedMsg] = useState<string | null>(null);
   const [schedMeta, setSchedMeta] = useState<{ startMin: number; endMin: number; crossMidnight: boolean } | null>(null);
 
+  const [scanning, setScanning] = useState(false);
+  const [cameraError, setCameraError] = useState(false);
+  const [scanError, setScanError] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState("");
+  const scannerRef = useRef<any>(null);
+  const processingRef = useRef(false);
+  const runningRef = useRef(false);
+
   const completed = checkpoints.filter(c => c.status === "completed").length;
-  const total = checkpoints.length || defaultCheckpoints.length;
+  const total = checkpoints.length;
   const progress = total > 0 ? (completed / total) * 100 : 0;
   const activeCheckpoint = checkpoints.find(c => c.status === "active");
   const allDone = checkpoints.length > 0 && checkpoints.every(c => c.status === "completed");
@@ -124,7 +61,7 @@ export default function DevriyePage() {
     if (!personnel) return;
     const { data } = await supabase
       .from("patrol_routes")
-      .select("id, name, points:patrol_route_points(name, point_order)")
+      .select("id, name, points:patrol_route_points(name, point_order, detail, qr_token)")
       .eq("is_active", true)
       .eq("department_id", personnel.department_id)
       .or(`location_id.eq.${personnel.location_id ?? "00000000-0000-0000-0000-000000000000"},location_id.is.null`)
@@ -147,7 +84,6 @@ export default function DevriyePage() {
     let end = endTime
       ? (() => { const [eh, em] = endTime.split(":").map(Number); return eh * 60 + em; })()
       : cur;
-    // Gece geçişi: bitiş saati başlangıçtan küçükse (+24 saat)
     if (endTime && end < cur) end += 24 * 60;
     while (cur <= end) {
       const wrapped = cur % (24 * 60);
@@ -163,13 +99,11 @@ export default function DevriyePage() {
     const dow = today.getDay();
     const isWeekend = dow === 0 || dow === 6;
 
-    // Personel için varsayılan: görev yok (atama bulunursa kaldırılır)
-    if (personnel.role === "personel") setNoPatrolDuty(true);
+    if (personnel.role === "personel") setNoDuty(true);
 
     const dateStr = toDateStr(today);
     const dayTypes = isWeekend ? ["weekend", "everyday"] : ["weekday", "everyday"];
 
-    // Bugünkü vardiya kodu
     const { data: sa } = await supabase
       .from("shift_assignments")
       .select("shift_code")
@@ -180,7 +114,6 @@ export default function DevriyePage() {
 
     if (!sa?.shift_code) return;
 
-    // Bu vardiyaya ait aktif planlar (vardiyaya özel + herkese açık "Hepsi" planlar)
     const { data: scheds } = await supabase
       .from("patrol_schedules")
       .select("id, start_time, interval_minutes, end_time, route_id")
@@ -190,7 +123,6 @@ export default function DevriyePage() {
 
     if (!scheds || scheds.length === 0) return;
 
-    // Personelin lokasyonuyla eşleşen rota bul
     const routeIds = scheds.map((s: any) => s.route_id);
     const locFilter = personnel.location_id
       ? `location_id.eq.${personnel.location_id},location_id.is.null`
@@ -198,7 +130,7 @@ export default function DevriyePage() {
 
     const { data: routes } = await supabase
       .from("patrol_routes")
-      .select("id, name, location_id, patrol_route_points(id, name, point_order)")
+      .select("id, name, location_id, patrol_route_points(id, name, point_order, detail, qr_token)")
       .in("id", routeIds)
       .eq("is_active", true)
       .eq("department_id", personnel.department_id)
@@ -215,14 +147,12 @@ export default function DevriyePage() {
       points: [...(matchedRoute.patrol_route_points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
     });
 
-    // Bugünkü pending/missed atamaları temizle (vardiya değişimi sonrası eski slotlar kalmasın)
     await supabase.from("patrol_assignments")
       .delete()
       .eq("personnel_id", personnel.id)
       .eq("date", dateStr)
       .in("status", ["pending", "missed"]);
 
-    // Zaman dilimlerini oluştur ve upsert et
     const slots = generateTimeSlots(matchedSched.start_time, matchedSched.interval_minutes, matchedSched.end_time);
     if (slots.length > 0) {
       await supabase.from("patrol_assignments").upsert(
@@ -236,7 +166,6 @@ export default function DevriyePage() {
       );
     }
 
-    // Mevcut atamaları yükle, geçirilenleri güncelle
     const { data: existing } = await supabase
       .from("patrol_assignments")
       .select("*")
@@ -254,7 +183,6 @@ export default function DevriyePage() {
       : startMin;
     const isCrossMidnight = endMin < startMin;
     setSchedMeta({ startMin, endMin, crossMidnight: isCrossMidnight });
-    // Gece geçişinde +24h sadece gece yarısı geçildikten sonra uygulanır (gündüz değil)
     const isPostMidnight = isCrossMidnight && nowMin < startMin && nowMin <= endMin;
     const adjustedNow = isPostMidnight ? nowMin + 24 * 60 : nowMin;
     const missedIds = existing
@@ -274,9 +202,8 @@ export default function DevriyePage() {
       missedIds.includes(a.id) ? { ...a, status: "missed" as const } : a
     );
     setAssignments(finalAssignments);
-    setNoPatrolDuty(false);
+    setNoDuty(false);
 
-    // Aynı rotada başkalarının aktif/tamamlanmış slotlarını getir
     const { data: others } = await supabase
       .from("patrol_assignments")
       .select("scheduled_time")
@@ -288,11 +215,10 @@ export default function DevriyePage() {
   }
 
   async function startAssignedPatrol(assignment: PatrolAssignment) {
-    if (!personnel || !assignmentRoute) return;
+    if (!personnel || !assignmentRoute || assignmentRoute.points.length === 0) return;
     setStartingAssignment(assignment.id);
     setSlotBlockedMsg(null);
 
-    // Son kontrol: slot başkası tarafından alındı mı?
     const { data: conflict } = await supabase
       .from("patrol_assignments")
       .select("id")
@@ -310,17 +236,13 @@ export default function DevriyePage() {
       return;
     }
 
-    const cpNames = assignmentRoute.points.length > 0
-      ? assignmentRoute.points.map(p => p.name)
-      : defaultCheckpoints;
-
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
       department_id: personnel.department_id,
       personnel_id: personnel.id,
       route_name: assignmentRoute.name,
       status: "active",
       started_at: new Date().toISOString(),
-      total_checkpoints: cpNames.length,
+      total_checkpoints: assignmentRoute.points.length,
       completed_checkpoints: 0,
     }).select().single();
 
@@ -332,10 +254,12 @@ export default function DevriyePage() {
 
     setActiveAssignmentId(assignment.id);
 
-    const cpInserts = cpNames.map((name, i) => ({
+    const cpInserts = assignmentRoute.points.map((p, i) => ({
       patrol_id: newPatrol.id,
       checkpoint_order: i + 1,
-      name,
+      name: p.name,
+      detail: p.detail,
+      qr_token: p.qr_token,
       status: i === 0 ? "active" : "pending",
     }));
     await supabase.from("patrol_checkpoints").insert(cpInserts);
@@ -386,28 +310,26 @@ export default function DevriyePage() {
 
   async function startNewPatrol() {
     if (!personnel) return;
-
     const route = availableRoutes.find(r => r.id === selectedRouteId);
-    const cpNames = route && route.points.length > 0
-      ? route.points.map(p => p.name)
-      : defaultCheckpoints;
-    const routeName = route ? route.name : "Ana Bina Çevresi";
+    if (!route || route.points.length === 0) return;
 
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
       department_id: personnel.department_id,
       personnel_id: personnel.id,
-      route_name: routeName,
+      route_name: route.name,
       status: "active",
-      total_checkpoints: cpNames.length,
+      total_checkpoints: route.points.length,
       completed_checkpoints: 0,
     }).select().single();
 
     if (error || !newPatrol) return;
 
-    const cpInserts = cpNames.map((name, i) => ({
+    const cpInserts = route.points.map((p, i) => ({
       patrol_id: newPatrol.id,
       checkpoint_order: i + 1,
-      name,
+      name: p.name,
+      detail: p.detail,
+      qr_token: p.qr_token,
       status: i === 0 ? "active" : "pending",
     }));
 
@@ -423,10 +345,17 @@ export default function DevriyePage() {
     setCheckpoints(cps || []);
   }
 
-  async function scanCheckpoint() {
-    if (!patrol || !activeCheckpoint) return;
-    const now = new Date().toISOString();
+  async function confirmCheckpoint(rawCode: string): Promise<boolean> {
+    if (!patrol || !activeCheckpoint) return false;
+    const code = rawCode.trim();
 
+    if (activeCheckpoint.qr_token && code !== activeCheckpoint.qr_token) {
+      setScanError("Bu QR kod bu noktaya ait değil.");
+      return false;
+    }
+
+    setScanError(null);
+    const now = new Date().toISOString();
     await supabase.from("patrol_checkpoints").update({ status: "completed", scanned_at: now }).eq("id", activeCheckpoint.id);
 
     const nextCp = checkpoints.find(c => c.checkpoint_order === activeCheckpoint.checkpoint_order + 1);
@@ -439,7 +368,56 @@ export default function DevriyePage() {
 
     const { data: cps } = await supabase.from("patrol_checkpoints").select("*").eq("patrol_id", patrol.id).order("checkpoint_order");
     setCheckpoints(cps || []);
+    setScanning(false);
+    setManualCode("");
+    return true;
   }
+
+  useEffect(() => {
+    if (!scanning) return;
+    let cancelled = false;
+    setCameraError(false);
+    setScanError(null);
+    runningRef.current = false;
+
+    import("html5-qrcode").then(({ Html5Qrcode }) => {
+      if (cancelled) return;
+      const qr = new Html5Qrcode("qr-reader-region");
+      scannerRef.current = qr;
+      qr.start(
+        { facingMode: "environment" },
+        { fps: 10, qrbox: 240 },
+        (decodedText: string) => {
+          if (processingRef.current) return;
+          processingRef.current = true;
+          confirmCheckpoint(decodedText).then(ok => {
+            if (!ok) setTimeout(() => { processingRef.current = false; }, 1500);
+          });
+        },
+        () => {}
+      ).then(() => {
+        if (cancelled) { try { qr.stop().catch(() => {}); } catch {} return; }
+        runningRef.current = true;
+      }).catch(() => {
+        if (!cancelled) setCameraError(true);
+      });
+    });
+
+    return () => {
+      cancelled = true;
+      const qr = scannerRef.current;
+      scannerRef.current = null;
+      if (!qr) return;
+      if (runningRef.current) {
+        try {
+          qr.stop().then(() => { try { qr.clear(); } catch {} }).catch(() => {});
+        } catch { /* html5-qrcode can throw synchronously if scanner already stopped */ }
+      } else {
+        try { qr.clear(); } catch {}
+      }
+      runningRef.current = false;
+    };
+  }, [scanning]);
 
   async function togglePause() {
     if (!patrol) return;
@@ -480,15 +458,15 @@ export default function DevriyePage() {
     return <div className="min-h-screen flex items-center justify-center"><span className="material-symbols-outlined animate-spin text-blue-800 text-[40px]">progress_activity</span></div>;
   }
 
-  if (!patrol && noPatrolDuty && personnel?.role === "personel") {
+  if (!patrol && noDuty && personnel?.role === "personel") {
     return (
       <div className="bg-[#f8f9ff] min-h-screen flex flex-col items-center justify-center px-6 gap-5">
         <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center">
           <span className="material-symbols-outlined text-gray-400 text-[40px]">event_busy</span>
         </div>
         <div className="text-center space-y-2">
-          <h2 className="text-xl font-bold text-gray-700">Bugün Devriye Göreviniz Yok</h2>
-          <p className="text-sm text-gray-400">Bu vardiyada planlanmış devriye bulunmuyor.</p>
+          <h2 className="text-xl font-bold text-gray-700">Bugün Kat Kontrolü Göreviniz Yok</h2>
+          <p className="text-sm text-gray-400">Bu vardiyada planlanmış kontrol bulunmuyor.</p>
         </div>
         <button onClick={() => router.push("/dashboard")}
           className="mt-2 px-8 py-3.5 rounded-2xl text-white font-bold active:scale-95 transition-all"
@@ -515,7 +493,7 @@ export default function DevriyePage() {
             <button onClick={() => router.push("/dashboard")} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-100 active:scale-95 transition-all">
               <span className="material-symbols-outlined text-blue-800">arrow_back</span>
             </button>
-            <h1 className="text-xl font-bold text-blue-800">Devriye Görevleri</h1>
+            <h1 className="text-xl font-bold text-blue-800">Kat Kontrolü Görevleri</h1>
           </div>
           <span className="text-xs font-semibold text-gray-400">
             {now.toLocaleDateString("tr-TR", { weekday: "long", day: "numeric", month: "long" })}
@@ -526,7 +504,7 @@ export default function DevriyePage() {
           {assignmentRoute && (
             <div className="bg-indigo-50 rounded-2xl p-4 flex items-center gap-3 border border-indigo-100">
               <div className="w-10 h-10 rounded-xl bg-[#3949AB] flex items-center justify-center flex-shrink-0">
-                <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>route</span>
+                <span className="material-symbols-outlined text-white text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>cleaning_services</span>
               </div>
               <div>
                 <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Atanmış Rota</p>
@@ -569,7 +547,7 @@ export default function DevriyePage() {
                         }`}>{timeStr}</span>
                       </div>
                       <div>
-                        <p className="font-bold text-gray-800 text-sm">{timeStr} Devriyesi</p>
+                        <p className="font-bold text-gray-800 text-sm">{timeStr} Kontrolü</p>
                         <p className="text-xs text-gray-400 mt-0.5">{assignmentRoute?.name ?? "—"}</p>
                       </div>
                     </div>
@@ -582,14 +560,14 @@ export default function DevriyePage() {
                   {canStart && (
                     <button
                       onClick={() => startAssignedPatrol(a)}
-                      disabled={!!startingAssignment}
+                      disabled={!!startingAssignment || !assignmentRoute || assignmentRoute.points.length === 0}
                       className="w-full mt-3 py-3.5 text-white rounded-xl font-bold flex items-center justify-center gap-2 disabled:opacity-60 active:scale-95 transition-all shadow-sm"
                       style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}
                     >
                       {startingAssignment === a.id
                         ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
                         : <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>}
-                      {startingAssignment === a.id ? "Başlatılıyor..." : "Devriyeyi Başlat"}
+                      {startingAssignment === a.id ? "Başlatılıyor..." : "Kontrolü Başlat"}
                     </button>
                   )}
                 </div>
@@ -607,7 +585,7 @@ export default function DevriyePage() {
           <div className="bg-blue-50 rounded-2xl p-4 flex gap-3 border border-blue-100">
             <span className="material-symbols-outlined text-blue-600 text-[20px] flex-shrink-0">info</span>
             <p className="text-xs text-blue-700 font-semibold leading-relaxed">
-              Devriyeleri 15 dakika erken başlatabilirsin. Tüm noktaları tamamladıktan sonra devriyeyi bitir.
+              Kontrolleri 15 dakika erken başlatabilirsin. Tüm noktaları tamamladıktan sonra kontrolü bitir.
             </p>
           </div>
         </main>
@@ -620,10 +598,10 @@ export default function DevriyePage() {
     return (
       <div className="bg-[#f8f9ff] min-h-screen flex flex-col items-center justify-center px-6 gap-6">
         <div className="w-20 h-20 bg-blue-100 rounded-full flex items-center justify-center">
-          <span className="material-symbols-outlined text-blue-800 text-[40px]">route</span>
+          <span className="material-symbols-outlined text-blue-800 text-[40px]">cleaning_services</span>
         </div>
-        <h2 className="text-2xl font-bold text-gray-900 text-center">Aktif Devriye Yok</h2>
-        <p className="text-gray-500 text-center text-sm">Devriye rotasını seçip başlatın.</p>
+        <h2 className="text-2xl font-bold text-gray-900 text-center">Aktif Kat Kontrolü Yok</h2>
+        <p className="text-gray-500 text-center text-sm">Kontrol rotasını seçip başlatın.</p>
 
         {availableRoutes.length > 0 && (
           <div className="w-full space-y-2">
@@ -632,7 +610,7 @@ export default function DevriyePage() {
               <button key={r.id} onClick={() => setSelectedRouteId(r.id)}
                 className={`w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border-2 text-left transition-all ${selectedRouteId === r.id ? "border-blue-700 bg-blue-50" : "border-gray-200 bg-white"}`}>
                 <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${selectedRouteId === r.id ? "bg-blue-700" : "bg-gray-100"}`}>
-                  <span className={`material-symbols-outlined text-[16px] ${selectedRouteId === r.id ? "text-white" : "text-gray-400"}`} style={{ fontVariationSettings: "'FILL' 1" }}>route</span>
+                  <span className={`material-symbols-outlined text-[16px] ${selectedRouteId === r.id ? "text-white" : "text-gray-400"}`} style={{ fontVariationSettings: "'FILL' 1" }}>cleaning_services</span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className={`text-sm font-bold truncate ${selectedRouteId === r.id ? "text-blue-800" : "text-gray-700"}`}>{r.name}</p>
@@ -655,18 +633,18 @@ export default function DevriyePage() {
                   <div className="w-5 h-5 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                     <span className="text-[10px] font-bold text-blue-700">{pt.point_order}</span>
                   </div>
-                  <span className="text-sm text-gray-600">{pt.name}</span>
+                  <span className="text-sm text-gray-600">{pt.name}{pt.detail ? ` · ${pt.detail}` : ""}</span>
                 </div>
               ))}
             </div>
           </div>
         )}
 
-        <button onClick={startNewPatrol}
-          className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3"
+        <button onClick={startNewPatrol} disabled={!selectedRoute || selectedRoute.points.length === 0}
+          className="w-full py-4 text-white rounded-2xl text-base font-bold shadow-lg active:scale-95 transition-all flex items-center justify-center gap-3 disabled:opacity-50"
           style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
           <span className="material-symbols-outlined" style={{ fontVariationSettings: "'FILL' 1" }}>play_circle</span>
-          Devriye Başlat
+          Kontrolü Başlat
         </button>
         <button onClick={() => router.push("/dashboard")} className="text-blue-800 text-sm font-semibold">Geri Dön</button>
       </div>
@@ -680,7 +658,7 @@ export default function DevriyePage() {
           <button onClick={() => router.push("/dashboard")} className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-gray-200 active:scale-95 transition-all">
             <span className="material-symbols-outlined text-blue-800">arrow_back</span>
           </button>
-          <h1 className="text-2xl font-semibold text-blue-800">Aktif Devriye</h1>
+          <h1 className="text-2xl font-semibold text-blue-800">Aktif Kat Kontrolü</h1>
         </div>
       </header>
 
@@ -708,34 +686,6 @@ export default function DevriyePage() {
           </div>
         </section>
 
-        {/* Motivasyon Kartı */}
-        {activeCheckpoint && (() => {
-          const tip = patrolTips[(activeCheckpoint.checkpoint_order - 1) % patrolTips.length];
-          return (
-            <section className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${tip.gradient} p-5 shadow-lg`}>
-              <div className="absolute -top-6 -right-6 w-28 h-28 rounded-full bg-white/5" />
-              <div className="absolute -bottom-8 -left-4 w-24 h-24 rounded-full bg-white/5" />
-              <div className="relative z-10 space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className={`text-[11px] font-bold uppercase tracking-widest text-white/80 ${tip.badgeBg} px-3 py-1 rounded-full`}>
-                    {tip.badge}
-                  </span>
-                  <span className="text-3xl">{tip.emoji}</span>
-                </div>
-                <div>
-                  <h4 className="text-white font-bold text-lg leading-tight">{tip.title}</h4>
-                  <p className="text-white/80 text-sm leading-relaxed mt-1">{tip.text}</p>
-                </div>
-                <div className="flex items-center gap-1.5 pt-1">
-                  {patrolTips.map((_, i) => (
-                    <div key={i} className={`h-1 rounded-full transition-all ${i === (activeCheckpoint.checkpoint_order - 1) % patrolTips.length ? "w-6 bg-white" : "w-2 bg-white/30"}`} />
-                  ))}
-                </div>
-              </div>
-            </section>
-          );
-        })()}
-
         {/* Hızlı Aksiyonlar */}
         <section className="grid grid-cols-2 gap-3">
           <button
@@ -747,7 +697,7 @@ export default function DevriyePage() {
           </button>
           <button
             onClick={() => {
-              const msg = `🚨 ACİL SOS!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n\nDevriye sırasında acil yardım gerekiyor!`;
+              const msg = `🚨 ACİL SOS!\n\nGörevli: ${personnel?.full_name || "Temizlik Personeli"}\nSaat: ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n\nKat kontrolü sırasında acil yardım gerekiyor!`;
               window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
             }}
             className="relative flex items-center justify-center gap-2 py-4 rounded-2xl bg-red-600 text-white font-bold text-sm active:scale-95 transition-all shadow-sm overflow-hidden"
@@ -788,14 +738,14 @@ export default function DevriyePage() {
                       </div>
                       <div className="flex-1">
                         <p className="text-base font-bold text-blue-800">Nokta {cp.checkpoint_order}: {cp.name}</p>
-                        <p className="text-xs font-semibold text-gray-500">Hedefe ulaşıldı, lütfen okutun</p>
+                        <p className="text-xs font-semibold text-gray-500">{cp.detail ? `${cp.detail} · ` : ""}Hedefe ulaşıldı, QR kodu okutun</p>
                       </div>
                     </div>
-                    <button onClick={scanCheckpoint}
+                    <button onClick={() => { setScanning(true); setScanError(null); }}
                       className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
                       style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                      <span className="material-symbols-outlined">nfc</span>
-                      OKUT (NFC / QR)
+                      <span className="material-symbols-outlined">qr_code_scanner</span>
+                      QR Kodu Okut
                     </button>
                   </div>
                 )}
@@ -825,10 +775,47 @@ export default function DevriyePage() {
         <button onClick={finishPatrol} disabled={!allDone}
           className={`flex-[1.5] py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all ${allDone ? "bg-green-600 text-white active:scale-95" : "bg-gray-200 text-gray-400 cursor-not-allowed"}`}>
           <span className="material-symbols-outlined">task_alt</span>
-          Devriyeyi Bitir
+          Kontrolü Bitir
         </button>
       </div>
 
+      {/* QR Tarama Modalı */}
+      {scanning && (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center px-6">
+          <button onClick={() => setScanning(false)}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all">
+            <span className="material-symbols-outlined text-white">close</span>
+          </button>
+
+          <p className="text-white font-bold mb-4">Nokta QR Kodunu Kameraya Gösterin</p>
+
+          {!cameraError ? (
+            <div id="qr-reader-region" className="w-full max-w-[320px] rounded-2xl overflow-hidden" />
+          ) : (
+            <div className="w-full max-w-[320px] bg-white/10 rounded-2xl p-6 text-center">
+              <span className="material-symbols-outlined text-white/60 text-[36px] block mb-2">videocam_off</span>
+              <p className="text-white/70 text-sm">Kameraya erişilemedi. Kodu manuel girin.</p>
+            </div>
+          )}
+
+          {scanError && (
+            <p className="text-red-400 text-sm font-semibold mt-4 text-center">{scanError}</p>
+          )}
+
+          <div className="w-full max-w-[320px] mt-6 space-y-2">
+            <p className="text-white/50 text-xs text-center">Kod okutulamıyor mu? Manuel girin:</p>
+            <div className="flex gap-2">
+              <input value={manualCode} onChange={e => setManualCode(e.target.value)}
+                placeholder="Kod"
+                className="flex-1 h-11 rounded-xl px-3 text-sm bg-white/10 text-white placeholder-white/30 outline-none focus:ring-2 focus:ring-blue-500" />
+              <button onClick={() => confirmCheckpoint(manualCode)} disabled={!manualCode.trim()}
+                className="px-4 h-11 rounded-xl bg-blue-700 text-white text-sm font-bold disabled:opacity-40">
+                Doğrula
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
