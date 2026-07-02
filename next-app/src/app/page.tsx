@@ -13,6 +13,7 @@ const departments = [
 ];
 
 const adminDepts = [
+  { slug: "idari",    label: "İdari İşler Yönetici", icon: "admin_panel_settings", color: "text-primary" },
   { slug: "guvenlik", label: "Güvenlik Yönetici", icon: "shield_person", color: "text-secondary" },
   { slug: "teknik",   label: "Teknik Yönetici",   icon: "build_circle",  color: "text-tertiary" },
   { slug: "temizlik", label: "Temizlik Yönetici", icon: "verified_user",  color: "text-primary-container" },

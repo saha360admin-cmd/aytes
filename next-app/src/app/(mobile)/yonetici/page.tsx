@@ -34,6 +34,55 @@ interface LocationShortage {
   deficit: number;
 }
 
+interface DeptShortage {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+  shortages: LocationShortage[];
+}
+
+interface AttendancePersonnel {
+  id: string;
+  full_name: string;
+  phone: string | null;
+  entry: string | null;
+  verified: boolean;
+}
+
+interface LocationAttendance {
+  id: string;
+  name: string;
+  total: number;
+  present: number;
+  personnel: AttendancePersonnel[];
+}
+
+interface DeptAttendance {
+  id: string;
+  slug: string;
+  name: string;
+  icon: string;
+  total: number;
+  present: number;
+  locations: LocationAttendance[];
+}
+
+interface CommSummary {
+  id: string;
+  type: string;
+  priority: string;
+  title: string;
+  content: string;
+  created_at: string;
+}
+
+const COMM_TYPE_CFG: Record<string, { label: string; icon: string; bg: string; text: string; border: string }> = {
+  duyuru:  { label: "Duyuru",  icon: "campaign",   bg: "bg-blue-100",   text: "text-blue-700",   border: "border-l-blue-500" },
+  gorev:   { label: "Görev",   icon: "assignment", bg: "bg-amber-100",  text: "text-amber-700",  border: "border-l-amber-500" },
+  talimat: { label: "Talimat", icon: "rule",       bg: "bg-purple-100", text: "text-purple-700", border: "border-l-purple-500" },
+};
+
 const typeLabels: Record<string, string> = {
   unpaid: "Ücretsiz İzin",
   annual: "Yıllık İzin",
@@ -63,7 +112,12 @@ export default function YoneticiPage() {
   const [recentIncidents, setRecentIncidents] = useState<Incident[]>([]);
 
   const [openServiceRequests, setOpenServiceRequests] = useState(0);
-  const [locationShortages, setLocationShortages] = useState<LocationShortage[]>([]);
+  const [otherDeptShortages, setOtherDeptShortages] = useState<DeptShortage[]>([]);
+  const [expandedDeptId, setExpandedDeptId] = useState<string | null>(null);
+  const [otherDeptAttendance, setOtherDeptAttendance] = useState<DeptAttendance[]>([]);
+  const [expandedAttendanceId, setExpandedAttendanceId] = useState<string | null>(null);
+  const [expandedAttendanceLocKey, setExpandedAttendanceLocKey] = useState<string | null>(null);
+  const [latestComms, setLatestComms] = useState<Record<string, CommSummary>>({});
 
   // Request action state
   const [updatingReq, setUpdatingReq] = useState<string | null>(null);
@@ -88,7 +142,7 @@ export default function YoneticiPage() {
       incidentRes,
       serviceReqCount,
       locationsRes,
-      personnelLocsRes,
+      commsRes,
     ] = await Promise.all([
       supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
       supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open").eq("department_id", deptId),
@@ -100,7 +154,7 @@ export default function YoneticiPage() {
       supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
       supabase.from("service_requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).in("status", ["open", "in_progress"]),
       supabase.from("locations").select("id, name, target_count").gt("target_count", 0),
-      supabase.from("personnel").select("id, location_id, role").eq("department_id", deptId).neq("status", "archived"),
+      supabase.from("communications").select("id, type, priority, title, content, created_at").eq("department_id", deptId).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order("created_at", { ascending: false }).limit(20),
     ]);
 
     setStats({
@@ -118,20 +172,127 @@ export default function YoneticiPage() {
     setRecentIncidents((incidentRes.data || []) as unknown as Incident[]);
     setOpenServiceRequests(serviceReqCount.count || 0);
 
-    // Lokasyon eksik güvenlik hesaplama
+    const latestByType: Record<string, CommSummary> = {};
+    for (const c of (commsRes.data || []) as CommSummary[]) {
+      if (!latestByType[c.type]) latestByType[c.type] = c;
+    }
+    setLatestComms(latestByType);
+
     const locs = (locationsRes.data || []) as { id: string; name: string; target_count: number }[];
     const genelMudId = locs.find(l => l.name === "Genel Müdürlük")?.id;
-    const locCounts: Record<string, number> = {};
-    for (const p of (personnelLocsRes.data || []) as { id: string; location_id: string | null; role: string }[]) {
-      let locId = p.location_id;
-      if ((p.role === "admin" || p.role === "supervisor") && genelMudId) locId = genelMudId;
-      if (locId) locCounts[locId] = (locCounts[locId] || 0) + 1;
+
+    // İdari İşler yöneticisi için: diğer departmanların (Güvenlik, Teknik, Temizlik) lokasyon eksikleri
+    if (personnel.departments?.slug === "idari") {
+      const { data: otherDepts } = await supabase
+        .from("departments")
+        .select("id, slug, name, icon")
+        .in("slug", ["guvenlik", "teknik", "temizlik"]);
+
+      if (otherDepts && otherDepts.length > 0) {
+        const deptIds = otherDepts.map((d) => d.id);
+        const { data: otherPersonnel } = await supabase
+          .from("personnel")
+          .select("id, department_id, location_id, role")
+          .in("department_id", deptIds)
+          .neq("status", "archived");
+
+        const countsByDept: Record<string, Record<string, number>> = {};
+        for (const p of (otherPersonnel || []) as { id: string; department_id: string; location_id: string | null; role: string }[]) {
+          let locId = p.location_id;
+          if ((p.role === "admin" || p.role === "supervisor") && genelMudId) locId = genelMudId;
+          if (!locId) continue;
+          countsByDept[p.department_id] ??= {};
+          countsByDept[p.department_id][locId] = (countsByDept[p.department_id][locId] || 0) + 1;
+        }
+
+        const order = ["guvenlik", "teknik", "temizlik"];
+        const result = order
+          .map((slug) => otherDepts.find((d) => d.slug === slug))
+          .filter((d): d is NonNullable<typeof d> => !!d)
+          .map((d) => {
+            const counts = countsByDept[d.id] || {};
+            const deptShortages = locs
+              .map((l) => ({ id: l.id, name: l.name, target: l.target_count, actual: counts[l.id] || 0, deficit: l.target_count - (counts[l.id] || 0) }))
+              .filter((l) => l.deficit > 0)
+              .sort((a, b) => b.deficit - a.deficit);
+            return { id: d.id, slug: d.slug, name: d.name, icon: d.icon, shortages: deptShortages };
+          });
+        setOtherDeptShortages(result);
+
+        // Bugün giriş yapmış personel (departman + lokasyon bazlı)
+        const { data: fieldPersonnel } = await supabase
+          .from("personnel")
+          .select("id, department_id, location_id, full_name, phone")
+          .in("department_id", deptIds)
+          .eq("role", "personel")
+          .eq("status", "active")
+          .order("full_name");
+
+        const fpList = (fieldPersonnel || []) as { id: string; department_id: string; location_id: string | null; full_name: string; phone: string | null }[];
+        const fpIds = fpList.map((p) => p.id);
+
+        const todayStr = new Date().toISOString().slice(0, 10);
+        const startOfDay = new Date(todayStr + "T00:00:00").toISOString();
+        const endOfDay = new Date(todayStr + "T23:59:59").toISOString();
+
+        const entryMap: Record<string, { entry: string; verified: boolean }> = {};
+        if (fpIds.length > 0) {
+          const { data: records } = await supabase
+            .from("attendance_records")
+            .select("personnel_id, type, recorded_at, verified")
+            .in("personnel_id", fpIds)
+            .eq("type", "entry")
+            .gte("recorded_at", startOfDay)
+            .lte("recorded_at", endOfDay)
+            .order("recorded_at", { ascending: true });
+
+          for (const r of (records || []) as { personnel_id: string; recorded_at: string; verified: boolean }[]) {
+            if (!entryMap[r.personnel_id]) entryMap[r.personnel_id] = { entry: r.recorded_at, verified: r.verified };
+          }
+        }
+
+        const attendanceResult: DeptAttendance[] = order
+          .map((slug) => otherDepts.find((d) => d.slug === slug))
+          .filter((d): d is NonNullable<typeof d> => !!d)
+          .map((d) => {
+            const deptPersonnel = fpList.filter((p) => p.department_id === d.id);
+
+            const byLoc: Record<string, AttendancePersonnel[]> = {};
+            for (const p of deptPersonnel) {
+              const key = p.location_id || "none";
+              byLoc[key] ??= [];
+              byLoc[key].push({
+                id: p.id,
+                full_name: p.full_name,
+                phone: p.phone,
+                entry: entryMap[p.id]?.entry || null,
+                verified: entryMap[p.id]?.verified || false,
+              });
+            }
+
+            const locationEntries: LocationAttendance[] = Object.entries(byLoc)
+              .map(([locId, ppl]) => ({
+                id: locId,
+                name: locId === "none" ? "Lokasyonsuz" : (locs.find((l) => l.id === locId)?.name || "Diğer"),
+                total: ppl.length,
+                present: ppl.filter((p) => p.entry).length,
+                personnel: ppl.sort((a, b) => (a.entry ? 0 : 1) - (b.entry ? 0 : 1)),
+              }))
+              .sort((a, b) => b.total - a.total);
+
+            return {
+              id: d.id,
+              slug: d.slug,
+              name: d.name,
+              icon: d.icon,
+              total: deptPersonnel.length,
+              present: deptPersonnel.filter((p) => entryMap[p.id]?.entry).length,
+              locations: locationEntries,
+            };
+          });
+        setOtherDeptAttendance(attendanceResult);
+      }
     }
-    const shortages = locs
-      .map(l => ({ id: l.id, name: l.name, target: l.target_count, actual: locCounts[l.id] || 0, deficit: l.target_count - (locCounts[l.id] || 0) }))
-      .filter(l => l.deficit > 0)
-      .sort((a, b) => b.deficit - a.deficit);
-    setLocationShortages(shortages);
 
     setLoading(false);
   }
@@ -156,12 +317,10 @@ export default function YoneticiPage() {
   }
 
   const TOTAL_PERSONNEL = Math.max(shiftFill.total, 1);
-  const totalDeficit = locationShortages.reduce((s, l) => s + l.deficit, 0);
-  const percent = Math.round(((TOTAL_PERSONNEL - totalDeficit) / TOTAL_PERSONNEL) * 100);
-  const circumference = 2 * Math.PI * 40;
-  const offset = circumference - (percent / 100) * circumference;
+  const activePersonnelCount = personnelList.length;
   const name = personnel?.full_name || "Yönetici";
   const isTemizlik = personnel?.departments?.slug === "temizlik";
+  const isIdari = personnel?.departments?.slug === "idari";
   const patrolSectionTitle = isTemizlik ? "Aktif Kat Kontrolleri" : "Aktif Devriyeler";
   const patrolPlanHref = isTemizlik ? "/yonetici/kat-planlama" : "/yonetici/devriye-planlama";
   const patrolIcon = isTemizlik ? "cleaning_services" : "route";
@@ -202,7 +361,7 @@ export default function YoneticiPage() {
           <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
           <div className="flex items-center gap-2 mt-1">
             <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            <p className="text-sm text-white/75">Yönetici Paneli • {TOTAL_PERSONNEL - totalDeficit}/{TOTAL_PERSONNEL} Personel Aktif</p>
+            <p className="text-sm text-white/75">Yönetici Paneli • {activePersonnelCount}/{TOTAL_PERSONNEL} Personel Aktif</p>
           </div>
         </div>
       </div>
@@ -233,79 +392,242 @@ export default function YoneticiPage() {
           ))}
         </section>
 
-        {/* ── PERSONEL DURUMU ── */}
-        <section className="bg-white rounded-xl shadow-sm p-4">
-          <h3 className="font-bold text-gray-800 mb-3">Personel Durumu</h3>
-          <div className="flex items-center gap-4">
-            <div className="relative w-20 h-20 flex-shrink-0">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
-                <circle cx="50" cy="50" r="40" fill="transparent" strokeWidth="10" stroke="#f3f4f6" />
-                <circle cx="50" cy="50" r="40" fill="transparent" strokeWidth="10" strokeLinecap="round"
-                  stroke="url(#gaugeGrad)"
-                  style={{ strokeDasharray: circumference, strokeDashoffset: offset, transition: "stroke-dashoffset 0.5s ease" }} />
-                <defs>
-                  <linearGradient id="gaugeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                    <stop offset="0%" stopColor="#00BCD4" /><stop offset="100%" stopColor="#3949AB" />
-                  </linearGradient>
-                </defs>
-              </svg>
-              <div className="absolute inset-0 flex items-center justify-center">
-                <span className="font-bold text-gray-800 text-sm">%{percent}</span>
-              </div>
-            </div>
-            <div className="flex-1 space-y-2">
-              <div>
-                <p className="text-xs font-semibold text-gray-400">Aktif Personel</p>
-                <p className="font-bold text-gray-800">{TOTAL_PERSONNEL - totalDeficit} / {TOTAL_PERSONNEL} kişi</p>
-              </div>
-              <div className="pt-2 border-t border-gray-100">
-                <p className="text-xs font-semibold text-gray-400">Bekleyen Talepler</p>
-                <p className="font-bold text-[#FF9800]">{stats.pendingRequests} talep onay bekliyor</p>
-              </div>
-            </div>
+        {/* ── DUYURU ÖZETİ ── */}
+        <section className="bg-white rounded-xl shadow-sm overflow-hidden">
+          <div className="flex items-center justify-between px-4 pt-4 pb-3">
+            <h3 className="font-bold text-gray-800">Duyuru Özeti</h3>
+            <Link href="/yonetici/iletisim" className="text-xs font-bold text-[#3949AB]">Tümü →</Link>
           </div>
+          {Object.keys(latestComms).length === 0 ? (
+            <div className="px-4 pb-4">
+              <p className="text-sm text-gray-400 font-semibold text-center py-4">Henüz duyuru, görev veya talimat yok</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-gray-50">
+              {(["duyuru", "gorev", "talimat"] as const).map((type) => {
+                const c = latestComms[type];
+                const cfg = COMM_TYPE_CFG[type];
+                if (!c) return null;
+                return (
+                  <Link key={type} href="/yonetici/iletisim" className="flex items-start gap-3 px-4 py-3 active:bg-gray-50 transition-colors">
+                    <div className={`w-8 h-8 rounded-lg ${cfg.bg} flex items-center justify-center flex-shrink-0 mt-0.5`}>
+                      <span className={`material-symbols-outlined ${cfg.text} text-[16px]`} style={{ fontVariationSettings: "'FILL' 1" }}>{cfg.icon}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${cfg.bg} ${cfg.text}`}>{cfg.label}</span>
+                        {c.priority === "urgent" && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-600">Acil</span>
+                        )}
+                      </div>
+                      <p className="text-sm font-bold text-gray-800 truncate mt-1">{c.title}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{timeAgo(c.created_at)}</p>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          )}
         </section>
 
-        {/* ── EKSİK GÜVENLİK ── */}
-        {locationShortages.length > 0 && (
-          <section className="bg-white rounded-xl shadow-sm overflow-hidden border-l-4 border-l-red-500">
-            <div className="flex items-center justify-between px-4 pt-4 pb-3 border-b border-gray-100">
-              <div className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-red-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_alert</span>
-                </div>
-                <div>
-                  <h3 className="font-bold text-gray-800">Eksik {personnel?.departments?.name || "Personel"}</h3>
-                  <p className="text-xs text-gray-400">{locationShortages.length} lokasyonda personel eksik</p>
-                </div>
+        {/* ── DEPARTMAN EKSİK PERSONELLERİ (İdari İşler yöneticisi) ── */}
+        {isIdari && otherDeptShortages.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-red-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-red-600 text-[16px]">groups</span>
               </div>
-              <span className="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">
-                {locationShortages.reduce((s, l) => s + l.deficit, 0)} eksik
-              </span>
+              <h3 className="font-bold text-gray-800">Departman Eksik Personelleri</h3>
             </div>
-            <div className="divide-y divide-gray-50">
-              {locationShortages.map(loc => (
-                <div key={loc.id} className="flex items-center justify-between px-4 py-3">
-                  <div className="flex-1 min-w-0 pr-3">
-                    <p className="text-sm font-semibold text-gray-800 truncate">{loc.name}</p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                      <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
-                        <div className="h-full bg-red-400 rounded-full transition-all"
-                          style={{ width: `${Math.round((loc.actual / loc.target) * 100)}%` }} />
+
+            <div className="space-y-3">
+              {otherDeptShortages.map((dept) => {
+                const totalDef = dept.shortages.reduce((s, l) => s + l.deficit, 0);
+                const isOpen = expandedDeptId === dept.id;
+
+                if (dept.shortages.length === 0) {
+                  return (
+                    <div key={dept.id} className="bg-white rounded-xl shadow-sm border-l-4 border-l-emerald-400 px-4 py-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-lg bg-emerald-100 flex items-center justify-center">
+                        <span className="material-symbols-outlined text-emerald-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{dept.icon}</span>
                       </div>
-                      <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">{loc.actual}/{loc.target}</span>
+                      <div className="flex-1">
+                        <p className="font-bold text-gray-800 text-sm">{dept.name}</p>
+                        <p className="text-xs text-emerald-600 font-semibold">Personel eksiği yok</p>
+                      </div>
                     </div>
+                  );
+                }
+
+                return (
+                  <div key={dept.id} className="bg-white rounded-xl shadow-sm overflow-hidden border-l-4 border-l-red-500">
+                    <button
+                      onClick={() => setExpandedDeptId(isOpen ? null : dept.id)}
+                      className="w-full flex items-center justify-between px-4 py-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-red-100 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-red-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{dept.icon}</span>
+                        </div>
+                        <div className="text-left">
+                          <h4 className="font-bold text-gray-800 text-sm">{dept.name}</h4>
+                          <p className="text-xs text-gray-400">{dept.shortages.length} lokasyonda personel eksik</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="bg-red-100 text-red-700 text-xs font-bold px-2.5 py-1 rounded-full">{totalDef} eksik</span>
+                        <span className={`material-symbols-outlined text-gray-400 text-[20px] transition-transform ${isOpen ? "rotate-180" : ""}`}>expand_more</span>
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="divide-y divide-gray-50 border-t border-gray-100">
+                        {dept.shortages.map((loc) => (
+                          <div key={loc.id} className="flex items-center justify-between px-4 py-3">
+                            <div className="flex-1 min-w-0 pr-3">
+                              <p className="text-sm font-semibold text-gray-800 truncate">{loc.name}</p>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden">
+                                  <div className="h-full bg-red-400 rounded-full transition-all"
+                                    style={{ width: `${Math.round((loc.actual / loc.target) * 100)}%` }} />
+                                </div>
+                                <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">{loc.actual}/{loc.target}</span>
+                              </div>
+                            </div>
+                            <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
+                              -{loc.deficit}
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
-                  <span className="bg-red-100 text-red-700 text-xs font-bold px-2 py-0.5 rounded-full flex-shrink-0">
-                    -{loc.deficit}
-                  </span>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </section>
         )}
 
+        {/* ── DEPARTMAN AKTİF PERSONELLERİ (İdari İşler yöneticisi) ── */}
+        {isIdari && otherDeptAttendance.length > 0 && (
+          <section className="space-y-3">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center">
+                <span className="material-symbols-outlined text-emerald-600 text-[16px]">how_to_reg</span>
+              </div>
+              <h3 className="font-bold text-gray-800">Departman Aktif Personelleri</h3>
+            </div>
 
+            <div className="space-y-3">
+              {otherDeptAttendance.map((dept) => {
+                const isOpen = expandedAttendanceId === dept.id;
+                const allPresent = dept.total > 0 && dept.present === dept.total;
+                const accentClass = dept.total === 0 ? "border-l-gray-300" : allPresent ? "border-l-emerald-500" : "border-l-amber-500";
+                const badgeClass = dept.total === 0 ? "bg-gray-100 text-gray-500" : allPresent ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700";
+
+                return (
+                  <div key={dept.id} className={`bg-white rounded-xl shadow-sm overflow-hidden border-l-4 ${accentClass}`}>
+                    <button
+                      onClick={() => setExpandedAttendanceId(isOpen ? null : dept.id)}
+                      className="w-full flex items-center justify-between px-4 py-3"
+                      disabled={dept.total === 0}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-9 h-9 rounded-lg bg-emerald-50 flex items-center justify-center">
+                          <span className="material-symbols-outlined text-emerald-600 text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>{dept.icon}</span>
+                        </div>
+                        <div className="text-left">
+                          <h4 className="font-bold text-gray-800 text-sm">{dept.name}</h4>
+                          <p className="text-xs text-gray-400">{dept.total === 0 ? "Personel yok" : `${dept.present}/${dept.total} giriş yaptı`}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-xs font-bold px-2.5 py-1 rounded-full ${badgeClass}`}>
+                          {dept.total === 0 ? "—" : `%${Math.round((dept.present / dept.total) * 100)}`}
+                        </span>
+                        {dept.total > 0 && (
+                          <span className={`material-symbols-outlined text-gray-400 text-[20px] transition-transform ${isOpen ? "rotate-180" : ""}`}>expand_more</span>
+                        )}
+                      </div>
+                    </button>
+                    {isOpen && (
+                      <div className="divide-y divide-gray-50 border-t border-gray-100">
+                        {dept.locations.map((loc) => {
+                          const locKey = `${dept.id}:${loc.id}`;
+                          const isLocOpen = expandedAttendanceLocKey === locKey;
+                          const locAllPresent = loc.total > 0 && loc.present === loc.total;
+                          return (
+                            <div key={loc.id}>
+                              <button
+                                onClick={() => setExpandedAttendanceLocKey(isLocOpen ? null : locKey)}
+                                className="w-full flex items-center justify-between px-4 py-2.5"
+                              >
+                                <div className="flex-1 min-w-0 pr-3 text-left">
+                                  <p className="text-sm font-semibold text-gray-800 truncate">{loc.name}</p>
+                                  <div className="flex items-center gap-1.5 mt-1">
+                                    <div className="flex-1 bg-gray-100 rounded-full h-1.5 overflow-hidden max-w-[120px]">
+                                      <div className={`h-full rounded-full transition-all ${locAllPresent ? "bg-emerald-400" : "bg-amber-400"}`}
+                                        style={{ width: `${Math.round((loc.present / loc.total) * 100)}%` }} />
+                                    </div>
+                                    <span className="text-[10px] text-gray-400 font-mono flex-shrink-0">{loc.present}/{loc.total}</span>
+                                  </div>
+                                </div>
+                                <span className={`material-symbols-outlined text-gray-400 text-[18px] transition-transform flex-shrink-0 ${isLocOpen ? "rotate-180" : ""}`}>expand_more</span>
+                              </button>
+                              {isLocOpen && (
+                                <div className="bg-gray-50/60 divide-y divide-gray-100">
+                                  {loc.personnel.map((p) => {
+                                    const waPhone = p.phone ? p.phone.replace(/\s/g, "").replace(/^0/, "") : null;
+                                    return (
+                                      <div key={p.id} className="flex items-center justify-between px-4 py-2.5 pl-6">
+                                        <div className="flex items-center gap-2.5 min-w-0">
+                                          <div className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${p.entry ? "bg-emerald-100" : "bg-red-50"}`}>
+                                            <span className={`material-symbols-outlined text-[14px] ${p.entry ? "text-emerald-600" : "text-red-400"}`} style={{ fontVariationSettings: "'FILL' 1" }}>
+                                              {p.entry ? "check_circle" : "cancel"}
+                                            </span>
+                                          </div>
+                                          <div className="min-w-0">
+                                            <p className="text-sm font-semibold text-gray-800 truncate">{p.full_name}</p>
+                                            <p className="text-[10px] text-gray-400">
+                                              {p.entry ? new Date(p.entry).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }) : "Kayıt Yok"}
+                                            </p>
+                                          </div>
+                                        </div>
+                                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                                          <a
+                                            href={p.phone ? `tel:${p.phone}` : undefined}
+                                            onClick={(e) => { if (!p.phone) e.preventDefault(); }}
+                                            className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors ${p.phone ? "border-primary text-primary active:bg-primary/10" : "border-gray-200 text-gray-300"}`}
+                                          >
+                                            <span className="material-symbols-outlined text-[14px]">call</span>
+                                          </a>
+                                          <a
+                                            href={waPhone ? `https://wa.me/90${waPhone}` : undefined}
+                                            onClick={(e) => { if (!waPhone) e.preventDefault(); }}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className={`w-7 h-7 rounded-full border flex items-center justify-center transition-colors ${waPhone ? "border-[#25D366] text-[#25D366] active:bg-[#25D366]/10" : "border-gray-200 text-gray-300"}`}
+                                          >
+                                            <svg viewBox="0 0 24 24" fill="currentColor" className="w-3.5 h-3.5">
+                                              <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                                            </svg>
+                                          </a>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
 
         {/* ── BEKLEYEN TALEPLER ÖZET ── */}
         <section>

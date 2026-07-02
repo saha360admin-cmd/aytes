@@ -6,12 +6,15 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
 interface Location { id: string; name: string }
+interface DeptOption { id: string; slug: string; name: string; icon: string }
 interface CommRead { personnel_id: string; read_at: string; reader: { full_name: string } | null }
 interface Comm {
   id: string; type: string; priority: string; title: string; content: string;
   target_type: string; location_id: string | null; expires_at: string | null; created_at: string;
+  department_id: string;
   creator: { full_name: string } | null;
   location: { name: string } | null;
+  department: { name: string } | null;
   reads: { personnel_id: string }[];
 }
 
@@ -26,6 +29,7 @@ export default function IletisimPage() {
   const { personnel } = useAuth();
   const [comms, setComms] = useState<Comm[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
+  const [deptOptions, setDeptOptions] = useState<DeptOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [detailReads, setDetailReads] = useState<CommRead[]>([]);
@@ -40,6 +44,7 @@ export default function IletisimPage() {
   const [fContent, setFContent] = useState("");
   const [fTarget, setFTarget] = useState<"all" | "location">("all");
   const [fLocId, setFLocId] = useState("");
+  const [fDeptIds, setFDeptIds] = useState<string[]>([]);
   const [fExpires, setFExpires] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -51,11 +56,29 @@ export default function IletisimPage() {
     loadData();
   }, [personnel]);
 
+  const isIdari = personnel?.departments?.slug === "idari";
+
   async function loadData() {
+    if (!personnel) return;
+
+    let deptIds = [personnel.department_id];
+    if (isIdari) {
+      const { data: depts } = await supabase
+        .from("departments")
+        .select("id, slug, name, icon")
+        .in("slug", ["idari", "guvenlik", "teknik", "temizlik"]);
+      if (depts && depts.length > 0) {
+        const order = ["idari", "guvenlik", "teknik", "temizlik"];
+        setDeptOptions(order.map((s) => depts.find((d) => d.slug === s)).filter((d): d is DeptOption => !!d));
+        deptIds = depts.map((d) => d.id);
+      }
+      setFDeptIds([personnel.department_id]);
+    }
+
     const [commRes, locRes] = await Promise.all([
       supabase.from("communications")
-        .select("id, type, priority, title, content, target_type, location_id, expires_at, created_at, creator:personnel!created_by(full_name), location:locations(name), reads:communication_reads(personnel_id)")
-        .eq("department_id", personnel!.department_id)
+        .select("id, type, priority, title, content, target_type, location_id, expires_at, created_at, department_id, creator:personnel!created_by(full_name), location:locations(name), department:departments(name), reads:communication_reads(personnel_id)")
+        .in("department_id", deptIds)
         .order("created_at", { ascending: false }),
       supabase.from("locations").select("id, name").order("name"),
     ]);
@@ -70,7 +93,7 @@ export default function IletisimPage() {
 
     // Hedef personel sayısını hesapla
     let q = supabase.from("personnel").select("id", { count: "exact", head: true })
-      .eq("department_id", personnel!.department_id)
+      .eq("department_id", comm.department_id)
       .eq("status", "active")
       .neq("role", "admin");
     if (comm.target_type === "location" && comm.location_id) {
@@ -89,20 +112,25 @@ export default function IletisimPage() {
 
   async function send() {
     if (!fTitle.trim() || !fContent.trim() || !personnel) return;
+    if (isIdari && fDeptIds.length === 0) return;
     setSaving(true);
-    const { error } = await supabase.from("communications").insert({
+
+    const targetDeptIds = isIdari ? fDeptIds : [personnel.department_id];
+    const rows = targetDeptIds.map((deptId) => ({
       type: fType,
       priority: fPriority,
       title: fTitle.trim(),
       content: fContent.trim(),
       target_type: fTarget,
       location_id: fTarget === "location" ? fLocId || null : null,
-      department_id: personnel.department_id,
+      department_id: deptId,
       created_by: personnel.id,
       expires_at: fExpires ? new Date(fExpires).toISOString() : null,
-    });
+    }));
+
+    const { error } = await supabase.from("communications").insert(rows);
     if (!error) {
-      flash("Mesaj gönderildi", true);
+      flash(targetDeptIds.length > 1 ? `${targetDeptIds.length} departmana gönderildi` : "Mesaj gönderildi", true);
       setShowForm(false);
       resetForm();
       loadData();
@@ -121,6 +149,7 @@ export default function IletisimPage() {
   function resetForm() {
     setFType("duyuru"); setFPriority("normal"); setFTitle(""); setFContent("");
     setFTarget("all"); setFLocId(""); setFExpires("");
+    if (isIdari && personnel) setFDeptIds([personnel.department_id]);
   }
 
   function flash(msg: string, ok: boolean) {
@@ -198,7 +227,10 @@ export default function IletisimPage() {
                 <p className="font-bold text-gray-800 mt-2 text-sm">{c.title}</p>
                 <p className="text-xs text-gray-500 mt-1 line-clamp-2">{c.content}</p>
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
-                  <span className="text-[11px] text-gray-400">
+                  <span className="text-[11px] text-gray-400 flex items-center gap-1.5">
+                    {isIdari && (
+                      <span className="font-bold text-[#3949AB] bg-indigo-50 px-2 py-0.5 rounded-full">{(c.department as any)?.name ?? "—"}</span>
+                    )}
                     {c.target_type === "all" ? "Tüm personel" : (c.location as any)?.name ?? "Bölge"}
                   </span>
                   <span className={`text-[11px] font-bold flex items-center gap-1 ${readCount > 0 ? "text-emerald-600" : "text-gray-400"}`}>
@@ -240,10 +272,13 @@ export default function IletisimPage() {
                     </div>
                     <h2 className="text-lg font-bold text-gray-800">{detailComm.title}</h2>
                     <p className="text-sm text-gray-600 mt-2 leading-relaxed">{detailComm.content}</p>
-                    <div className="flex items-center gap-4 mt-3 text-[11px] text-gray-400">
+                    <div className="flex items-center gap-4 mt-3 text-[11px] text-gray-400 flex-wrap">
                       <span>{(detailComm.creator as any)?.full_name ?? "—"}</span>
                       <span>{new Date(detailComm.created_at).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
                       <span>{detailComm.target_type === "all" ? "Tüm personel" : (detailComm.location as any)?.name}</span>
+                      {isIdari && (
+                        <span className="font-bold text-[#3949AB] bg-indigo-50 px-2 py-0.5 rounded-full">{(detailComm.department as any)?.name ?? "—"}</span>
+                      )}
                     </div>
                   </>
                 );
@@ -336,6 +371,39 @@ export default function IletisimPage() {
                 </div>
               </div>
 
+              {/* Departman (yalnızca İdari İşler yöneticisi) — çoklu seçim */}
+              {isIdari && (
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Departman</label>
+                    <button
+                      onClick={() => setFDeptIds(fDeptIds.length === deptOptions.length ? [] : deptOptions.map(d => d.id))}
+                      className="text-[11px] font-bold text-[#3949AB]">
+                      {fDeptIds.length === deptOptions.length ? "Seçimi Temizle" : "Tümünü Seç"}
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {deptOptions.map(d => {
+                      const selected = fDeptIds.includes(d.id);
+                      return (
+                        <button key={d.id}
+                          onClick={() => setFDeptIds(selected ? fDeptIds.filter(id => id !== d.id) : [...fDeptIds, d.id])}
+                          className={`h-11 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 transition-all active:scale-95 ${selected ? "text-white" : "bg-gray-100 text-gray-500"}`}
+                          style={selected ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                          <span className="material-symbols-outlined text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>{selected ? "check" : d.icon}</span>
+                          {d.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-gray-400 mt-1.5">
+                    {fDeptIds.length > 1
+                      ? `Duyuru ${fDeptIds.length} departmana ayrı ayrı gönderilecek — diğer departmanların personeli birbirininkini görmez.`
+                      : "Duyuru yalnızca seçilen departman personeline gider."}
+                  </p>
+                </div>
+              )}
+
               {/* Hedef */}
               <div>
                 <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Hedef</label>
@@ -379,7 +447,7 @@ export default function IletisimPage() {
               </div>
 
               <div className="flex gap-2 pb-6">
-                <button onClick={send} disabled={saving || !fTitle.trim() || !fContent.trim()}
+                <button onClick={send} disabled={saving || !fTitle.trim() || !fContent.trim() || (isIdari && fDeptIds.length === 0)}
                   className="flex-1 py-4 text-white rounded-2xl font-bold flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-all"
                   style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
                   {saving
