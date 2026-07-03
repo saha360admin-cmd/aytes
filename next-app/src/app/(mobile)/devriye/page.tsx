@@ -115,6 +115,7 @@ export default function DevriyePage() {
 
   useEffect(() => {
     if (!personnel) return;
+    if (personnel.departments?.slug === "teknik") { router.replace("/dashboard"); return; }
     loadActivePatrol();
     loadAvailableRoutes();
     loadTodayAssignments();

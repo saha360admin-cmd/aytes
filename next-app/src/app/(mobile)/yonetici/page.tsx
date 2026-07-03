@@ -321,6 +321,7 @@ export default function YoneticiPage() {
   const name = personnel?.full_name || "Yönetici";
   const isTemizlik = personnel?.departments?.slug === "temizlik";
   const isIdari = personnel?.departments?.slug === "idari";
+  const isTeknik = personnel?.departments?.slug === "teknik";
   const patrolSectionTitle = isTemizlik ? "Aktif Kat Kontrolleri" : "Aktif Devriyeler";
   const patrolPlanHref = isTemizlik ? "/yonetici/kat-planlama" : "/yonetici/devriye-planlama";
   const patrolIcon = isTemizlik ? "cleaning_services" : "route";
@@ -374,7 +375,7 @@ export default function YoneticiPage() {
           {[
             { icon: "pending_actions", value: String(stats.pendingRequests).padStart(2, "0"), label: "Bekleyen Talepler", accent: "#FF9800", iconBg: "bg-orange-100", iconColor: "text-orange-600", badge: stats.pendingRequests > 0 ? `${stats.pendingRequests} Yeni` : null },
             { icon: "assignment_late", value: String(stats.openIncidents).padStart(2, "0"), label: "Açık Raporlar", accent: "#EF5350", iconBg: "bg-red-100", iconColor: "text-red-600", badge: null },
-            { icon: "map", value: String(stats.activePatrols).padStart(2, "0"), label: patrolSectionTitle, accent: "#00BCD4", iconBg: "bg-teal-100", iconColor: "text-teal-600", badge: null },
+            ...(isTeknik ? [] : [{ icon: "map", value: String(stats.activePatrols).padStart(2, "0"), label: patrolSectionTitle, accent: "#00BCD4", iconBg: "bg-teal-100", iconColor: "text-teal-600", badge: null }]),
             { icon: "schedule", value: String(stats.todayShifts).padStart(2, "0"), label: "Toplam Vardiyalar", accent: "#9C27B0", iconBg: "bg-purple-100", iconColor: "text-purple-600", badge: null },
           ].map((s) => (
             <div key={s.label} className="bg-white p-4 rounded-xl shadow-sm border-l-4 space-y-2" style={{ borderLeftColor: s.accent }}>
@@ -691,6 +692,7 @@ export default function YoneticiPage() {
         </section>
 
         {/* ── AKTİF DEVRİYELER ── */}
+        {!isTeknik && (
         <section className="space-y-3">
           <div className="flex justify-between items-center">
             <div className="flex items-center gap-2">
@@ -740,6 +742,7 @@ export default function YoneticiPage() {
             })
           )}
         </section>
+        )}
 
         {/* ── SON OLAYLAR ÖZET ── */}
         <section>

@@ -23,7 +23,7 @@ function AuthForm() {
   const router = useRouter();
   const { signIn, signUp } = useAuth();
 
-  const isPhoneLogin = dept === "guvenlik" && !isAdminMode;
+  const isPhoneLogin = dept === "guvenlik" || dept === "temizlik" || dept === "idari" || dept === "teknik";
 
   const [isRegister, setIsRegister] = useState(false);
   const [showPassword, setShowPassword] = useState(false);

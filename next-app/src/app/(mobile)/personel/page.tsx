@@ -55,12 +55,16 @@ const POSITIONS_BY_DEPT: Record<string, { value: string; label: string; role: st
     { value: "teknik-personel",     label: "Teknik Personel",          role: "personel" },
     { value: "bakim-gorevlisi",     label: "Bakım Görevlisi",          role: "personel" },
     { value: "elektrik-teknisyeni", label: "Elektrik Teknisyeni",      role: "personel" },
+    { value: "teknik-sefi",         label: "Teknik Şefi",              role: "personel" },
     { value: "teknik-sorumlusu",    label: "Teknik Sorumlusu",         role: "supervisor" },
   ],
   temizlik: [
     { value: "temizlik-gorevlisi",  label: "Temizlik Görevlisi",       role: "personel" },
-    { value: "kat-gorevlisi",       label: "Kat Görevlisi",            role: "personel" },
     { value: "depo-sorumlusu",      label: "Depo Sorumlusu",           role: "personel" },
+    { value: "ikram-personeli",     label: "İkram Personeli",          role: "personel" },
+    { value: "bahcivan",            label: "Bahçıvan",                 role: "personel" },
+    { value: "raporlama-uzmani",    label: "Raporlama Uzmanı",         role: "personel" },
+    { value: "temizlik-sefi",       label: "Temizlik Şefi",            role: "personel" },
     { value: "temizlik-sorumlusu",  label: "Temizlik Sorumlusu",       role: "supervisor" },
   ],
 };
@@ -375,6 +379,7 @@ export default function PersonelPage() {
     supabase
       .from("locations")
       .select("id, name")
+      .or(`department_id.is.null,department_id.eq.${personnel.department_id}`)
       .order("name")
       .then(({ data }) => setLocations((data || []) as Location[]));
   }, [personnel]);

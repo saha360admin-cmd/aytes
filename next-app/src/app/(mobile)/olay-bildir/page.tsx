@@ -12,6 +12,7 @@ const incidentTypes = [
   { id: "theft", label: "Hırsızlık", icon: "lock_person", bg: "bg-indigo-100", color: "text-indigo-700", selectedBg: "#E0E7FF", selectedBorder: "#4F46E5" },
   { id: "suspicious", label: "Şüpheli Durum", icon: "visibility", bg: "bg-amber-100", color: "text-amber-700", selectedBg: "#FEF3C7", selectedBorder: "#F59E0B" },
   { id: "maintenance", label: "Teknik Arıza", icon: "build", bg: "bg-emerald-100", color: "text-emerald-700", selectedBg: "#D1FAE5", selectedBorder: "#10B981" },
+  { id: "form", label: "Form Bildir", icon: "description", bg: "bg-blue-100", color: "text-blue-700", selectedBg: "#DBEAFE", selectedBorder: "#2563EB" },
   { id: "other", label: "Diğer", icon: "more_horiz", bg: "bg-purple-100", color: "text-purple-700", selectedBg: "#EDE9FE", selectedBorder: "#7C3AED" },
 ];
 
@@ -22,6 +23,13 @@ const severities = [
 ];
 
 const MAX_VIDEO_SIZE = 100 * 1024 * 1024; // 100 MB
+
+const autoDeptSlugsByType: Record<string, string[]> = {
+  theft: ["guvenlik", "idari"],
+  form: ["guvenlik", "idari"],
+  maintenance: ["teknik", "idari", "guvenlik"],
+  suspicious: ["idari", "guvenlik"],
+};
 
 function OlayBildirForm() {
   const router = useRouter();
@@ -119,6 +127,18 @@ function OlayBildirForm() {
     }
   }
 
+  function selectType(id: string) {
+    setSelectedType(id);
+    if (id === "fire") {
+      setSelectedDepts(departments.map((d) => d.id));
+      return;
+    }
+    const slugs = autoDeptSlugsByType[id];
+    if (slugs) {
+      setSelectedDepts(departments.filter((d) => slugs.includes(d.slug)).map((d) => d.id));
+    }
+  }
+
   function toggleDept(id: string) {
     setSelectedDepts((prev) =>
       prev.includes(id) ? prev.filter((d) => d !== id) : [...prev, id]
@@ -191,7 +211,7 @@ function OlayBildirForm() {
             {incidentTypes.map(t => {
               const isSel = selectedType === t.id;
               return (
-                <button key={t.id} onClick={() => setSelectedType(t.id)}
+                <button key={t.id} onClick={() => selectType(t.id)}
                   className={`flex flex-col items-center justify-center p-6 rounded-2xl shadow-sm border-2 transition-all group relative overflow-hidden ${isSel ? "border-transparent shadow-md" : "border-transparent bg-white hover:shadow-md"}`}
                   style={isSel ? { backgroundColor: t.selectedBg, borderColor: t.selectedBorder } : undefined}>
                   {isSel && (
@@ -274,6 +294,9 @@ function OlayBildirForm() {
 
         <section className="space-y-4">
           <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wider">Medya Ekle</h2>
+          {selectedType === "form" && (
+            <p className="text-xs text-gray-400 -mt-2">Elinizdeki formu fotoğraflayın veya galeriden yükleyin.</p>
+          )}
 
           {/* Fotoğraflar */}
           {photos.length > 0 && (

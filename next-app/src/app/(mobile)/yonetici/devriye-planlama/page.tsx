@@ -68,6 +68,7 @@ export default function DevriyePlanlama() {
   useEffect(() => {
     if (!personnel) return;
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    if (personnel.departments?.slug === "teknik") { router.replace("/yonetici"); return; }
     loadData();
   }, [personnel]);
 
