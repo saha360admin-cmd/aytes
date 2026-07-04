@@ -322,6 +322,12 @@ export default function YoneticiPage() {
   const isTemizlik = personnel?.departments?.slug === "temizlik";
   const isIdari = personnel?.departments?.slug === "idari";
   const isTeknik = personnel?.departments?.slug === "teknik";
+  const headerGradient = isTeknik
+    ? "linear-gradient(135deg, #263238 0%, #37474F 55%, #455A64 100%)"
+    : "linear-gradient(135deg, #1A237E 0%, #283593 100%)";
+  const headerIcon = isTeknik ? "settings" : "shield";
+  const headerTitle = isTeknik ? "Ay-Tek" : "AYTES";
+  const onlineDotColor = isTeknik ? "bg-amber-400" : "bg-emerald-400";
   const patrolSectionTitle = isTemizlik ? "Aktif Kat Kontrolleri" : "Aktif Devriyeler";
   const patrolPlanHref = isTemizlik ? "/yonetici/kat-planlama" : "/yonetici/devriye-planlama";
   const patrolIcon = isTemizlik ? "cleaning_services" : "route";
@@ -338,10 +344,10 @@ export default function YoneticiPage() {
     <div className="bg-[#f0f2ff] min-h-screen pb-32">
       {/* Header */}
       <header className="fixed top-0 left-0 right-0 max-w-[430px] mx-auto z-50 flex justify-between items-center px-4 h-16"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+        style={{ background: headerGradient }}>
         <div className="flex items-center gap-3">
-          <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield</span>
-          <h1 className="font-bold text-white text-lg">AYTES</h1>
+          <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>{headerIcon}</span>
+          <h1 className="font-bold text-white text-lg">{headerTitle}</h1>
         </div>
         <div className="flex items-center gap-1">
           <Link href="/personel" className="p-2 rounded-full hover:bg-white/15 transition-colors active:scale-95">
@@ -357,11 +363,18 @@ export default function YoneticiPage() {
       </header>
 
       {/* Karşılama bandı */}
-      <div className="pt-16" style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+      <div className="pt-16 relative overflow-hidden" style={{ background: headerGradient }}>
+        {isTeknik && (
+          <div className="absolute bottom-0 right-0 w-28 h-20 pointer-events-none">
+            <span className="material-symbols-outlined absolute" style={{ right: "-6px", bottom: "-14px", fontSize: "64px", color: "#FDD835", opacity: 0.2, fontVariationSettings: "'FILL' 1" }}>settings</span>
+            <span className="material-symbols-outlined absolute" style={{ right: "38px", bottom: "2px", fontSize: "36px", color: "#FDD835", opacity: 0.28, fontVariationSettings: "'FILL' 1" }}>settings</span>
+            <span className="material-symbols-outlined absolute" style={{ right: "14px", bottom: "32px", fontSize: "22px", color: "#FDD835", opacity: 0.35, fontVariationSettings: "'FILL' 1" }}>settings</span>
+          </div>
+        )}
         <div className="px-4 py-4">
           <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
           <div className="flex items-center gap-2 mt-1">
-            <span className="w-2 h-2 rounded-full bg-emerald-400" />
+            <span className={`w-2 h-2 rounded-full ${onlineDotColor}`} />
             <p className="text-sm text-white/75">Yönetici Paneli • {activePersonnelCount}/{TOTAL_PERSONNEL} Personel Aktif</p>
           </div>
         </div>
