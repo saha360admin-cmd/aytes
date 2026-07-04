@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { isSlaBreached } from "@/lib/sla";
 
 interface Incident {
   id: string;
@@ -19,12 +20,16 @@ interface Incident {
   reporter: { full_name: string } | null;
   is_mine: boolean;
   is_assigned_to_me: boolean;
+  my_dept_record_id: string;
+  my_dept_status: "open" | "in_progress" | "pending_approval" | "closed";
+  my_dept_rejection_note: string | null;
 }
 
 const TABS = [
-  { key: "open",        label: "Açık",        color: "text-red-600",   dot: "bg-red-500"   },
-  { key: "in_progress", label: "İnceleniyor", color: "text-amber-600", dot: "bg-amber-500" },
-  { key: "closed",      label: "Kapatıldı",   color: "text-gray-500",  dot: "bg-gray-400"  },
+  { key: "open",              label: "Açık",          color: "text-red-600",    dot: "bg-red-500"   },
+  { key: "in_progress",       label: "İnceleniyor",   color: "text-amber-600",  dot: "bg-amber-500" },
+  { key: "pending_approval",  label: "Onay Bekliyor", color: "text-purple-600", dot: "bg-purple-500" },
+  { key: "closed",            label: "Kapatıldı",     color: "text-gray-500",   dot: "bg-gray-400"  },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
@@ -74,6 +79,13 @@ export default function OlaylarPage() {
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [locationName, setLocationName] = useState("");
+  const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+
+  function showToast(msg: string, ok: boolean) {
+    setToast({ msg, ok });
+    setTimeout(() => setToast(null), 3000);
+  }
 
   useEffect(() => {
     if (!personnel) return;
@@ -136,21 +148,47 @@ export default function OlaylarPage() {
     // 3. Detayları çek
     const { data } = await supabase
       .from("incidents")
-      .select("id, type, severity, title, description, location, created_at, photo_urls, video_urls, reporter:reported_by(full_name)")
+      .select(`
+        id, type, severity, title, description, location, created_at, photo_urls, video_urls,
+        reporter:reported_by(full_name),
+        my_dept:incident_departments(id, status, department_id, assigned_to, rejection_note)
+      `)
       .in("id", filteredIds)
       .order("created_at", { ascending: false })
       .limit(50);
 
     setIncidents(
-      (data || []).map((inc: any) => ({
-        ...inc,
-        status: tab,
-        reporter: Array.isArray(inc.reporter) ? inc.reporter[0] ?? null : inc.reporter,
-        is_mine: inc.reporter?.[0]?.full_name === personnel.full_name || inc.reporter?.full_name === personnel.full_name,
-        is_assigned_to_me: assignedIds.includes(inc.id),
-      }))
+      (data || []).map((inc: any) => {
+        const myDeptRec = (inc.my_dept || []).find((d: any) => d.department_id === personnel.department_id);
+        return {
+          ...inc,
+          status: tab,
+          reporter: Array.isArray(inc.reporter) ? inc.reporter[0] ?? null : inc.reporter,
+          is_mine: inc.reporter?.[0]?.full_name === personnel.full_name || inc.reporter?.full_name === personnel.full_name,
+          is_assigned_to_me: assignedIds.includes(inc.id),
+          my_dept_record_id: myDeptRec?.id ?? "",
+          my_dept_status: myDeptRec?.status ?? tab,
+          my_dept_rejection_note: myDeptRec?.rejection_note ?? null,
+        };
+      })
     );
     setLoading(false);
+  }
+
+  async function submitForApproval(incidentId: string, recordId: string) {
+    setSubmittingId(incidentId);
+    const { error } = await supabase
+      .from("incident_departments")
+      .update({ status: "pending_approval", updated_at: new Date().toISOString() })
+      .eq("id", recordId);
+
+    if (!error) {
+      setIncidents(prev => prev.filter(i => i.id !== incidentId));
+      showToast("Onaya gönderildi", true);
+    } else {
+      showToast("İşlem başarısız: " + error.message, false);
+    }
+    setSubmittingId(null);
   }
 
   const openCount = incidents.filter(i => i.status === "open").length;
@@ -159,6 +197,12 @@ export default function OlaylarPage() {
 
   return (
     <div className="bg-[#f0f2ff] min-h-screen pb-32">
+      {toast && (
+        <div className={`fixed top-4 left-1/2 -translate-x-1/2 z-[60] px-5 py-3 rounded-full shadow-xl flex items-center gap-2 text-sm font-bold text-white ${toast.ok ? "bg-emerald-600" : "bg-red-600"}`}>
+          <span className="material-symbols-outlined text-[18px]">{toast.ok ? "check_circle" : "error"}</span>
+          {toast.msg}
+        </div>
+      )}
 
       {/* Header */}
       <header className="sticky top-0 z-40 flex items-center gap-3 px-4 h-16 shadow-sm"
@@ -228,6 +272,15 @@ export default function OlaylarPage() {
                     <span className="text-[11px] font-bold text-indigo-500">Size Atandı</span>
                   </div>
                 )}
+                {inc.my_dept_status === "in_progress" && inc.my_dept_rejection_note && (
+                  <div className="bg-red-50 px-4 py-2 flex items-start gap-1.5 border-b border-red-100">
+                    <span className="material-symbols-outlined text-red-500 text-[14px] mt-0.5">error</span>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-[11px] font-bold text-red-600 block">Reddedildi</span>
+                      <span className="text-[11px] text-red-500">{inc.my_dept_rejection_note}</span>
+                    </div>
+                  </div>
+                )}
 
                 <div className="p-4">
                   {/* Üst satır: tip + önem + zaman */}
@@ -243,6 +296,11 @@ export default function OlaylarPage() {
                         <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${sev.bg} ${sev.text}`}>
                           {sev.label}
                         </span>
+                        {tab !== "closed" && isSlaBreached(inc.severity, inc.created_at) && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-red-600 text-white animate-pulse">
+                            SLA Aşıldı
+                          </span>
+                        )}
                       </div>
                       <p className="text-xs text-gray-500 font-semibold mt-0.5">
                         {inc.reporter?.full_name ?? "—"}
@@ -283,6 +341,18 @@ export default function OlaylarPage() {
                         </div>
                       )}
                     </div>
+                  )}
+
+                  {tab === "in_progress" && inc.is_assigned_to_me && inc.my_dept_status === "in_progress" && (
+                    <button
+                      onClick={() => submitForApproval(inc.id, inc.my_dept_record_id)}
+                      disabled={submittingId === inc.id}
+                      className="w-full h-10 mt-3 bg-purple-600 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-all disabled:opacity-50">
+                      {submittingId === inc.id
+                        ? <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>
+                        : <span className="material-symbols-outlined text-[16px]">send</span>}
+                      Onaya Gönder
+                    </button>
                   )}
                 </div>
               </div>

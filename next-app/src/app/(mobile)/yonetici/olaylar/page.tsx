@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { isSlaBreached } from "@/lib/sla";
 
 interface DeptStatus {
   id: string;
-  status: "open" | "in_progress" | "closed";
+  status: "open" | "in_progress" | "pending_approval" | "closed";
   department_id: string;
   dept_name: string;
 }
@@ -25,16 +26,18 @@ interface Incident {
   reporter: { full_name: string } | null;
   all_depts: DeptStatus[];
   my_dept_record_id: string;
-  my_dept_status: "open" | "in_progress" | "closed";
+  my_dept_status: "open" | "in_progress" | "pending_approval" | "closed";
   my_dept_assigned_to: string | null;
+  my_dept_rejection_note: string | null;
 }
 
 interface DeptPerson { id: string; full_name: string }
 
 const TABS = [
-  { key: "open",        label: "Açık",        dot: "bg-red-500",   text: "text-red-600"   },
-  { key: "in_progress", label: "İnceleniyor", dot: "bg-amber-500", text: "text-amber-600" },
-  { key: "closed",      label: "Kapatıldı",   dot: "bg-gray-400",  text: "text-gray-500"  },
+  { key: "open",              label: "Açık",          dot: "bg-red-500",    text: "text-red-600"    },
+  { key: "in_progress",       label: "İnceleniyor",   dot: "bg-amber-500",  text: "text-amber-600"  },
+  { key: "pending_approval",  label: "Onay Bekliyor", dot: "bg-purple-500", text: "text-purple-600" },
+  { key: "closed",            label: "Kapatıldı",     dot: "bg-gray-400",   text: "text-gray-500"   },
 ] as const;
 
 type TabKey = typeof TABS[number]["key"];
@@ -51,9 +54,10 @@ const statusNext: Record<"open" | "in_progress", { to: "in_progress" | "closed";
 };
 
 const deptStatusConfig = {
-  open:        { label: "Açık",        dot: "bg-red-400",   text: "text-red-600",   bg: "bg-red-50"    },
-  in_progress: { label: "İnceleniyor", dot: "bg-amber-400", text: "text-amber-700", bg: "bg-amber-50"  },
-  closed:      { label: "Kapatıldı",   dot: "bg-gray-400",  text: "text-gray-500",  bg: "bg-gray-50"   },
+  open:             { label: "Açık",          dot: "bg-red-400",    text: "text-red-600",    bg: "bg-red-50"    },
+  in_progress:      { label: "İnceleniyor",   dot: "bg-amber-400",  text: "text-amber-700",  bg: "bg-amber-50"  },
+  pending_approval: { label: "Onay Bekliyor", dot: "bg-purple-400", text: "text-purple-700", bg: "bg-purple-50" },
+  closed:           { label: "Kapatıldı",     dot: "bg-gray-400",   text: "text-gray-500",   bg: "bg-gray-50"   },
 };
 
 function timeAgo(dateStr: string) {
@@ -80,6 +84,8 @@ export default function OlaylarPage() {
   const [assigningId, setAssigningId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [deptPersonnel, setDeptPersonnel] = useState<DeptPerson[]>([]);
+  const [rejectSheet, setRejectSheet] = useState<{ incidentId: string; recordId: string } | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   useEffect(() => {
     if (!personnel) return;
@@ -110,7 +116,7 @@ export default function OlaylarPage() {
     // 1. Tüm incident_departments'ı tab statusuna göre çek (birim filtresi yok)
     const { data: allRecs } = await supabase
       .from("incident_departments")
-      .select("id, status, incident_id, department_id, updated_at, assigned_to")
+      .select("id, status, incident_id, department_id, updated_at, assigned_to, rejection_note")
       .eq("status", tab)
       .order("updated_at", { ascending: false });
 
@@ -164,6 +170,7 @@ export default function OlaylarPage() {
         my_dept_record_id: myRec?.id ?? "",
         my_dept_status: myRec?.status ?? "open",
         my_dept_assigned_to: myRec?.assigned_to ?? null,
+        my_dept_rejection_note: myRec?.rejection_note ?? null,
       };
     });
 
@@ -189,7 +196,45 @@ export default function OlaylarPage() {
     setUpdatingId(null);
   }
 
-  async function assignPersonnel(incidentId: string, recordId: string, personnelId: string, currentStatus: "open" | "in_progress" | "closed") {
+  async function approveIncident(incidentId: string, recordId: string) {
+    setUpdatingId(incidentId);
+    const { error } = await supabase
+      .from("incident_departments")
+      .update({ status: "closed", rejection_note: null, updated_at: new Date().toISOString() })
+      .eq("id", recordId);
+
+    if (!error) {
+      setIncidents(prev => prev.filter(i => i.id !== incidentId));
+      showToast("Olay onaylandı ve kapatıldı", true);
+    } else {
+      showToast("İşlem başarısız: " + error.message, false);
+    }
+    setUpdatingId(null);
+  }
+
+  function openRejectSheet(incidentId: string, recordId: string) {
+    setRejectNote("");
+    setRejectSheet({ incidentId, recordId });
+  }
+
+  async function rejectIncident(incidentId: string, recordId: string, note: string) {
+    setUpdatingId(incidentId);
+    const { error } = await supabase
+      .from("incident_departments")
+      .update({ status: "in_progress", rejection_note: note, updated_at: new Date().toISOString() })
+      .eq("id", recordId);
+
+    if (!error) {
+      setIncidents(prev => prev.filter(i => i.id !== incidentId));
+      showToast("Olay reddedildi, teknisyene bildirildi", true);
+    } else {
+      showToast("İşlem başarısız: " + error.message, false);
+    }
+    setUpdatingId(null);
+    setRejectSheet(null);
+  }
+
+  async function assignPersonnel(incidentId: string, recordId: string, personnelId: string, currentStatus: "open" | "in_progress" | "pending_approval" | "closed") {
     setAssigningId(incidentId);
     const patch: { assigned_to: string | null; status?: "in_progress" } = { assigned_to: personnelId || null };
     if (personnelId && currentStatus === "open") patch.status = "in_progress";
@@ -259,16 +304,17 @@ export default function OlaylarPage() {
         ) : incidents.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 flex flex-col items-center gap-3 shadow-sm mt-4">
             <span className="material-symbols-outlined text-gray-200 text-[52px]">
-              {tab === "open" ? "gpp_good" : tab === "in_progress" ? "manage_search" : "task_alt"}
+              {tab === "open" ? "gpp_good" : tab === "in_progress" ? "manage_search" : tab === "pending_approval" ? "verified" : "task_alt"}
             </span>
             <p className="text-sm font-semibold text-gray-400">
-              {tab === "open" ? "Açık olay yok" : tab === "in_progress" ? "İncelenen olay yok" : "Kapatılan olay yok"}
+              {tab === "open" ? "Açık olay yok" : tab === "in_progress" ? "İncelenen olay yok" : tab === "pending_approval" ? "Onay bekleyen olay yok" : "Kapatılan olay yok"}
             </p>
           </div>
         ) : (
           incidents.map(inc => {
             const sev = severityConfig[inc.severity] ?? severityConfig.low;
-            const next = tab !== "closed" ? statusNext[tab as "open" | "in_progress"] : null;
+            const next = tab === "open" || tab === "in_progress" ? statusNext[tab] : null;
+            const slaBreached = tab !== "closed" && isSlaBreached(inc.severity, inc.created_at);
             const closedCount = inc.all_depts.filter(d => d.status === "closed").length;
             const totalDepts = inc.all_depts.length;
 
@@ -286,9 +332,17 @@ export default function OlaylarPage() {
                         {inc.location ? ` · ${inc.location}` : ""}
                       </p>
                     </div>
-                    <span className={`flex-shrink-0 text-[10px] font-bold px-2 py-1 rounded-full ${sev.bg} ${sev.text}`}>
-                      {sev.label}
-                    </span>
+                    <div className="flex-shrink-0 flex items-center gap-1.5">
+                      {slaBreached && (
+                        <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-red-600 text-white animate-pulse flex items-center gap-1">
+                          <span className="material-symbols-outlined text-[12px]">warning</span>
+                          SLA Aşıldı
+                        </span>
+                      )}
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-full ${sev.bg} ${sev.text}`}>
+                        {sev.label}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Açıklama */}
@@ -414,6 +468,25 @@ export default function OlaylarPage() {
                     </button>
                   )}
 
+                  {tab === "pending_approval" && (
+                    <div className="flex gap-2 mt-1">
+                      <button
+                        onClick={() => approveIncident(inc.id, inc.my_dept_record_id)}
+                        disabled={updatingId === inc.id}
+                        className="flex-1 h-10 bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
+                        <span className="material-symbols-outlined text-[16px]">check</span>
+                        Onayla
+                      </button>
+                      <button
+                        onClick={() => openRejectSheet(inc.id, inc.my_dept_record_id)}
+                        disabled={updatingId === inc.id}
+                        className="flex-1 h-10 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all border border-red-200 disabled:opacity-50">
+                        <span className="material-symbols-outlined text-[16px]">close</span>
+                        Reddet
+                      </button>
+                    </div>
+                  )}
+
                   {tab === "closed" && (
                     <div className="flex justify-end">
                       <span className="text-[11px] font-bold px-3 py-1 rounded-full bg-gray-100 text-gray-500">✓ Biriminiz kapattı</span>
@@ -467,6 +540,41 @@ export default function OlaylarPage() {
           </button>
         </div>
       </div>
+
+      {/* Ret Notu Bottom-Sheet */}
+      {rejectSheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setRejectSheet(null)} />
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl">
+            <div className="px-6 pt-5 pb-8 space-y-4">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
+              <h2 className="text-lg font-bold text-gray-800">Olayı Reddet</h2>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1.5 block">Ret Nedeni *</label>
+                <textarea
+                  value={rejectNote}
+                  onChange={e => setRejectNote(e.target.value)}
+                  rows={3}
+                  placeholder="Teknisyene gösterilecek not..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setRejectSheet(null)}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-gray-500 bg-gray-100">
+                  Vazgeç
+                </button>
+                <button
+                  disabled={!rejectNote.trim()}
+                  onClick={() => rejectIncident(rejectSheet.incidentId, rejectSheet.recordId, rejectNote.trim())}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-white bg-red-600 disabled:opacity-50">
+                  Reddet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
