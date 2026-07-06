@@ -88,6 +88,7 @@ const typeLabels: Record<string, string> = {
   annual: "Yıllık İzin",
   medical: "Doktor Raporu",
   resign: "İstifa",
+  giris_destek: "Giriş Desteği",
   other: "Diğer",
 };
 

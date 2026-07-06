@@ -14,7 +14,7 @@ const requestTypes = [
   { id: "other", label: "Diğer", icon: "more_horiz" },
 ];
 
-const typeLabels: Record<string, string> = { unpaid: "Ücretsiz İzin", annual: "Yıllık İzin", medical: "Doktor Raporu", resign: "İstifa", other: "Diğer" };
+const typeLabels: Record<string, string> = { unpaid: "Ücretsiz İzin", annual: "Yıllık İzin", medical: "Doktor Raporu", resign: "İstifa", giris_destek: "Giriş Desteği", other: "Diğer" };
 const statusLabels: Record<string, string> = { pending: "Bekliyor", approved: "Onaylandı", rejected: "Reddedildi" };
 const statusColors: Record<string, string> = { pending: "bg-amber-100 text-amber-800", approved: "bg-green-100 text-green-700", rejected: "bg-red-100 text-red-700" };
 

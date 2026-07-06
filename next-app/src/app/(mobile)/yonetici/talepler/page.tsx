@@ -19,6 +19,7 @@ const typeLabels: Record<string, string> = {
   annual: "Yıllık İzin",
   medical: "Doktor Raporu",
   resign: "İstifa",
+  giris_destek: "Giriş Desteği",
   other: "Diğer",
 };
 
@@ -27,6 +28,7 @@ const typeIcons: Record<string, string> = {
   annual: "beach_access",
   medical: "medical_information",
   resign: "exit_to_app",
+  giris_destek: "lock_reset",
   other: "help_outline",
 };
 
