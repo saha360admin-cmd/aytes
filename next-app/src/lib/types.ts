@@ -120,6 +120,46 @@ export interface CommunicationRead {
   read_at: string;
 }
 
+export interface CleaningArea {
+  id: string;
+  location_id: string;
+  name: string;
+  requires_photo: boolean;
+  sort_order: number;
+}
+
+export interface CleaningProgram {
+  id: string;
+  department_id: string;
+  location_id: string;
+  personnel_id: string | null;
+  recurrence_type: "daily" | "weekly";
+  days_of_week: number[] | null;
+  shift_code: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export interface CleaningChecklist {
+  id: string;
+  program_id: string | null;
+  department_id: string;
+  location_id: string;
+  personnel_id: string | null;
+  date: string;
+  created_at: string;
+}
+
+export interface CleaningChecklistItem {
+  id: string;
+  checklist_id: string;
+  area_id: string;
+  status: "tamamlandı" | "devam_ediyor" | "tamamlanmadı" | "atlandı";
+  photo_url: string | null;
+  completed_at: string | null;
+  notes: string | null;
+}
+
 export interface Announcement {
   id: string;
   title: string;

@@ -118,6 +118,7 @@ export default function YoneticiPage() {
   const [expandedAttendanceId, setExpandedAttendanceId] = useState<string | null>(null);
   const [expandedAttendanceLocKey, setExpandedAttendanceLocKey] = useState<string | null>(null);
   const [latestComms, setLatestComms] = useState<Record<string, CommSummary>>({});
+  const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0 });
 
   // Request action state
   const [updatingReq, setUpdatingReq] = useState<string | null>(null);
@@ -180,6 +181,34 @@ export default function YoneticiPage() {
 
     const locs = (locationsRes.data || []) as { id: string; name: string; target_count: number }[];
     const genelMudId = locs.find(l => l.name === "Genel Müdürlük")?.id;
+
+    // Temizlik yöneticisi için: bugünün kontrol listesi özeti (kaç lokasyon tamamlandı)
+    if (personnel.departments?.slug === "temizlik") {
+      const todayStr = new Date().toISOString().slice(0, 10);
+      const { data: checklists } = await supabase
+        .from("cleaning_checklists")
+        .select("id")
+        .eq("department_id", deptId)
+        .eq("date", todayStr);
+
+      const checklistIds = (checklists || []).map((c: { id: string }) => c.id);
+      if (checklistIds.length > 0) {
+        const { data: checklistItems } = await supabase
+          .from("cleaning_checklist_items")
+          .select("checklist_id, status")
+          .in("checklist_id", checklistIds);
+
+        const byChecklist: Record<string, string[]> = {};
+        for (const it of (checklistItems || []) as { checklist_id: string; status: string }[]) {
+          byChecklist[it.checklist_id] ??= [];
+          byChecklist[it.checklist_id].push(it.status);
+        }
+        const completedCount = checklistIds.filter(id => (byChecklist[id] || []).every(s => s === "tamamlandı")).length;
+        setChecklistSummary({ completed: completedCount, total: checklistIds.length });
+      } else {
+        setChecklistSummary({ completed: 0, total: 0 });
+      }
+    }
 
     // İdari İşler yöneticisi için: diğer departmanların (Güvenlik, Teknik, Temizlik) lokasyon eksikleri
     if (personnel.departments?.slug === "idari") {
@@ -703,6 +732,27 @@ export default function YoneticiPage() {
             </div>
           )}
         </section>
+
+        {/* ── GÜNLÜK KONTROL LİSTESİ ÖZETİ (Temizlik) ── */}
+        {isTemizlik && (
+          <section className="bg-white rounded-xl p-4 shadow-sm border-l-4 space-y-2" style={{ borderLeftColor: "#00838F" }}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-cyan-100 flex items-center justify-center">
+                  <span className="material-symbols-outlined text-cyan-700 text-[16px]">checklist</span>
+                </div>
+                <h3 className="font-bold text-gray-800 text-sm">Bugünün Kontrol Listesi</h3>
+              </div>
+              <Link href="/yonetici/temizlik-program" className="text-xs font-bold text-[#3949AB]">Programı Yönet →</Link>
+            </div>
+            <p className="text-sm text-gray-600">
+              <span className="font-bold text-emerald-600">{checklistSummary.completed}</span> / {checklistSummary.total} lokasyon tamamlandı
+              {checklistSummary.total - checklistSummary.completed > 0 && (
+                <span className="ml-2 text-red-600 font-semibold">· {checklistSummary.total - checklistSummary.completed} eksik</span>
+              )}
+            </p>
+          </section>
+        )}
 
         {/* ── AKTİF DEVRİYELER ── */}
         {!isTeknik && (
