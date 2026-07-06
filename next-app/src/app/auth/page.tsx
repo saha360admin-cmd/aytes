@@ -25,6 +25,14 @@ function AuthForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState({ phone: "", password: "" });
+  const [forgotSending, setForgotSending] = useState(false);
+  const [forgotMsg, setForgotMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [showResetPanel, setShowResetPanel] = useState(false);
+  const [securityCode, setSecurityCode] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newPasswordConfirm, setNewPasswordConfirm] = useState("");
+  const [resetSending, setResetSending] = useState(false);
+  const [resetMsg, setResetMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
   function update(field: string, value: string) {
     setForm(prev => ({ ...prev, [field]: value }));
@@ -58,6 +66,78 @@ function AuthForm() {
       setError(err instanceof Error ? err.message : "Bir hata oluştu");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function handleForgotPassword() {
+    setForgotMsg(null);
+    if (!form.phone || form.phone.length < 10) {
+      setForgotMsg({ ok: false, text: "Önce telefon numaranızı girin." });
+      return;
+    }
+    setResetMsg(null);
+    setShowResetPanel(true);
+  }
+
+  async function handleReportToManager() {
+    setForgotSending(true);
+    try {
+      const res = await fetch("/api/support-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ department_slug: dept, phone: form.phone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.found) {
+        setResetMsg({ ok: true, text: "Talebiniz departman yöneticinize iletildi, şifreniz sıfırlanacak." });
+      } else if (res.ok) {
+        setResetMsg({ ok: false, text: "Bu telefon numarasıyla kayıtlı hesap bulunamadı." });
+      } else {
+        setResetMsg({ ok: false, text: "Bir hata oluştu, tekrar deneyin." });
+      }
+    } catch {
+      setResetMsg({ ok: false, text: "Bir hata oluştu, tekrar deneyin." });
+    } finally {
+      setForgotSending(false);
+    }
+  }
+
+  async function handleSelfReset() {
+    setResetMsg(null);
+    if (!securityCode) {
+      setResetMsg({ ok: false, text: "Güvenlik kodunuzu girin." });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setResetMsg({ ok: false, text: "Şifre en az 6 karakter olmalı." });
+      return;
+    }
+    if (newPassword !== newPasswordConfirm) {
+      setResetMsg({ ok: false, text: "Şifreler eşleşmiyor." });
+      return;
+    }
+    setResetSending(true);
+    try {
+      const res = await fetch("/api/self-reset-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ department_slug: dept, phone: form.phone, security_code: securityCode, new_password: newPassword }),
+      });
+      const data = await res.json();
+      if (data.status === "reset_ok") {
+        setResetMsg({ ok: true, text: "Şifreniz güncellendi, şimdi giriş yapabilirsiniz." });
+        setSecurityCode(""); setNewPassword(""); setNewPasswordConfirm("");
+      } else if (data.status === "not_found") {
+        setResetMsg({ ok: false, text: "Bu telefon numarasıyla kayıtlı hesap bulunamadı." });
+      } else if (data.status === "invalid_code") {
+        setResetMsg({ ok: false, text: "Güvenlik kodu hatalı veya tanımlı değil." });
+      } else {
+        setResetMsg({ ok: false, text: data.error || "Bir hata oluştu, tekrar deneyin." });
+      }
+    } catch {
+      setResetMsg({ ok: false, text: "Bir hata oluştu, tekrar deneyin." });
+    } finally {
+      setResetSending(false);
     }
   }
 
@@ -127,8 +207,87 @@ function AuthForm() {
                 <input type="checkbox" className="w-5 h-5 rounded-sm border-2 border-outline-variant checked:bg-primary checked:border-primary transition-all cursor-pointer" />
                 <span className="font-label-md text-on-surface-variant group-hover:text-primary transition-colors">Beni Hatırla</span>
               </label>
-              <a className="font-label-md text-primary hover:underline underline-offset-4" href="#">Şifremi Unuttum</a>
+              <button
+                type="button"
+                onClick={handleForgotPassword}
+                className="font-label-md text-primary hover:underline underline-offset-4"
+              >
+                Şifremi Unuttum
+              </button>
             </div>
+
+            {forgotMsg && (
+              <div className="flex items-center gap-sm bg-error/10 border border-error/30 rounded-md px-md py-sm">
+                <span className="material-symbols-outlined text-error text-[18px]">error</span>
+                <p className="text-error text-label-sm font-semibold">{forgotMsg.text}</p>
+              </div>
+            )}
+
+            {showResetPanel && (
+              <div className="space-y-md rounded-md border border-outline-variant p-md bg-surface">
+                <p className="font-label-sm text-on-surface-variant">Güvenlik kodunuzu ve yeni şifrenizi girin.</p>
+
+                <div className="space-y-sm">
+                  <label className="font-label-md text-on-surface-variant px-xs">Güvenlik Kodu</label>
+                  <input
+                    type="text"
+                    placeholder="Güvenlik kodunuz"
+                    value={securityCode}
+                    onChange={e => setSecurityCode(e.target.value)}
+                    className="w-full py-md px-md rounded-md border border-outline-variant bg-surface font-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-sm">
+                  <label className="font-label-md text-on-surface-variant px-xs">Yeni Şifre</label>
+                  <input
+                    type="password"
+                    minLength={6}
+                    placeholder="En az 6 karakter"
+                    value={newPassword}
+                    onChange={e => setNewPassword(e.target.value)}
+                    className="w-full py-md px-md rounded-md border border-outline-variant bg-surface font-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                <div className="space-y-sm">
+                  <label className="font-label-md text-on-surface-variant px-xs">Yeni Şifre (Tekrar)</label>
+                  <input
+                    type="password"
+                    minLength={6}
+                    placeholder="Şifreyi tekrar girin"
+                    value={newPasswordConfirm}
+                    onChange={e => setNewPasswordConfirm(e.target.value)}
+                    className="w-full py-md px-md rounded-md border border-outline-variant bg-surface font-body-md text-on-surface outline-none focus:border-primary focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
+                {resetMsg && (
+                  <div className={`flex items-center gap-sm rounded-md px-md py-sm ${resetMsg.ok ? "bg-emerald-500/10 border border-emerald-500/30" : "bg-error/10 border border-error/30"}`}>
+                    <span className={`material-symbols-outlined text-[18px] ${resetMsg.ok ? "text-emerald-600" : "text-error"}`}>{resetMsg.ok ? "check_circle" : "error"}</span>
+                    <p className={`text-label-sm font-semibold ${resetMsg.ok ? "text-emerald-700" : "text-error"}`}>{resetMsg.text}</p>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={handleSelfReset}
+                  disabled={resetSending}
+                  className="w-full bg-primary hover:bg-primary-container text-on-primary font-display font-bold py-md rounded-full shadow-md active:scale-95 transition-all flex items-center justify-center gap-sm disabled:opacity-50"
+                >
+                  {resetSending ? <Loader2 size={20} className="animate-spin" /> : "Şifreyi Sıfırla"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleReportToManager}
+                  disabled={forgotSending}
+                  className="w-full text-center font-label-sm text-primary hover:underline disabled:opacity-50"
+                >
+                  {forgotSending ? "Gönderiliyor..." : "Güvenlik kodumu bilmiyorum, yöneticime bildir"}
+                </button>
+              </div>
+            )}
 
             {error && (
               <div className="flex items-center gap-sm bg-error/10 border border-error/30 rounded-md px-md py-sm">

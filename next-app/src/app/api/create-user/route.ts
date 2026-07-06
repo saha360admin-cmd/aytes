@@ -8,7 +8,7 @@ const supabaseAdmin = createClient(
 );
 
 export async function POST(request: Request) {
-  const { phone, password, full_name, position, location_id, department_id, role, avatar_url } =
+  const { phone, password, full_name, position, location_id, department_id, role, avatar_url, security_code } =
     await request.json();
 
   if (!phone || !password || !full_name) {
@@ -38,6 +38,7 @@ export async function POST(request: Request) {
     role: role || "personel",
     status: "active",
     ...(avatar_url ? { avatar_url } : {}),
+    ...(security_code ? { security_code } : {}),
   });
 
   if (personnelError) {

@@ -88,6 +88,7 @@ interface Person {
   location: string | null;
   location_id: string | null;
   position: string | null;
+  security_code: string | null;
 }
 
 const roleLabel: Record<string, string> = {
@@ -112,6 +113,7 @@ const emptyForm = {
   photoPreview: "",
   password: "",
   confirmPassword: "",
+  security_code: "",
 };
 
 function getInitials(name: string) {
@@ -234,7 +236,7 @@ export default function PersonelPage() {
   const [filterOpen, setFilterOpen] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set());
   const [editPerson, setEditPerson] = useState<Person | null>(null);
-  const [editForm, setEditForm] = useState({ full_name: "", phone: "", position: "", location_id: "", password: "", confirmPassword: "" });
+  const [editForm, setEditForm] = useState({ full_name: "", phone: "", position: "", location_id: "", password: "", confirmPassword: "", security_code: "" });
   const [editSaving, setEditSaving] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
   const profileRef = useRef<HTMLDivElement>(null);
@@ -254,7 +256,7 @@ export default function PersonelPage() {
 
   function openEdit(p: Person) {
     setEditPerson(p);
-    setEditForm({ full_name: p.full_name, phone: p.phone || "", position: p.position || "", location_id: p.location_id || "", password: "", confirmPassword: "" });
+    setEditForm({ full_name: p.full_name, phone: p.phone || "", position: p.position || "", location_id: p.location_id || "", password: "", confirmPassword: "", security_code: p.security_code || "" });
     setShowEditPassword(false);
   }
 
@@ -275,6 +277,7 @@ export default function PersonelPage() {
       position: editForm.position || null,
       location_id: editForm.location_id || null,
       role,
+      security_code: editForm.security_code || null,
       ...(phoneChanged ? { email: `${editForm.phone.replace(/\s/g, "")}@aytes.app` } : {}),
     }).eq("id", editPerson.id);
 
@@ -321,7 +324,7 @@ export default function PersonelPage() {
     // Listeyi yenile
     const { data } = await supabase
       .from("personnel")
-      .select("id, auth_id, full_name, email, role, status, avatar_url, phone, location, location_id, position")
+      .select("id, auth_id, full_name, email, role, status, avatar_url, phone, location, location_id, position, security_code")
       .eq("department_id", personnel!.department_id)
       .order("full_name");
     setPeople((data || []) as Person[]);
@@ -372,7 +375,7 @@ export default function PersonelPage() {
     if (!personnel) return;
     supabase
       .from("personnel")
-      .select("id, auth_id, full_name, email, role, status, avatar_url, phone, location, location_id, position")
+      .select("id, auth_id, full_name, email, role, status, avatar_url, phone, location, location_id, position, security_code")
       .eq("department_id", personnel.department_id)
       .order("full_name")
       .then(({ data }) => setPeople((data || []) as Person[]));
@@ -465,6 +468,7 @@ export default function PersonelPage() {
         department_id: personnel.department_id,
         role,
         avatar_url,
+        security_code: form.security_code || null,
       }),
     });
 
@@ -479,7 +483,7 @@ export default function PersonelPage() {
 
     const { data } = await supabase
       .from("personnel")
-      .select("id, auth_id, full_name, email, role, status, avatar_url, phone, location, location_id, position")
+      .select("id, auth_id, full_name, email, role, status, avatar_url, phone, location, location_id, position, security_code")
       .eq("department_id", personnel.department_id)
       .order("full_name");
     setPeople((data || []) as Person[]);
@@ -897,6 +901,20 @@ export default function PersonelPage() {
                   </div>
                 )}
 
+                <div className="space-y-xs">
+                  <label className="font-label-md text-label-md text-on-surface-variant ml-1">Güvenlik Kodu <span className="font-normal">(şifre sıfırlama için, isteğe bağlı)</span></label>
+                  <div className="relative">
+                    <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">password</span>
+                    <input
+                      type="text"
+                      className="w-full pl-12 pr-4 py-md bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                      placeholder="Örn: 4-6 haneli kod"
+                      value={editForm.security_code}
+                      onChange={(e) => setEditForm({ ...editForm, security_code: e.target.value })}
+                    />
+                  </div>
+                </div>
+
                 {!editPerson.auth_id && (
                   <div className="flex items-start gap-sm p-sm bg-blue-50 border border-blue-200 rounded-xl">
                     <span className="material-symbols-outlined text-blue-600 text-[18px] flex-shrink-0 mt-0.5">info</span>
@@ -1052,6 +1070,21 @@ export default function PersonelPage() {
                     Şifreler eşleşmiyor
                   </p>
                 )}
+              </div>
+
+              {/* Güvenlik Kodu */}
+              <div className="space-y-xs">
+                <label className="font-label-md text-label-md text-on-surface-variant ml-1">Güvenlik Kodu <span className="font-normal">(isteğe bağlı, şifre sıfırlama için)</span></label>
+                <div className="relative">
+                  <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">password</span>
+                  <input
+                    type="text"
+                    className="w-full pl-12 pr-4 py-md bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all"
+                    placeholder="Örn: 4-6 haneli kod"
+                    value={form.security_code}
+                    onChange={(e) => setForm({ ...form, security_code: e.target.value })}
+                  />
+                </div>
               </div>
 
               {/* Giriş Bilgisi */}
