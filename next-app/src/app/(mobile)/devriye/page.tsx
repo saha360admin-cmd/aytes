@@ -747,7 +747,14 @@ export default function DevriyePage() {
             Olay Bildir
           </button>
           <button
-            onClick={() => {
+            onClick={async () => {
+              if (personnel) {
+                await supabase.from("emergency_alerts").insert({
+                  department_id: personnel.department_id,
+                  personnel_id: personnel.id,
+                  location_id: personnel.location_id ?? null,
+                });
+              }
               const msg = `🚨 ACİL SOS!\n\nGörevli: ${personnel?.full_name || "Güvenlik Personeli"}\nSaat: ${new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}\n\nDevriye sırasında acil yardım gerekiyor!`;
               window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(msg)}`, "_blank");
             }}

@@ -160,6 +160,20 @@ export interface CleaningChecklistItem {
   notes: string | null;
 }
 
+export interface EmergencyAlert {
+  id: string;
+  department_id: string;
+  personnel_id: string;
+  location_id: string | null;
+  status: "active" | "acknowledged" | "closed";
+  created_at: string;
+  acknowledged_by: string | null;
+  acknowledged_at: string | null;
+  closed_at: string | null;
+  personnel?: { full_name: string } | null;
+  location?: { name: string } | null;
+}
+
 export interface Announcement {
   id: string;
   title: string;

@@ -5,6 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { EmergencyAlert } from "@/lib/types";
 interface GorevComm { id: string; title: string; content: string; priority: string; isRead: boolean }
 
 interface ActiveShift {
@@ -31,6 +32,7 @@ export default function DashboardPage() {
   const [helpModal, setHelpModal] = useState(false);
   const [helpColleagues, setHelpColleagues] = useState<{ id: string; full_name: string; phone: string | null }[]>([]);
   const [helpLoading, setHelpLoading] = useState(false);
+  const [activeAlerts, setActiveAlerts] = useState<EmergencyAlert[]>([]);
 
   useEffect(() => {
     if (!personnel) return;
@@ -38,6 +40,37 @@ export default function DashboardPage() {
     if (personnel.role === "supervisor") { router.replace("/amir"); return; }
     loadDashboard();
   }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    const deptId = personnel.department_id;
+
+    async function loadActiveAlerts() {
+      const { data } = await supabase
+        .from("emergency_alerts")
+        .select("*, personnel:personnel_id(full_name), location:location_id(name)")
+        .eq("department_id", deptId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      setActiveAlerts((data || []) as unknown as EmergencyAlert[]);
+    }
+
+    loadActiveAlerts();
+
+    const channel = supabase
+      .channel("emergency-alerts-dashboard")
+      .on("postgres_changes", { event: "*", schema: "public", table: "emergency_alerts" }, () => loadActiveAlerts())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [personnel]);
+
+  function alertTimeAgo(dateStr: string) {
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+    if (diff < 1) return "az önce";
+    if (diff < 60) return `${diff} dk önce`;
+    return `${Math.floor(diff / 60)} sa önce`;
+  }
 
   async function loadDashboard() {
     if (!personnel) return;
@@ -210,6 +243,24 @@ export default function DashboardPage() {
       <div className="h-4 rounded-t-3xl -mt-1 bg-[#f0f2ff]" />
 
       <main className="px-6 space-y-6">
+        {/* Acil Durum Bildirimi (komşu lokasyon personeli görünürlüğü) */}
+        {activeAlerts.length > 0 && (
+          <section className="space-y-2 -mt-2">
+            {activeAlerts.map(a => (
+              <div key={a.id} className="relative rounded-2xl p-4 shadow-md bg-red-600 overflow-hidden">
+                <span className="absolute inset-0 rounded-2xl animate-pulse bg-red-500/20 pointer-events-none" />
+                <div className="relative flex items-center gap-3">
+                  <span className="material-symbols-outlined text-white text-[24px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
+                  <div>
+                    <p className="text-white font-bold text-sm">🚨 Acil durum — {a.personnel?.full_name || "Personel"}</p>
+                    <p className="text-white/85 text-xs mt-0.5">{a.location?.name || "Lokasyon belirtilmedi"} · {alertTimeAgo(a.created_at)}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
         {/* Status Cards */}
         <section className="space-y-3 -mt-2">
           <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#3949AB] flex items-center gap-4">

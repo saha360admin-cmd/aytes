@@ -8,8 +8,11 @@ import type { Department } from "@/lib/types";
 import { Suspense } from "react";
 
 const incidentTypes = [
-  { id: "fire", label: "Yangın", icon: "local_fire_department", bg: "bg-red-100", color: "text-red-600", selectedBg: "#FEE2E2", selectedBorder: "#EF4444" },
-  { id: "theft", label: "Hırsızlık", icon: "lock_person", bg: "bg-indigo-100", color: "text-indigo-700", selectedBg: "#E0E7FF", selectedBorder: "#4F46E5" },
+  { id: "fire", label: "Yangın / Tahliye", icon: "local_fire_department", bg: "bg-red-100", color: "text-red-600", selectedBg: "#FEE2E2", selectedBorder: "#EF4444" },
+  { id: "theft", label: "Hırsızlık / Kayıp Eşya", icon: "lock_person", bg: "bg-indigo-100", color: "text-indigo-700", selectedBg: "#E0E7FF", selectedBorder: "#4F46E5" },
+  { id: "fight", label: "Kavga / Tehdit", icon: "sports_mma", bg: "bg-orange-100", color: "text-orange-700", selectedBg: "#FFEDD5", selectedBorder: "#F97316" },
+  { id: "medical", label: "Tıbbi Acil", icon: "medical_services", bg: "bg-rose-100", color: "text-rose-700", selectedBg: "#FFE4E6", selectedBorder: "#E11D48" },
+  { id: "unauthorized_entry", label: "Yetkisiz Giriş", icon: "gpp_bad", bg: "bg-sky-100", color: "text-sky-700", selectedBg: "#E0F2FE", selectedBorder: "#0284C7" },
   { id: "suspicious", label: "Şüpheli Durum", icon: "visibility", bg: "bg-amber-100", color: "text-amber-700", selectedBg: "#FEF3C7", selectedBorder: "#F59E0B" },
   { id: "maintenance", label: "Teknik Arıza", icon: "build", bg: "bg-emerald-100", color: "text-emerald-700", selectedBg: "#D1FAE5", selectedBorder: "#10B981" },
   { id: "form", label: "Form Bildir", icon: "description", bg: "bg-blue-100", color: "text-blue-700", selectedBg: "#DBEAFE", selectedBorder: "#2563EB" },
@@ -29,6 +32,9 @@ const autoDeptSlugsByType: Record<string, string[]> = {
   form: ["guvenlik", "idari"],
   maintenance: ["teknik", "idari", "guvenlik"],
   suspicious: ["idari", "guvenlik"],
+  fight: ["guvenlik", "idari"],
+  medical: ["guvenlik", "idari"],
+  unauthorized_entry: ["guvenlik", "idari"],
 };
 
 function OlayBildirForm() {

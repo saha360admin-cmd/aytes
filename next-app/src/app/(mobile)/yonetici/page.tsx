@@ -5,7 +5,7 @@ import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import type { Incident, Request } from "@/lib/types";
+import type { Incident, Request, EmergencyAlert } from "@/lib/types";
 
 interface ActivePatrol {
   id: string;
@@ -119,6 +119,8 @@ export default function YoneticiPage() {
   const [expandedAttendanceLocKey, setExpandedAttendanceLocKey] = useState<string | null>(null);
   const [latestComms, setLatestComms] = useState<Record<string, CommSummary>>({});
   const [checklistSummary, setChecklistSummary] = useState({ completed: 0, total: 0 });
+  const [activeAlerts, setActiveAlerts] = useState<EmergencyAlert[]>([]);
+  const [alertActionId, setAlertActionId] = useState<string | null>(null);
 
   // Request action state
   const [updatingReq, setUpdatingReq] = useState<string | null>(null);
@@ -130,6 +132,58 @@ export default function YoneticiPage() {
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
     loadData();
   }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") return;
+    const slug = personnel.departments?.slug;
+    const isIdariUser = slug === "idari";
+    if (slug !== "guvenlik" && !isIdariUser) return;
+    const deptId = personnel.department_id;
+
+    async function loadActiveAlerts() {
+      let query = supabase
+        .from("emergency_alerts")
+        .select("*, personnel:personnel_id(full_name), location:location_id(name)")
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      if (!isIdariUser) query = query.eq("department_id", deptId);
+      const { data } = await query;
+      setActiveAlerts((data || []) as unknown as EmergencyAlert[]);
+    }
+
+    loadActiveAlerts();
+
+    const channel = supabase
+      .channel("emergency-alerts-yonetici")
+      .on("postgres_changes", { event: "*", schema: "public", table: "emergency_alerts" }, () => loadActiveAlerts())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [personnel]);
+
+  async function acknowledgeAlert(id: string) {
+    if (!personnel) return;
+    setAlertActionId(id);
+    await supabase.from("emergency_alerts")
+      .update({ status: "acknowledged", acknowledged_by: personnel.id, acknowledged_at: new Date().toISOString() })
+      .eq("id", id);
+    setActiveAlerts(prev => prev.filter(a => a.id !== id));
+    setAlertActionId(null);
+  }
+
+  async function closeAlert(id: string) {
+    setAlertActionId(id);
+    await supabase.from("emergency_alerts")
+      .update({ status: "closed", closed_at: new Date().toISOString() })
+      .eq("id", id);
+    setActiveAlerts(prev => prev.filter(a => a.id !== id));
+    setAlertActionId(null);
+  }
+
+  function alertIsOverdue(a: EmergencyAlert) {
+    return Date.now() - new Date(a.created_at).getTime() > 5 * 60 * 1000;
+  }
 
   async function loadData() {
     if (!personnel) return;
@@ -351,14 +405,17 @@ export default function YoneticiPage() {
   const isTemizlik = personnel?.departments?.slug === "temizlik";
   const isIdari = personnel?.departments?.slug === "idari";
   const isTeknik = personnel?.departments?.slug === "teknik";
+  const isGuvenlik = personnel?.departments?.slug === "guvenlik";
   const headerGradient = isTeknik
     ? "linear-gradient(135deg, #263238 0%, #37474F 55%, #455A64 100%)"
     : isTemizlik
     ? "linear-gradient(135deg, #00695C 0%, #00897B 55%, #26A69A 100%)"
+    : isGuvenlik
+    ? "linear-gradient(135deg, #0D47A1 0%, #1565C0 55%, #1E88E5 100%)"
     : "linear-gradient(135deg, #1A237E 0%, #283593 100%)";
-  const headerIcon = isTeknik ? "settings" : isTemizlik ? "cleaning_services" : "shield";
-  const headerTitle = isTeknik ? "Ay-Tek" : isTemizlik ? "AY-TEM" : "AYTES";
-  const onlineDotColor = isTeknik ? "bg-amber-400" : isTemizlik ? "bg-lime-300" : "bg-emerald-400";
+  const headerIcon = isTeknik ? "settings" : isTemizlik ? "cleaning_services" : isGuvenlik ? "shield_person" : "shield";
+  const headerTitle = isTeknik ? "Ay-Tek" : isTemizlik ? "AY-TEM" : isGuvenlik ? "AY-GÜV" : "AYTES";
+  const onlineDotColor = isTeknik ? "bg-amber-400" : isTemizlik ? "bg-lime-300" : isGuvenlik ? "bg-amber-300" : "bg-emerald-400";
   const patrolSectionTitle = isTemizlik ? "Aktif Kat Kontrolleri" : "Aktif Devriyeler";
   const patrolPlanHref = isTemizlik ? "/yonetici/kat-planlama" : "/yonetici/devriye-planlama";
   const patrolIcon = isTemizlik ? "cleaning_services" : "route";
@@ -409,6 +466,13 @@ export default function YoneticiPage() {
             <span className="material-symbols-outlined absolute" style={{ right: "14px", bottom: "34px", fontSize: "20px", color: "#B2FF59", opacity: 0.35, fontVariationSettings: "'FILL' 1" }}>water_drop</span>
           </div>
         )}
+        {isGuvenlik && (
+          <div className="absolute bottom-0 right-0 w-28 h-20 pointer-events-none">
+            <span className="material-symbols-outlined absolute" style={{ right: "-6px", bottom: "-14px", fontSize: "64px", color: "#90CAF9", opacity: 0.22, fontVariationSettings: "'FILL' 1" }}>shield_person</span>
+            <span className="material-symbols-outlined absolute" style={{ right: "40px", bottom: "4px", fontSize: "30px", color: "#90CAF9", opacity: 0.3, fontVariationSettings: "'FILL' 1" }}>security</span>
+            <span className="material-symbols-outlined absolute" style={{ right: "14px", bottom: "34px", fontSize: "20px", color: "#90CAF9", opacity: 0.35, fontVariationSettings: "'FILL' 1" }}>gpp_good</span>
+          </div>
+        )}
         <div className="px-4 py-4">
           <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
           <div className="flex items-center gap-2 mt-1">
@@ -420,6 +484,42 @@ export default function YoneticiPage() {
       <div className="h-5 rounded-t-3xl -mt-1 bg-[#f0f2ff]" />
 
       <main className="px-4 space-y-5">
+
+        {/* ── ACİL DURUM ALARMLARI ── */}
+        {activeAlerts.length > 0 && (
+          <section className="space-y-2">
+            {activeAlerts.map(a => {
+              const overdue = alertIsOverdue(a);
+              return (
+                <div key={a.id} className={`relative rounded-2xl p-4 shadow-md border-2 overflow-hidden ${overdue ? "bg-red-700 border-red-900" : "bg-red-600 border-red-700"}`}>
+                  <span className="absolute inset-0 rounded-2xl animate-pulse bg-red-500/20 pointer-events-none" />
+                  <div className="relative flex items-start justify-between gap-3">
+                    <div className="flex items-start gap-3">
+                      <span className="material-symbols-outlined text-white text-[28px] flex-shrink-0" style={{ fontVariationSettings: "'FILL' 1" }}>emergency_share</span>
+                      <div>
+                        <p className="text-white font-bold text-sm">🚨 ACİL DURUM — {a.personnel?.full_name || "Personel"}</p>
+                        <p className="text-white/85 text-xs mt-0.5">{a.location?.name || "Lokasyon belirtilmedi"} · {timeAgo(a.created_at)}</p>
+                        {overdue && (
+                          <span className="inline-block mt-1.5 bg-white text-red-700 text-[10px] font-bold px-2 py-0.5 rounded-full">Yanıtsız · Süre Aşıldı</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="relative flex gap-2 mt-3">
+                    <button onClick={() => acknowledgeAlert(a.id)} disabled={alertActionId === a.id}
+                      className="flex-1 h-10 rounded-xl bg-white/15 text-white text-xs font-bold active:scale-95 transition-all disabled:opacity-50">
+                      Teyit Et
+                    </button>
+                    <button onClick={() => closeAlert(a.id)} disabled={alertActionId === a.id}
+                      className="flex-1 h-10 rounded-xl bg-white text-red-700 text-xs font-bold active:scale-95 transition-all disabled:opacity-50">
+                      Kapat
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </section>
+        )}
 
         {/* ── İSTATİSTİKLER ── */}
         <section className="grid grid-cols-2 gap-3 -mt-2">
