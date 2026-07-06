@@ -1,4 +1,11 @@
 -- ── Temizlik Departmanı + Admin Kullanıcı ────────────────────
+-- ⚠ ARTIK KULLANILMIYOR — bu dosyayı tekrar çalıştırmayın.
+-- Temizlik girişi telefon-bazlı şemaya taşındı (auth email artık
+-- {telefon}@aytes.app, temizlik@aytes.com değil). Bu script email'i
+-- temizlik@aytes.com üzerinden arayıp bulamayacağı için tekrar
+-- çalıştırılırsa YENİ bir "Temizlik Yönetici" kaydı/duplike auth
+-- kullanıcısı oluşturur. Auth kullanıcı değişiklikleri için ham SQL
+-- değil Supabase Admin API kullanın.
 -- Supabase SQL Editor'de çalıştır
 
 DO $$

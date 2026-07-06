@@ -1,4 +1,11 @@
 -- ── İdari İşler Departmanı + Admin Kullanıcı ─────────────────
+-- ⚠ ARTIK KULLANILMIYOR — bu dosyayı tekrar çalıştırmayın.
+-- İdari İşler girişi telefon-bazlı şemaya taşındı (auth email artık
+-- {telefon}@aytes.app, ayedas@aytes.com değil). Bu script email'i
+-- ayedas@aytes.com üzerinden arayıp bulamayacağı için tekrar
+-- çalıştırılırsa YENİ bir "İdari İşler Yönetici" kaydı/duplike auth
+-- kullanıcısı oluşturur. Auth kullanıcı değişiklikleri için ham SQL
+-- değil Supabase Admin API kullanın.
 -- Supabase SQL Editor'de çalıştır
 
 DO $$
