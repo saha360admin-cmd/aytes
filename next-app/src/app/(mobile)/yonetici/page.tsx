@@ -353,10 +353,12 @@ export default function YoneticiPage() {
   const isTeknik = personnel?.departments?.slug === "teknik";
   const headerGradient = isTeknik
     ? "linear-gradient(135deg, #263238 0%, #37474F 55%, #455A64 100%)"
+    : isTemizlik
+    ? "linear-gradient(135deg, #00695C 0%, #00897B 55%, #26A69A 100%)"
     : "linear-gradient(135deg, #1A237E 0%, #283593 100%)";
-  const headerIcon = isTeknik ? "settings" : "shield";
-  const headerTitle = isTeknik ? "Ay-Tek" : "AYTES";
-  const onlineDotColor = isTeknik ? "bg-amber-400" : "bg-emerald-400";
+  const headerIcon = isTeknik ? "settings" : isTemizlik ? "cleaning_services" : "shield";
+  const headerTitle = isTeknik ? "Ay-Tek" : isTemizlik ? "AY-TEM" : "AYTES";
+  const onlineDotColor = isTeknik ? "bg-amber-400" : isTemizlik ? "bg-lime-300" : "bg-emerald-400";
   const patrolSectionTitle = isTemizlik ? "Aktif Kat Kontrolleri" : "Aktif Devriyeler";
   const patrolPlanHref = isTemizlik ? "/yonetici/kat-planlama" : "/yonetici/devriye-planlama";
   const patrolIcon = isTemizlik ? "cleaning_services" : "route";
@@ -398,6 +400,13 @@ export default function YoneticiPage() {
             <span className="material-symbols-outlined absolute" style={{ right: "-6px", bottom: "-14px", fontSize: "64px", color: "#FDD835", opacity: 0.2, fontVariationSettings: "'FILL' 1" }}>settings</span>
             <span className="material-symbols-outlined absolute" style={{ right: "38px", bottom: "2px", fontSize: "36px", color: "#FDD835", opacity: 0.28, fontVariationSettings: "'FILL' 1" }}>settings</span>
             <span className="material-symbols-outlined absolute" style={{ right: "14px", bottom: "32px", fontSize: "22px", color: "#FDD835", opacity: 0.35, fontVariationSettings: "'FILL' 1" }}>settings</span>
+          </div>
+        )}
+        {isTemizlik && (
+          <div className="absolute bottom-0 right-0 w-28 h-20 pointer-events-none">
+            <span className="material-symbols-outlined absolute" style={{ right: "-6px", bottom: "-14px", fontSize: "64px", color: "#B2FF59", opacity: 0.22, fontVariationSettings: "'FILL' 1" }}>cleaning_services</span>
+            <span className="material-symbols-outlined absolute" style={{ right: "40px", bottom: "4px", fontSize: "30px", color: "#B2FF59", opacity: 0.3, fontVariationSettings: "'FILL' 1" }}>water_drop</span>
+            <span className="material-symbols-outlined absolute" style={{ right: "14px", bottom: "34px", fontSize: "20px", color: "#B2FF59", opacity: 0.35, fontVariationSettings: "'FILL' 1" }}>water_drop</span>
           </div>
         )}
         <div className="px-4 py-4">
