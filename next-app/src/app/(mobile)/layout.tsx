@@ -14,7 +14,16 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
     if (!loading && !session) {
       router.replace("/");
     }
-  }, [loading, session, router]);
+
+    if (
+      (personnel?.role === "admin" ||
+       personnel?.role === "supervisor") &&
+      typeof window !== "undefined" &&
+      window.innerWidth >= 1024
+    ) {
+      router.replace("/web/dashboard");
+    }
+  }, [loading, session, personnel, router]);
 
   if (loading || (!loading && session && !personnel)) {
     return (
