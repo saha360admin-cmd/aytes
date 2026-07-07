@@ -129,7 +129,8 @@ export default function VardiyalarPage() {
       const { data: pData } = await supabase
         .from("personnel")
         .select("id, full_name, phone")
-        .in("id", ids);
+        .in("id", ids)
+        .eq("department_id", personnel.department_id);
       setCoworkers(pData || []);
     } else {
       setCoworkers([]);

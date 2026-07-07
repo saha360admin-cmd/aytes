@@ -139,7 +139,7 @@ export default function VardiyaOlusturmaPage() {
     const endStr = toDateStr(monthDays[monthDays.length - 1]);
 
     const [{ data: pData }, { data: saData }] = await Promise.all([
-      supabase.from("personnel").select("id, full_name").eq("location_id", selectedLocId).neq("status", "archived").order("full_name"),
+      supabase.from("personnel").select("id, full_name").eq("location_id", selectedLocId).eq("department_id", personnel!.department_id).neq("status", "archived").order("full_name"),
       supabase.from("shift_assignments").select("personnel_id, shift_date, shift_code").eq("location_id", selectedLocId).gte("shift_date", startStr).lte("shift_date", endStr),
     ]);
 
