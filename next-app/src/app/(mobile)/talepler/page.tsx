@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import type { Request } from "@/lib/types";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 const requestTypes = [
   { id: "unpaid", label: "Ücretsiz İzin", icon: "beach_access" },
@@ -21,6 +22,7 @@ const statusColors: Record<string, string> = { pending: "bg-amber-100 text-amber
 export default function TaleplerPage() {
   const router = useRouter();
   const { personnel } = useAuth();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
   const [selectedType, setSelectedType] = useState("unpaid");
   const [details, setDetails] = useState("");
   const [photos, setPhotos] = useState<{ file: File; preview: string }[]>([]);
@@ -96,7 +98,7 @@ export default function TaleplerPage() {
       )}
 
       <header className="w-full sticky top-0 z-50 flex items-center justify-between px-6 h-16"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <div className="flex items-center gap-3">
           <button onClick={() => router.push("/dashboard")} className="active:scale-95 transition-transform w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25">
             <span className="material-symbols-outlined text-white">arrow_back</span>
@@ -198,15 +200,23 @@ export default function TaleplerPage() {
           <section className="mt-8 space-y-4">
             <h2 className="text-lg font-bold text-gray-900">Taleplerim</h2>
             {myRequests.map(r => (
-              <div key={r.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 flex items-center justify-between">
-                <div>
-                  <p className="text-base font-semibold">{typeLabels[r.type] || r.type}</p>
-                  <p className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString("tr-TR")}</p>
-                  <p className="text-sm text-gray-500 mt-1 line-clamp-1">{r.details}</p>
+              <div key={r.id} className="bg-white p-4 rounded-2xl shadow-sm border border-gray-100 space-y-2">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-base font-semibold">{typeLabels[r.type] || r.type}</p>
+                    <p className="text-xs text-gray-400">{new Date(r.created_at).toLocaleDateString("tr-TR")}</p>
+                    <p className="text-sm text-gray-500 mt-1 line-clamp-1">{r.details}</p>
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold flex-shrink-0 ${statusColors[r.status]}`}>
+                    {statusLabels[r.status]}
+                  </span>
                 </div>
-                <span className={`px-3 py-1 rounded-full text-xs font-semibold ${statusColors[r.status]}`}>
-                  {statusLabels[r.status]}
-                </span>
+                {r.status === "rejected" && r.rejection_note && (
+                  <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                    <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0 mt-0.5">info</span>
+                    <p className="text-xs text-red-700 leading-relaxed">{r.rejection_note}</p>
+                  </div>
+                )}
               </div>
             ))}
           </section>

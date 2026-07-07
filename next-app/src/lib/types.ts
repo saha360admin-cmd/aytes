@@ -71,6 +71,7 @@ export interface Request {
   type: string;
   details: string;
   status: "pending" | "approved" | "rejected";
+  rejection_note: string | null;
   created_at: string;
 }
 

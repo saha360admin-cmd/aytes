@@ -4,12 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface Request {
   id: string;
   type: string;
   details: string;
   status: "pending" | "approved" | "rejected";
+  rejection_note: string | null;
   created_at: string;
   requester: { full_name: string } | null;
 }
@@ -54,6 +56,7 @@ const PAGE_SIZE = 20;
 export default function TaleplerPage() {
   const router = useRouter();
   const { personnel } = useAuth();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
   const [tab, setTab] = useState<TabKey>("pending");
   const [requests, setRequests] = useState<Request[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,6 +65,8 @@ export default function TaleplerPage() {
   const [page, setPage] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
+  const [rejectSheet, setRejectSheet] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState("");
 
   useEffect(() => {
     if (!personnel) return;
@@ -93,16 +98,34 @@ export default function TaleplerPage() {
 
   function loadMore() { load(page + 1); }
 
-  async function handleAction(id: string, status: "approved" | "rejected") {
+  async function approveRequest(id: string) {
     setUpdatingId(id);
-    const { error } = await supabase.from("requests").update({ status }).eq("id", id);
+    const { error } = await supabase.from("requests").update({ status: "approved" }).eq("id", id);
     if (!error) {
       setRequests(prev => prev.filter(r => r.id !== id));
-      showToast(status === "approved" ? "Talep onaylandı" : "Talep reddedildi", !error);
+      showToast("Talep onaylandı", true);
     } else {
       showToast("İşlem başarısız: " + error.message, false);
     }
     setUpdatingId(null);
+  }
+
+  function openRejectSheet(id: string) {
+    setRejectNote("");
+    setRejectSheet(id);
+  }
+
+  async function rejectRequest(id: string, note: string) {
+    setUpdatingId(id);
+    const { error } = await supabase.from("requests").update({ status: "rejected", rejection_note: note }).eq("id", id);
+    if (!error) {
+      setRequests(prev => prev.filter(r => r.id !== id));
+      showToast("Talep reddedildi", true);
+    } else {
+      showToast("İşlem başarısız: " + error.message, false);
+    }
+    setUpdatingId(null);
+    setRejectSheet(null);
   }
 
   function showToast(msg: string, ok: boolean) {
@@ -124,7 +147,7 @@ export default function TaleplerPage() {
 
       {/* Header */}
       <header className="sticky top-0 z-40 flex items-center gap-3 px-4 h-16 shadow-sm"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-white/15 active:scale-95 transition-all">
           <span className="material-symbols-outlined text-white text-[22px]">arrow_back</span>
         </button>
@@ -190,7 +213,7 @@ export default function TaleplerPage() {
                 {tab === "pending" && (
                   <div className="flex gap-2 mt-1">
                     <button
-                      onClick={() => handleAction(req.id, "approved")}
+                      onClick={() => approveRequest(req.id)}
                       disabled={updatingId === req.id}
                       className="flex-1 h-10 bg-emerald-500 text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all disabled:opacity-50">
                       {updatingId === req.id
@@ -199,7 +222,7 @@ export default function TaleplerPage() {
                       Onayla
                     </button>
                     <button
-                      onClick={() => handleAction(req.id, "rejected")}
+                      onClick={() => openRejectSheet(req.id)}
                       disabled={updatingId === req.id}
                       className="flex-1 h-10 bg-red-50 text-red-600 text-sm font-bold rounded-xl flex items-center justify-center gap-1.5 active:scale-95 transition-all border border-red-200 disabled:opacity-50">
                       <span className="material-symbols-outlined text-[16px]">close</span>
@@ -210,10 +233,18 @@ export default function TaleplerPage() {
 
                 {/* Durum rozeti (approved/rejected) */}
                 {tab !== "pending" && (
-                  <div className="flex justify-end mt-1">
-                    <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${tab === "approved" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
-                      {tab === "approved" ? "✓ Onaylandı" : "✕ Reddedildi"}
-                    </span>
+                  <div className="space-y-2">
+                    {tab === "rejected" && req.rejection_note && (
+                      <div className="flex items-start gap-2 bg-red-50 border border-red-100 rounded-xl px-3 py-2.5">
+                        <span className="material-symbols-outlined text-red-500 text-[16px] flex-shrink-0 mt-0.5">info</span>
+                        <p className="text-xs text-red-700 leading-relaxed">{req.rejection_note}</p>
+                      </div>
+                    )}
+                    <div className="flex justify-end">
+                      <span className={`text-[11px] font-bold px-3 py-1 rounded-full ${tab === "approved" ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600"}`}>
+                        {tab === "approved" ? "✓ Onaylandı" : "✕ Reddedildi"}
+                      </span>
+                    </div>
                   </div>
                 )}
               </div>
@@ -241,6 +272,41 @@ export default function TaleplerPage() {
           </p>
         )}
       </main>
+
+      {/* Ret Notu Bottom-Sheet */}
+      {rejectSheet && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setRejectSheet(null)} />
+          <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl">
+            <div className="px-6 pt-5 pb-8 space-y-4">
+              <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
+              <h2 className="text-lg font-bold text-gray-800">Talebi Reddet</h2>
+              <div>
+                <label className="text-xs font-bold text-gray-500 mb-1.5 block">Ret Nedeni *</label>
+                <textarea
+                  value={rejectNote}
+                  onChange={e => setRejectNote(e.target.value)}
+                  rows={3}
+                  placeholder="Personele gösterilecek not..."
+                  className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-red-300"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setRejectSheet(null)}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-gray-500 bg-gray-100">
+                  Vazgeç
+                </button>
+                <button
+                  disabled={!rejectNote.trim()}
+                  onClick={() => rejectRequest(rejectSheet, rejectNote.trim())}
+                  className="flex-1 h-11 rounded-xl text-sm font-bold text-white bg-red-600 disabled:opacity-50">
+                  Reddet
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
