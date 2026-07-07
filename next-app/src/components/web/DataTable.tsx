@@ -35,13 +35,19 @@ function cellCsvValue(raw: unknown): string {
   return "";
 }
 
+// Noktalı virgül: Türkçe Windows/Excel'in varsayılan liste ayracı budur.
+// "sep=," yönlendirme satırı da denendi ama Excel bu satır varken UTF-8
+// BOM'u yok sayıp dosyayı ANSI okuyor (Türkçe karakterler bozuluyor);
+// ayracı doğrudan yerel ayarla eşleştirmek hem bölünmeyi hem kodlamayı çözüyor.
+const CSV_DELIMITER = ";";
+
 function toCsv(columns: DataTableColumn[], data: Record<string, unknown>[]) {
   const csvColumns = columns.filter(c => c.exportable !== false);
-  const header = csvColumns.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
+  const header = csvColumns.map(c => `"${c.label.replace(/"/g, '""')}"`).join(CSV_DELIMITER);
   const rows = data.map(row =>
-    csvColumns.map(c => `"${cellCsvValue(row[c.key]).replace(/"/g, '""')}"`).join(",")
+    csvColumns.map(c => `"${cellCsvValue(row[c.key]).replace(/"/g, '""')}"`).join(CSV_DELIMITER)
   );
-  return [header, ...rows].join("\n");
+  return [header, ...rows].join("\r\n");
 }
 
 function downloadCsv(columns: DataTableColumn[], data: Record<string, unknown>[]) {
