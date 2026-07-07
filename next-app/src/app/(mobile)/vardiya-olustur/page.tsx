@@ -8,7 +8,43 @@ import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface Location { id: string; name: string; }
 interface PersonnelItem { id: string; full_name: string; }
-interface ShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; }
+interface ShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; duration_hours: number | null; }
+
+// Fazla mesai hesabı — güvenlik biriminin gerçek bordro kuralı:
+// 1/2/3 normal vardiya (8s - 30dk mola), 5/6 uzun vardiya, 7/8 gece/en uzun
+// vardiya; T216 (Yıllık İzin) ve T241 (Rapor) çalışmamış ama 7,5s olarak
+// sayılır, T245 (Ücretsiz İzin) hiç sayılmaz. Ay eşiği: (ay gün sayısı - 4
+// hafta tatili) × 7,5 saat — 30 günlük ayda 195s, 31 günlük ayda 202,5s.
+const KNOWN_CODE_HOURS: Record<string, number> = {
+  "1": 7.5, "2": 7.5, "3": 7.5,
+  "5": 11, "6": 11,
+  "7": 15, "8": 15,
+  T216: 7.5,
+  T241: 7.5,
+  T245: 0,
+};
+
+// T211 = hafta tatili. Eşik formülü ayda 4 hafta tatili varsayıyor;
+// bir personelin o ay 4'ten fazla T211'i varsa fazlası ayrıca ele alınır.
+const WEEKLY_REST_CODE = "T211";
+const WEEKLY_REST_ALLOWANCE = 4;
+const WEEKLY_REST_EXTRA_HOURS = 7.5;
+
+function hoursForShiftCode(code: string, shiftTypes: ShiftType[]): number {
+  if (code in KNOWN_CODE_HOURS) return KNOWN_CODE_HOURS[code];
+  const st = shiftTypes.find(s => s.code === code);
+  if (!st) return 0;
+  if (st.is_day_off) return 0;
+  return st.duration_hours ?? 0;
+}
+
+function monthlyOvertimeThreshold(daysInMonth: number): number {
+  return (daysInMonth - 4) * 7.5;
+}
+
+function formatHours(h: number): string {
+  return Number.isInteger(h) ? String(h) : h.toFixed(1);
+}
 
 const TR_SHORT_DAYS = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 const TR_MONTHS = [
@@ -111,7 +147,7 @@ export default function VardiyaOlusturmaPage() {
   async function loadShiftTypes() {
     const { data } = await supabase
       .from("shift_types")
-      .select("id, code, name, color, is_day_off, sort_order")
+      .select("id, code, name, color, is_day_off, sort_order, duration_hours")
       .eq("department_id", personnel!.department_id)
       .order("sort_order")
       .order("created_at");
@@ -253,12 +289,39 @@ export default function VardiyaOlusturmaPage() {
 
   const selectedLoc = locations.find(l => l.id === selectedLocId);
   const dayOffCodes = shiftTypes.filter(s => s.is_day_off).map(s => s.code);
-  const totalWorkShifts = Object.values(cells).filter(v => v && !dayOffCodes.includes(v)).length;
-  const overtimeShifts = Object.values(cells).filter(v => {
-    if (!v) return false;
-    const st = shiftTypes.find(s => s.code === v);
-    return st && !st.is_day_off;
-  }).length;
+  const monthlyThreshold = monthlyOvertimeThreshold(monthDays.length);
+  let totalWorkHours = 0;
+  let overtimeHours = 0;
+  let unpaidLeaveDays = 0;
+  let annualLeaveDays = 0;
+  let sickReportDays = 0;
+  const overtimeByPerson: { id: string; name: string; hours: number }[] = [];
+  const deficitByPerson: { id: string; name: string; hours: number }[] = [];
+  personnelList.forEach(p => {
+    let personHours = 0;
+    let weeklyRestCount = 0;
+    monthDays.forEach(day => {
+      const code = cells[`${p.id}_${toDateStr(day)}`];
+      if (!code) return;
+      if (code === WEEKLY_REST_CODE) { weeklyRestCount++; return; }
+      if (code === "T245") unpaidLeaveDays++;
+      else if (code === "T216") annualLeaveDays++;
+      else if (code === "T241") sickReportDays++;
+      personHours += hoursForShiftCode(code, shiftTypes);
+    });
+    // Eşik formülü ayda 4 hafta tatili varsayıyor; ay 5 hafta tatili
+    // içeriyorsa 5. gün normal dinlenme günü sayılmaz, 7,5 saat
+    // çalışılmış gibi eklenir.
+    personHours += Math.max(0, weeklyRestCount - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
+    totalWorkHours += personHours;
+    const personOvertime = Math.max(0, personHours - monthlyThreshold);
+    overtimeHours += personOvertime;
+    if (personOvertime > 0) overtimeByPerson.push({ id: p.id, name: p.full_name, hours: personOvertime });
+    const personDeficit = Math.max(0, monthlyThreshold - personHours);
+    if (personDeficit > 0) deficitByPerson.push({ id: p.id, name: p.full_name, hours: personDeficit });
+  });
+  overtimeByPerson.sort((a, b) => b.hours - a.hours);
+  deficitByPerson.sort((a, b) => b.hours - a.hours);
   const activeCount = personnelList.filter(p => monthDays.some(day => {
     const c = cells[`${p.id}_${toDateStr(day)}`];
     return c && !dayOffCodes.includes(c);
@@ -364,22 +427,61 @@ export default function VardiyaOlusturmaPage() {
 
         {/* ── Stats Strip ── */}
         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-          {[
-            { label: "Toplam Çalışma", value: totalWorkShifts * 8, unit: "saat", accent: "#3949AB", icon: "trending_up",  iconBg: "bg-indigo-100", iconColor: "text-indigo-600" },
-            { label: "Fazla Mesai",    value: overtimeShifts * 4,  unit: "saat", accent: "#FF9800", icon: "warning",      iconBg: "bg-orange-100", iconColor: "text-orange-600" },
-            { label: "Aktif Personel", value: activeCount,         unit: "kişi", accent: "#4CAF50", icon: "check_circle", iconBg: "bg-emerald-100", iconColor: "text-emerald-600" },
-          ].map(({ label, value, unit, accent, icon, iconBg, iconColor }) => (
-            <div key={label} className="min-w-[150px] bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-1 border border-gray-100">
-              <div className={`w-8 h-8 rounded-xl ${iconBg} flex items-center justify-center mb-1`}>
-                <span className={`material-symbols-outlined text-[18px] ${iconColor}`} style={{ fontVariationSettings: "'FILL' 1" }}>{icon}</span>
-              </div>
-              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">{label}</span>
-              <div className="flex items-end gap-1">
-                <span className="text-2xl font-bold" style={{ color: accent }}>{value}</span>
-                <span className="text-xs font-semibold text-gray-400 pb-1">{unit}</span>
-              </div>
+          <div className="min-w-[180px] bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-1 border border-gray-100">
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center mb-1">
+              <span className="material-symbols-outlined text-[18px] text-indigo-600" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
             </div>
-          ))}
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Toplam Çalışma</span>
+            <div className="flex items-end gap-1">
+              <span className="text-2xl font-bold" style={{ color: "#3949AB" }}>{formatHours(totalWorkHours)}</span>
+              <span className="text-xs font-semibold text-gray-400 pb-1">saat</span>
+            </div>
+            {deficitByPerson.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {deficitByPerson.map(d => (
+                  <span key={d.id} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 whitespace-nowrap">
+                    {d.name} -{formatHours(d.hours)}s
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-[180px] bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-1 border border-gray-100">
+            <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center mb-1">
+              <span className="material-symbols-outlined text-[18px] text-orange-600" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
+            </div>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Fazla Mesai</span>
+            <div className="flex items-end gap-1">
+              <span className="text-2xl font-bold" style={{ color: "#FF9800" }}>{formatHours(overtimeHours)}</span>
+              <span className="text-xs font-semibold text-gray-400 pb-1">saat</span>
+            </div>
+            {overtimeByPerson.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-1">
+                {overtimeByPerson.map(o => (
+                  <span key={o.id} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-orange-50 text-orange-700 whitespace-nowrap">
+                    {o.name} {formatHours(o.hours)}s
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="min-w-[210px] bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-1 border border-gray-100">
+            <div className="w-8 h-8 rounded-xl bg-emerald-100 flex items-center justify-center mb-1">
+              <span className="material-symbols-outlined text-[18px] text-emerald-600" style={{ fontVariationSettings: "'FILL' 1" }}>check_circle</span>
+            </div>
+            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Aktif Personel</span>
+            <div className="flex items-end gap-1">
+              <span className="text-2xl font-bold" style={{ color: "#4CAF50" }}>{activeCount}</span>
+              <span className="text-xs font-semibold text-gray-400 pb-1">kişi</span>
+            </div>
+            <div className="flex flex-wrap gap-1 mt-1">
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 whitespace-nowrap">Ücretsiz İzin: {unpaidLeaveDays} gün</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 whitespace-nowrap">Yıllık İzin: {annualLeaveDays} gün</span>
+              <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 whitespace-nowrap">Doktor Raporu: {sickReportDays} gün</span>
+            </div>
+          </div>
         </div>
 
         {/* ── Monthly Schedule Table (haftalık sayfalama) ── */}

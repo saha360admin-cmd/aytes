@@ -76,9 +76,45 @@ interface ShiftType {
   sort_order: number;
 }
 
-interface ScheduleShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; }
+interface ScheduleShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; duration_hours: number | null; }
 interface Location { id: string; name: string; }
 interface PersonnelItem { id: string; full_name: string; }
+
+// Fazla mesai hesabı — güvenlik biriminin gerçek bordro kuralı:
+// 1/2/3 normal vardiya (8s - 30dk mola), 5/6 uzun vardiya, 7/8 gece/en uzun
+// vardiya; T216 (Yıllık İzin) ve T241 (Rapor) çalışmamış ama 7,5s olarak
+// sayılır, T245 (Ücretsiz İzin) hiç sayılmaz. Ay eşiği: (ay gün sayısı - 4
+// hafta tatili) × 7,5 saat — 30 günlük ayda 195s, 31 günlük ayda 202,5s.
+const KNOWN_CODE_HOURS: Record<string, number> = {
+  "1": 7.5, "2": 7.5, "3": 7.5,
+  "5": 11, "6": 11,
+  "7": 15, "8": 15,
+  T216: 7.5,
+  T241: 7.5,
+  T245: 0,
+};
+
+// T211 = hafta tatili. Eşik formülü ayda 4 hafta tatili varsayıyor;
+// bir personelin o ay 4'ten fazla T211'i varsa fazlası ayrıca ele alınır.
+const WEEKLY_REST_CODE = "T211";
+const WEEKLY_REST_ALLOWANCE = 4;
+const WEEKLY_REST_EXTRA_HOURS = 7.5;
+
+function hoursForShiftCode(code: string, shiftTypes: ScheduleShiftType[]): number {
+  if (code in KNOWN_CODE_HOURS) return KNOWN_CODE_HOURS[code];
+  const st = shiftTypes.find(s => s.code === code);
+  if (!st) return 0;
+  if (st.is_day_off) return 0;
+  return st.duration_hours ?? 0;
+}
+
+function monthlyOvertimeThreshold(daysInMonth: number): number {
+  return (daysInMonth - 4) * 7.5;
+}
+
+function formatHours(h: number): string {
+  return Number.isInteger(h) ? String(h) : h.toFixed(1);
+}
 
 const TABS = [
   { key: "program", label: "Vardiya Programı", icon: "calendar_month" },
@@ -164,7 +200,7 @@ function ShiftScheduleSection() {
     setDeptId(dept.id);
     const { data } = await supabase
       .from("shift_types")
-      .select("id, code, name, color, is_day_off, sort_order")
+      .select("id, code, name, color, is_day_off, sort_order, duration_hours")
       .eq("department_id", dept.id)
       .order("sort_order")
       .order("created_at");
@@ -322,12 +358,39 @@ function ShiftScheduleSection() {
   }
 
   const dayOffCodes = shiftTypes.filter(s => s.is_day_off).map(s => s.code);
-  const totalWorkShifts = Object.values(cells).filter(v => v && !dayOffCodes.includes(v)).length;
-  const overtimeShifts = Object.values(cells).filter(v => {
-    if (!v) return false;
-    const st = shiftTypes.find(s => s.code === v);
-    return st && !st.is_day_off;
-  }).length;
+  const monthlyThreshold = monthlyOvertimeThreshold(monthDays.length);
+  let totalWorkHours = 0;
+  let overtimeHours = 0;
+  let unpaidLeaveDays = 0;
+  let annualLeaveDays = 0;
+  let sickReportDays = 0;
+  const overtimeByPerson: { id: string; name: string; hours: number }[] = [];
+  const deficitByPerson: { id: string; name: string; hours: number }[] = [];
+  personnelList.forEach(p => {
+    let personHours = 0;
+    let weeklyRestCount = 0;
+    monthDays.forEach(day => {
+      const code = cells[`${p.id}_${toDateStr(day)}`];
+      if (!code) return;
+      if (code === WEEKLY_REST_CODE) { weeklyRestCount++; return; }
+      if (code === "T245") unpaidLeaveDays++;
+      else if (code === "T216") annualLeaveDays++;
+      else if (code === "T241") sickReportDays++;
+      personHours += hoursForShiftCode(code, shiftTypes);
+    });
+    // Eşik formülü ayda 4 hafta tatili varsayıyor; ay 5 hafta tatili
+    // içeriyorsa (bazı aylarda T211 5 kez düşer) 5. gün normal dinlenme
+    // günü sayılmaz, 7,5 saat çalışılmış gibi eklenir.
+    personHours += Math.max(0, weeklyRestCount - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
+    totalWorkHours += personHours;
+    const personOvertime = Math.max(0, personHours - monthlyThreshold);
+    overtimeHours += personOvertime;
+    if (personOvertime > 0) overtimeByPerson.push({ id: p.id, name: p.full_name, hours: personOvertime });
+    const personDeficit = Math.max(0, monthlyThreshold - personHours);
+    if (personDeficit > 0) deficitByPerson.push({ id: p.id, name: p.full_name, hours: personDeficit });
+  });
+  overtimeByPerson.sort((a, b) => b.hours - a.hours);
+  deficitByPerson.sort((a, b) => b.hours - a.hours);
   const activeCount = personnelList.filter(p => monthDays.some(day => {
     const c = cells[`${p.id}_${toDateStr(day)}`];
     return c && !dayOffCodes.includes(c);
@@ -393,31 +456,56 @@ function ShiftScheduleSection() {
       </section>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
             <span className="material-symbols-outlined text-[24px]">trending_up</span>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-on-surface-variant">Toplam Çalışma</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{totalWorkShifts * 8} <span className="text-sm font-semibold text-on-surface-variant">saat</span></h3>
+            <h3 className="font-display text-headline-sm text-on-surface">{formatHours(totalWorkHours)} <span className="text-sm font-semibold text-on-surface-variant">saat</span></h3>
+            <p className="text-[10px] text-on-surface-variant">Kişi başı hedef {formatHours(monthlyThreshold)}s</p>
+            {deficitByPerson.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {deficitByPerson.map(d => (
+                  <span key={d.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-500/10 text-sky-700 whitespace-nowrap">
+                    {d.name} -{formatHours(d.hours)}s
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-amber-500/10 flex items-center justify-center text-amber-600 flex-shrink-0">
             <span className="material-symbols-outlined text-[24px]">warning</span>
           </div>
-          <div>
+          <div className="min-w-0">
             <p className="text-xs font-semibold text-on-surface-variant">Fazla Mesai</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{overtimeShifts * 4} <span className="text-sm font-semibold text-on-surface-variant">saat</span></h3>
+            <h3 className="font-display text-headline-sm text-on-surface">{formatHours(overtimeHours)} <span className="text-sm font-semibold text-on-surface-variant">saat</span></h3>
+            <p className="text-[10px] text-on-surface-variant">Kişi başı {formatHours(monthlyThreshold)}s üzeri</p>
+            {overtimeByPerson.length > 0 && (
+              <div className="flex flex-wrap gap-1 mt-2">
+                {overtimeByPerson.map(o => (
+                  <span key={o.id} className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-700 whitespace-nowrap">
+                    {o.name} {formatHours(o.hours)}s
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-start gap-4">
           <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
             <span className="material-symbols-outlined text-[24px]">check_circle</span>
           </div>
           <div>
             <p className="text-xs font-semibold text-on-surface-variant">Aktif Personel</p>
             <h3 className="font-display text-headline-sm text-on-surface">{activeCount} <span className="text-sm font-semibold text-on-surface-variant">kişi</span></h3>
+            <div className="flex flex-wrap gap-1 mt-2">
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-500/10 text-purple-700 whitespace-nowrap">Ücretsiz İzin: {unpaidLeaveDays} gün</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-500/10 text-blue-700 whitespace-nowrap">Yıllık İzin: {annualLeaveDays} gün</span>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/10 text-rose-700 whitespace-nowrap">Doktor Raporu: {sickReportDays} gün</span>
+            </div>
           </div>
         </div>
       </div>
