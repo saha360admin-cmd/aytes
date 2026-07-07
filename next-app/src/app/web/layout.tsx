@@ -14,15 +14,15 @@ const TOP_LEVEL_LINKS = [
 
 // Güvenlik bölümü kendi alt menüsünü kullanır (ShieldOps tasarımı),
 // mobildeki güvenlik yöneticisi footer'ıyla (Panel/Personel/Vardiya/Devriye/
-// Olaylar/Taşeron/Talepler) birebir aynı sekmeler. Devriyeler/Olaylar/
-// Talepler/Raporlama sayfaları henüz yok — bu linkler şimdilik "#"
-// (placeholder), Personel/Vardiyalar/Taşeron gerçek sayfalara bağlı.
+// Olaylar/Taşeron/Talepler) birebir aynı sekmeler. Talepler/Raporlama
+// sayfaları henüz yok — bu linkler şimdilik "#" (placeholder),
+// Personel/Vardiyalar/Devriyeler/Olaylar/Taşeron gerçek sayfalara bağlı.
 const GUVENLIK_LINKS = [
   { href: "/web/guvenlik", label: "Dashboard", icon: "dashboard" },
   { href: "/web/guvenlik/personel", label: "Personel", icon: "badge" },
   { href: "/web/guvenlik/vardiyalar", label: "Vardiyalar", icon: "schedule" },
-  { href: "#", label: "Devriyeler", icon: "route" },
-  { href: "#", label: "Olaylar", icon: "report_problem" },
+  { href: "/web/guvenlik/devriyeler", label: "Devriyeler", icon: "route" },
+  { href: "/web/guvenlik/olaylar", label: "Olaylar", icon: "report_problem" },
   { href: "/web/guvenlik/taseron", label: "Taşeron", icon: "handyman" },
   { href: "#", label: "Talepler", icon: "assignment" },
   { href: "#", label: "Raporlama", icon: "assessment" },
