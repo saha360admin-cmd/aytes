@@ -6,6 +6,7 @@ import { supabase } from "@/lib/supabase";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EmergencyAlert } from "@/lib/types";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 interface GorevComm { id: string; title: string; content: string; priority: string; isRead: boolean }
 
 interface ActiveShift {
@@ -22,6 +23,7 @@ function toDateStr(d: Date) {
 export default function DashboardPage() {
   const { personnel } = useAuth();
   const router = useRouter();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
   const [shift, setShift] = useState<ActiveShift | null>(null);
   const [patrolStatus, setPatrolStatus] = useState({ completed: 0, total: 0, hasActive: false });
   const [pendingIncidents, setPendingIncidents] = useState(0);
@@ -217,7 +219,7 @@ export default function DashboardPage() {
     <div className="bg-[#f0f2ff] min-h-screen pb-28">
       {/* Gradyan Header */}
       <header className="sticky top-0 w-full z-40 h-16 flex justify-between items-center px-6"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-full bg-white/20 flex items-center justify-center">
             <span className="material-symbols-outlined text-white text-[20px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield_person</span>
@@ -235,7 +237,7 @@ export default function DashboardPage() {
       </header>
 
       {/* Karşılama bandı */}
-      <div className="px-6 py-4" style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
+      <div className="px-6 py-4" style={{ background: headerTheme.gradient }}>
         <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
         <p className="text-sm text-white/70 mt-0.5">{dept} • {role}</p>
       </div>

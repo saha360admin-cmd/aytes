@@ -4,10 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 export default function TaseronFirmaYeniPage() {
   const router = useRouter();
   const { personnel } = useAuth();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
@@ -50,7 +52,7 @@ export default function TaseronFirmaYeniPage() {
       )}
 
       <header className="sticky top-0 z-40 flex items-center gap-3 px-4 h-16 shadow-sm"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <button onClick={() => router.back()}
           className="w-10 h-10 flex items-center justify-center rounded-full hover:bg-white/15 active:scale-90 transition-all">
           <span className="material-symbols-outlined text-white">arrow_back</span>

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { isSlaBreached } from "@/lib/sla";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface DeptStatus {
   id: string;
@@ -74,6 +75,7 @@ const PAGE_SIZE = 20;
 export default function OlaylarPage() {
   const router = useRouter();
   const { personnel } = useAuth();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
   const [tab, setTab] = useState<TabKey>("open");
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -270,7 +272,7 @@ export default function OlaylarPage() {
 
       {/* Header */}
       <header className="sticky top-0 z-40 flex items-center gap-3 px-4 h-16 shadow-sm"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <button onClick={() => router.back()} className="p-2 rounded-full hover:bg-white/15 active:scale-95 transition-all">
           <span className="material-symbols-outlined text-white text-[22px]">arrow_back</span>
         </button>

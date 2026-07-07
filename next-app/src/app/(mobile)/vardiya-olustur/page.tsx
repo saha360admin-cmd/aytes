@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface Location { id: string; name: string; }
 interface PersonnelItem { id: string; full_name: string; }
@@ -36,6 +37,7 @@ function shortName(name: string) {
 export default function VardiyaOlusturmaPage() {
   const router = useRouter();
   const { personnel } = useAuth();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
 
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -282,11 +284,11 @@ export default function VardiyaOlusturmaPage() {
       )}
 
       {/* ── Header + Başlık bandı ── */}
-      <div style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+      <div style={{ background: headerTheme.gradient }}>
         <div className="flex justify-between items-center px-4 h-16">
           <div className="flex items-center gap-3">
-            <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield</span>
-            <h1 className="font-bold text-white text-lg">AYTES</h1>
+            <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>{headerTheme.icon}</span>
+            <h1 className="font-bold text-white text-lg">{headerTheme.title}</h1>
           </div>
           <button
             onClick={() => router.push("/vardiya-tanimlama")}

@@ -174,9 +174,20 @@ export default function WebGuvenlikPage() {
 
   return (
     <div className="p-8 space-y-8">
-      <div>
-        <h1 className="font-display text-headline-lg text-on-background">Güvenlik Komuta Merkezi</h1>
-        <p className="text-on-surface-variant">Sistemdeki {locations.length} aktif güvenlik noktasının anlık durumu</p>
+      <div className="flex items-center gap-4">
+        <div
+          className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
+          style={{ background: "linear-gradient(135deg, #0D47A1 0%, #1565C0 55%, #1E88E5 100%)" }}
+        >
+          <span className="material-symbols-outlined text-white text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield_person</span>
+        </div>
+        <div>
+          <div className="flex items-center gap-2">
+            <h1 className="font-display text-headline-lg text-on-background">Güvenlik Komuta Merkezi</h1>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "linear-gradient(135deg, #0D47A1, #1E88E5)" }}>AY-GÜV</span>
+          </div>
+          <p className="text-on-surface-variant">Sistemdeki {locations.length} aktif güvenlik noktasının anlık durumu</p>
+        </div>
       </div>
 
       {/* İstatistik Kartları */}

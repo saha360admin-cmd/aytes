@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface ShiftType {
   id: string;
@@ -59,6 +60,7 @@ function formatTime(t: string | null) {
 export default function VardiyaTanimlamaPage() {
   const { personnel } = useAuth();
   const router = useRouter();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
 
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -360,7 +362,7 @@ export default function VardiyaTanimlamaPage() {
 
       {/* Header */}
       <header className="sticky top-0 z-50 w-full"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #283593 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <div className="flex items-center gap-3 px-4 h-14">
           <button onClick={() => router.back()}
             className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 text-white active:scale-90 transition-all">

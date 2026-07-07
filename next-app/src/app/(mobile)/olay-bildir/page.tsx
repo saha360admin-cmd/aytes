@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import type { Department } from "@/lib/types";
+import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 import { Suspense } from "react";
 
 const incidentTypes = [
@@ -42,6 +43,7 @@ function OlayBildirForm() {
   const params = useSearchParams();
   const patrolId = params.get("patrol_id");
   const { personnel } = useAuth();
+  const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
 
   const [departments, setDepartments] = useState<Department[]>([]);
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -201,7 +203,7 @@ function OlayBildirForm() {
       )}
 
       <header className="sticky top-0 z-50 flex justify-between items-center px-6 h-16"
-        style={{ background: "linear-gradient(135deg, #1A237E 0%, #3949AB 100%)" }}>
+        style={{ background: headerTheme.gradient }}>
         <div className="flex items-center gap-4">
           <button onClick={() => router.back()} className="w-9 h-9 flex items-center justify-center rounded-full bg-white/15 hover:bg-white/25 active:scale-90 transition-all">
             <span className="material-symbols-outlined text-white">arrow_back</span>
