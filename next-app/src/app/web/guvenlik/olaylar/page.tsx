@@ -364,7 +364,7 @@ export default function WebGuvenlikOlaylarPage() {
 
                     {tab === "open" && (
                       <a
-                        href={`/yonetici/taseron/yeni?incident_id=${inc.id}&department_id=${deptId ?? ""}&description=${encodeURIComponent(inc.description || "")}`}
+                        href={`/web/guvenlik/taseron?incident_id=${inc.id}&department_id=${deptId ?? ""}&description=${encodeURIComponent(inc.description || "")}`}
                         className="text-xs text-primary font-semibold flex items-center gap-1 hover:underline"
                       >
                         <span className="material-symbols-outlined text-[14px]">engineering</span>
