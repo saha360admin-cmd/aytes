@@ -425,28 +425,33 @@ export default function VardiyaOlusturmaPage() {
           </div>
         </div>
 
-        {/* ── Stats Strip ── */}
-        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
-          <div className="min-w-[180px] bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-1 border border-gray-100">
-            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center mb-1">
+        {/* ── Toplam Çalışma (tam genişlik, sayfayı kaplar) ── */}
+        <div className="bg-white rounded-2xl shadow-sm p-4 border border-gray-100">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-indigo-100 flex items-center justify-center flex-shrink-0">
               <span className="material-symbols-outlined text-[18px] text-indigo-600" style={{ fontVariationSettings: "'FILL' 1" }}>trending_up</span>
             </div>
-            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Toplam Çalışma</span>
-            <div className="flex items-end gap-1">
-              <span className="text-2xl font-bold" style={{ color: "#3949AB" }}>{formatHours(totalWorkHours)}</span>
-              <span className="text-xs font-semibold text-gray-400 pb-1">saat</span>
-            </div>
-            {deficitByPerson.length > 0 && (
-              <div className="flex flex-wrap gap-1 mt-1">
-                {deficitByPerson.map(d => (
-                  <span key={d.id} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 whitespace-nowrap">
-                    {d.name} -{formatHours(d.hours)}s
-                  </span>
-                ))}
+            <div className="flex-1 min-w-0">
+              <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Toplam Çalışma</span>
+              <div className="flex items-end gap-1">
+                <span className="text-2xl font-bold" style={{ color: "#3949AB" }}>{formatHours(totalWorkHours)}</span>
+                <span className="text-xs font-semibold text-gray-400 pb-1">saat</span>
               </div>
-            )}
+            </div>
           </div>
+          {deficitByPerson.length > 0 && (
+            <div className="flex flex-wrap gap-1 mt-2">
+              {deficitByPerson.map(d => (
+                <span key={d.id} className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-sky-50 text-sky-700 whitespace-nowrap">
+                  {d.name} -{formatHours(d.hours)}s
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
 
+        {/* ── Stats Strip ── */}
+        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
           <div className="min-w-[180px] bg-white rounded-2xl shadow-sm p-4 flex flex-col gap-1 border border-gray-100">
             <div className="w-8 h-8 rounded-xl bg-orange-100 flex items-center justify-center mb-1">
               <span className="material-symbols-outlined text-[18px] text-orange-600" style={{ fontVariationSettings: "'FILL' 1" }}>warning</span>
@@ -476,7 +481,7 @@ export default function VardiyaOlusturmaPage() {
               <span className="text-2xl font-bold" style={{ color: "#4CAF50" }}>{activeCount}</span>
               <span className="text-xs font-semibold text-gray-400 pb-1">kişi</span>
             </div>
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-col gap-1 mt-1 items-start">
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-purple-50 text-purple-700 whitespace-nowrap">Ücretsiz İzin: {unpaidLeaveDays} gün</span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-50 text-blue-700 whitespace-nowrap">Yıllık İzin: {annualLeaveDays} gün</span>
               <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-rose-50 text-rose-700 whitespace-nowrap">Doktor Raporu: {sickReportDays} gün</span>
