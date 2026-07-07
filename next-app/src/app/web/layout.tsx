@@ -17,7 +17,7 @@ const TOP_LEVEL_LINKS = [
 // mobildeki güvenlik yöneticisi footer'ıyla (Panel/Personel/Vardiya/Devriye/
 // Olaylar/Taşeron/Talepler) birebir aynı sekmeler. Raporlama'nın mobilde
 // aktif bir karşılığı yok (eskisi Olaylar'la yinelendiği için kaldırılmıştı)
-// — bu link şimdilik "#" (placeholder), diğer tüm sekmeler gerçek sayfalara bağlı.
+// — sadece masaüstünde var, diğer tüm sekmeler gerçek sayfalara bağlı.
 const GUVENLIK_LINKS = [
   { href: "/web/guvenlik", label: "Dashboard", icon: "dashboard" },
   { href: "/web/guvenlik/personel", label: "Personel", icon: "badge" },
@@ -26,7 +26,7 @@ const GUVENLIK_LINKS = [
   { href: "/web/guvenlik/olaylar", label: "Olaylar", icon: "report_problem" },
   { href: "/web/guvenlik/taseron", label: "Taşeron", icon: "handyman" },
   { href: "/web/guvenlik/talepler", label: "Talepler", icon: "assignment" },
-  { href: "#", label: "Raporlama", icon: "assessment" },
+  { href: "/web/guvenlik/raporlama", label: "Raporlama", icon: "assessment" },
 ];
 
 function Sidebar() {
