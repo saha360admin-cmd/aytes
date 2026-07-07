@@ -6,6 +6,18 @@ export interface DataTableColumn {
   key: string;
   label: string;
   sortable?: boolean;
+  /** false hariç tut — İşlemler gibi salt-JSX kolonlar CSV'ye yazılmaz. Varsayılan: true. */
+  exportable?: boolean;
+}
+
+/** Hücre hem ekranda JSX (`display`) hem CSV'de düz metin (`csv`) göstermek istediğinde kullanılır. */
+export interface DataTableCell {
+  display: React.ReactNode;
+  csv: string;
+}
+
+function isDataTableCell(value: unknown): value is DataTableCell {
+  return typeof value === "object" && value !== null && "display" in value && "csv" in value;
 }
 
 interface DataTableProps {
@@ -17,10 +29,17 @@ interface DataTableProps {
   rowClassName?: (row: Record<string, unknown>) => string;
 }
 
+function cellCsvValue(raw: unknown): string {
+  if (isDataTableCell(raw)) return raw.csv;
+  if (typeof raw === "string" || typeof raw === "number") return String(raw);
+  return "";
+}
+
 function toCsv(columns: DataTableColumn[], data: Record<string, unknown>[]) {
-  const header = columns.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
+  const csvColumns = columns.filter(c => c.exportable !== false);
+  const header = csvColumns.map(c => `"${c.label.replace(/"/g, '""')}"`).join(",");
   const rows = data.map(row =>
-    columns.map(c => `"${String(row[c.key] ?? "").replace(/"/g, '""')}"`).join(",")
+    csvColumns.map(c => `"${cellCsvValue(row[c.key]).replace(/"/g, '""')}"`).join(",")
   );
   return [header, ...rows].join("\n");
 }
@@ -105,11 +124,14 @@ export default function DataTable({ columns, data, onSort, exportable, loading, 
             ) : (
               data.map((row, i) => (
                 <tr key={i} className={`border-t border-outline-variant/10 hover:bg-surface-container-low transition-colors ${rowClassName ? rowClassName(row) : ""}`}>
-                  {columns.map(col => (
-                    <td key={col.key} className="px-4 py-3 text-on-surface whitespace-nowrap">
-                      {row[col.key] as React.ReactNode}
-                    </td>
-                  ))}
+                  {columns.map(col => {
+                    const raw = row[col.key];
+                    return (
+                      <td key={col.key} className="px-4 py-3 text-on-surface whitespace-nowrap">
+                        {isDataTableCell(raw) ? raw.display : (raw as React.ReactNode)}
+                      </td>
+                    );
+                  })}
                 </tr>
               ))
             )}

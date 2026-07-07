@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import DataTable, { DataTableColumn } from "@/components/web/DataTable";
+import DataTable, { DataTableCell, DataTableColumn } from "@/components/web/DataTable";
 
 const TR_MONTHS = ["Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara"];
 
@@ -92,16 +92,20 @@ export default function WebTaseronPage() {
 
   const tableData = filtered.map(r => {
     const badge = STATUS_BADGE[r.status] ?? STATUS_BADGE.open;
+    const statusBadge: DataTableCell = {
+      csv: badge.label,
+      display: (
+        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${badge.className}`}>
+          {badge.label}
+        </span>
+      ),
+    };
     return {
       department: r.department?.name ?? "Bilinmiyor",
       description: r.description.length > 70 ? r.description.slice(0, 70) + "…" : r.description,
       contractor: r.contractor_name,
       ticket: r.contractor_ticket_no ? `#${r.contractor_ticket_no}` : "—",
-      statusBadge: (
-        <span className={`inline-block px-2.5 py-1 rounded-full text-xs font-bold ${badge.className}`}>
-          {badge.label}
-        </span>
-      ),
+      statusBadge,
       date: formatDate(r.opened_at),
     };
   });
