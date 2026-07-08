@@ -17,6 +17,10 @@ function formatDate(dateStr: string) {
   return `${d.getDate()} ${TR_MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
+function toTitleCase(str: string): string {
+  return str.toLocaleLowerCase("tr-TR").replace(/(^|\s)\S/g, c => c.toLocaleUpperCase("tr-TR"));
+}
+
 function formatDateLong(dateStr: string) {
   const d = new Date(dateStr);
   return `${d.getDate()} ${TR_MONTHS[d.getMonth()]} ${d.getFullYear()}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
@@ -315,6 +319,7 @@ function ServiceRequestsSection({ prefill }: { prefill: ServiceRequestsPrefill |
 
   const columns: DataTableColumn[] = [
     { key: "department", label: "Departman", sortable: true },
+    { key: "location", label: "Lokasyon", sortable: true },
     { key: "description", label: "Açıklama" },
     { key: "contractor", label: "Taşeron" },
     { key: "ticket", label: "Bilet No" },
@@ -347,6 +352,7 @@ function ServiceRequestsSection({ prefill }: { prefill: ServiceRequestsPrefill |
     };
     return {
       department: r.department?.name ?? "Bilinmiyor",
+      location: r.location_detail ?? "—",
       description: r.description.length > 70 ? r.description.slice(0, 70) + "…" : r.description,
       contractor: r.contractor_name,
       ticket: r.contractor_ticket_no ? `#${r.contractor_ticket_no}` : "—",
@@ -453,7 +459,7 @@ function ServiceRequestsSection({ prefill }: { prefill: ServiceRequestsPrefill |
                 <label className="text-xs font-semibold text-on-surface-variant ml-1">Arıza Açıklama *</label>
                 <textarea
                   value={createForm.description}
-                  onChange={e => setCreateForm(f => ({ ...f, description: e.target.value }))}
+                  onChange={e => setCreateForm(f => ({ ...f, description: toTitleCase(e.target.value) }))}
                   placeholder="Arıza veya destek talebini açıklayın…"
                   rows={3}
                   className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none resize-none"

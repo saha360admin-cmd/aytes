@@ -8,6 +8,10 @@ import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface SelectOption { id: string; name: string; }
 
+function toTitleCase(str: string): string {
+  return str.toLocaleLowerCase("tr-TR").replace(/(^|\s)\S/g, c => c.toLocaleUpperCase("tr-TR"));
+}
+
 function TaseronYeniForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -159,7 +163,7 @@ function TaseronYeniForm() {
 
           <div className="space-y-1.5">
             <label className="text-sm font-bold text-gray-700">Arıza Açıklama <span className="text-red-500">*</span></label>
-            <textarea value={description} onChange={e => setDescription(e.target.value)}
+            <textarea value={description} onChange={e => setDescription(toTitleCase(e.target.value))}
               placeholder="Arıza veya destek talebini açıklayın…"
               rows={3}
               className="w-full bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-[#3949AB] focus:border-transparent outline-none resize-none" />
