@@ -237,9 +237,22 @@ export default function DashboardPage() {
       </header>
 
       {/* Karşılama bandı */}
-      <div className="px-6 py-4" style={{ background: headerTheme.gradient }}>
-        <h2 className="text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
-        <p className="text-sm text-white/70 mt-0.5">{dept} • {role}</p>
+      <div className="relative overflow-hidden px-6 py-4" style={{ background: headerTheme.gradient }}>
+        {headerTheme.decorative && (
+          <div className="absolute bottom-0 right-0 w-28 h-20 pointer-events-none">
+            {headerTheme.decorative.map((d, i) => (
+              <span
+                key={i}
+                className="material-symbols-outlined absolute"
+                style={{ ...d.style, fontSize: `${d.size}px`, color: headerTheme.decorativeColor, opacity: d.opacity, fontVariationSettings: "'FILL' 1" }}
+              >
+                {d.icon}
+              </span>
+            ))}
+          </div>
+        )}
+        <h2 className="relative z-10 text-xl font-bold text-white">Merhaba, {name.split(" ")[0]} 👋</h2>
+        <p className="relative z-10 text-sm text-white/70 mt-0.5">{dept} • {role}</p>
       </div>
       {/* Dalga ayırıcı */}
       <div className="h-4 rounded-t-3xl -mt-1 bg-[#f0f2ff]" />
