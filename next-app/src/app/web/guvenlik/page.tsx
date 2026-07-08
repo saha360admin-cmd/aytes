@@ -25,6 +25,16 @@ interface RecentIncident {
   location: string | null;
 }
 
+interface ActivePatrol {
+  id: string;
+  personnelName: string;
+  locationName: string;
+  status: "active" | "paused";
+  startedAt: string;
+  totalCheckpoints: number;
+  completedCheckpoints: number;
+}
+
 const TYPE_LABELS: Record<string, string> = {
   fire: "Yangın / Tahliye",
   theft: "Hırsızlık / Kayıp Eşya",
@@ -76,6 +86,14 @@ function timeAgo(dateStr: string) {
   return `${Math.floor(h / 24)} gün önce`;
 }
 
+function elapsedSince(dateStr: string) {
+  const diff = Math.max(0, Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000));
+  if (diff < 60) return `${diff} dk`;
+  const h = Math.floor(diff / 60);
+  const m = diff % 60;
+  return `${h} sa ${m} dk`;
+}
+
 export default function WebGuvenlikPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
@@ -93,6 +111,7 @@ export default function WebGuvenlikPage() {
   const locationGridRef = useRef<HTMLDivElement>(null);
   const [locationShortages, setLocationShortages] = useState<{ id: string; name: string; target: number; actual: number; deficit: number }[]>([]);
   const [showShortages, setShowShortages] = useState(false);
+  const [activePatrols, setActivePatrols] = useState<ActivePatrol[]>([]);
 
   useEffect(() => {
     load(false);
@@ -119,12 +138,19 @@ export default function WebGuvenlikPage() {
         { data: incDepts },
         { data: todayPatrols },
         { data: allLocations },
+        { data: livePatrols },
+        { data: patrolRoutes },
       ] = await Promise.all([
         supabase.from("personnel").select("id, location_id, full_name, role").eq("department_id", deptId).eq("status", "active"),
         supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
         supabase.from("incident_departments").select("incident_id, status").eq("department_id", deptId),
         supabase.from("patrols").select("id, status").eq("department_id", deptId).gte("created_at", startOfDay),
         supabase.from("locations").select("id, name, target_count"),
+        supabase.from("patrols")
+          .select("id, personnel_id, route_name, status, started_at, total_checkpoints, completed_checkpoints")
+          .eq("department_id", deptId)
+          .in("status", ["active", "paused"]),
+        supabase.from("patrol_routes").select("name, location_id").eq("department_id", deptId),
       ]);
 
       // Toplam kadro sorgudan değil, sabit olarak tutuluyor (talep üzerine).
@@ -163,6 +189,28 @@ export default function WebGuvenlikPage() {
       // atamanın şu anda gerçekten devam edip etmediği hesaplanır.
       const activeIds = (activeRows || []).map(p => p.id);
       const nameById = new Map((activeRows || []).map(p => [p.id, p.full_name as string]));
+
+      // Aktif Devriyeler: patrols tablosunda location_id yok, sadece
+      // route_name (metin) tutuluyor — bölgeyi bulmak için route_name,
+      // patrol_routes.name ile eşleştirilip oradaki location_id üzerinden
+      // locations.name'e ulaşılıyor.
+      const locNameById = new Map(allLocs.map(l => [l.id, l.name]));
+      const locNameByRoute = new Map(
+        (patrolRoutes || []).map(r => [r.name, r.location_id ? locNameById.get(r.location_id) ?? null : null])
+      );
+      const livePatrolCards: ActivePatrol[] = (livePatrols || [])
+        .map(p => ({
+          id: p.id,
+          personnelName: nameById.get(p.personnel_id) ?? "Bilinmeyen Personel",
+          locationName: locNameByRoute.get(p.route_name) ?? "Bilinmeyen Bölge",
+          status: p.status as "active" | "paused",
+          startedAt: p.started_at,
+          totalCheckpoints: p.total_checkpoints ?? 0,
+          completedCheckpoints: p.completed_checkpoints ?? 0,
+        }))
+        .sort((a, b) => new Date(b.startedAt).getTime() - new Date(a.startedAt).getTime());
+      setActivePatrols(livePatrolCards);
+
       if (activeIds.length > 0) {
         const [{ data: assignments }, { data: shiftTypesData }] = await Promise.all([
           supabase.from("shift_assignments")
@@ -244,8 +292,6 @@ export default function WebGuvenlikPage() {
     }
   }
 
-  const topLocation = locations[0] || null;
-
   if (loading) {
     return (
       <div className="p-8 space-y-6">
@@ -269,19 +315,28 @@ export default function WebGuvenlikPage() {
 
   return (
     <div className="p-8 space-y-8">
-      <div className="flex items-center gap-4">
-        <div
-          className="w-14 h-14 rounded-2xl flex items-center justify-center flex-shrink-0 shadow-sm"
-          style={{ background: "linear-gradient(135deg, #0D47A1 0%, #1565C0 55%, #1E88E5 100%)" }}
-        >
+      <div
+        className="relative overflow-hidden rounded-2xl shadow-sm p-6 flex items-center gap-4"
+        style={{ background: "linear-gradient(135deg, #0D47A1 0%, #1565C0 55%, #1E88E5 100%)" }}
+      >
+        {/* Dekoratif ikonlar — mobil güvenlik headerındaki (yonetici/page.tsx)
+            3 katmanlı shield_person/security/gpp_good kompozisyonuyla aynı,
+            masaüstü banner ölçeğine büyütülmüş hali. */}
+        <div className="absolute bottom-0 right-0 w-56 h-32 pointer-events-none">
+          <span className="material-symbols-outlined absolute" style={{ right: "-14px", bottom: "-26px", fontSize: "110px", color: "#90CAF9", opacity: 0.18, fontVariationSettings: "'FILL' 1" }}>shield_person</span>
+          <span className="material-symbols-outlined absolute" style={{ right: "78px", bottom: "6px", fontSize: "50px", color: "#90CAF9", opacity: 0.25, fontVariationSettings: "'FILL' 1" }}>security</span>
+          <span className="material-symbols-outlined absolute" style={{ right: "26px", bottom: "58px", fontSize: "32px", color: "#90CAF9", opacity: 0.32, fontVariationSettings: "'FILL' 1" }}>gpp_good</span>
+        </div>
+
+        <div className="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center flex-shrink-0 relative z-10">
           <span className="material-symbols-outlined text-white text-[28px]" style={{ fontVariationSettings: "'FILL' 1" }}>shield_person</span>
         </div>
-        <div>
+        <div className="relative z-10">
           <div className="flex items-center gap-2">
-            <h1 className="font-display text-headline-lg text-on-background">Güvenlik Komuta Merkezi</h1>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: "linear-gradient(135deg, #0D47A1, #1E88E5)" }}>AY-GÜV</span>
+            <h1 className="font-display text-headline-lg text-white">Güvenlik Komuta Merkezi</h1>
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full text-white bg-white/20">AY-GÜV</span>
           </div>
-          <p className="text-on-surface-variant">Sistemdeki {locations.length} aktif güvenlik noktasının anlık durumu</p>
+          <p className="text-white/75">Sistemdeki {locations.length} aktif güvenlik noktasının anlık durumu</p>
         </div>
       </div>
 
@@ -466,22 +521,39 @@ export default function WebGuvenlikPage() {
 
         <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 p-6 flex flex-col">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl text-on-surface font-bold">En Aktif Bölge</h2>
+            <h2 className="text-xl text-on-surface font-bold">Aktif Devriyeler</h2>
             <div className="p-2 bg-surface-container rounded-full">
-              <span className="material-symbols-outlined text-primary">location_on</span>
+              <span className="material-symbols-outlined text-primary">directions_walk</span>
             </div>
           </div>
-          {topLocation && topLocation.activeNow > 0 ? (
-            <div className="mt-auto bg-surface-container-low p-4 rounded-xl border border-outline-variant/30">
-              <p className="text-xs font-bold text-on-surface-variant uppercase">Şu An En Çok Personel</p>
-              <p className="text-xl text-primary font-bold truncate">{topLocation.name}</p>
-              <div className="flex items-center gap-1.5 mt-2 text-on-surface-variant">
-                <span className="material-symbols-outlined text-[18px]">group</span>
-                <span className="text-sm">{topLocation.activeNow} Personel Nöbette</span>
-              </div>
+          {activePatrols.length > 0 ? (
+            <div className="space-y-3 overflow-y-auto max-h-80">
+              {activePatrols.map(p => (
+                <div key={p.id} className="bg-surface-container-low p-3.5 rounded-xl border border-outline-variant/30">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-bold text-primary truncate">{p.locationName}</p>
+                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${
+                      p.status === "active" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                    }`}>
+                      {p.status === "active" ? "Yürüyor" : "Duraklatıldı"}
+                    </span>
+                  </div>
+                  <p className="text-xs text-on-surface-variant truncate mt-0.5">{p.personnelName}</p>
+                  <div className="flex items-center justify-between mt-2 text-on-surface-variant">
+                    <div className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px]">schedule</span>
+                      <span className="text-xs">{elapsedSince(p.startedAt)}</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <span className="material-symbols-outlined text-[15px]">flag</span>
+                      <span className="text-xs">{p.completedCheckpoints}/{p.totalCheckpoints}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           ) : (
-            <p className="mt-auto text-center text-on-surface-variant py-4">Şu an nöbette kimse yok</p>
+            <p className="mt-auto text-center text-on-surface-variant py-4">Şu an devriyede kimse yok</p>
           )}
         </div>
       </div>
