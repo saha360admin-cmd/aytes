@@ -24,7 +24,12 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!loading && session && personnel) {
-      if (personnel.role === "admin" || personnel.role === "supervisor") router.replace("/yonetici");
+      const isManager = personnel.role === "admin" || personnel.role === "supervisor";
+      const isDesktop = window.innerWidth >= 1024;
+      // Masaüstünden (geniş ekran) giren güvenlik yöneticisi doğrudan
+      // masaüstü paneline gider; mobilden girenler eskisi gibi /yonetici'ye.
+      if (isManager && personnel.departments?.slug === "guvenlik" && isDesktop) router.replace("/web/guvenlik");
+      else if (isManager) router.replace("/yonetici");
       else router.replace("/dashboard");
     }
   }, [loading, session, personnel, router]);

@@ -50,14 +50,19 @@ function AuthForm() {
       if (user) {
         const { data: p } = await supabase
           .from("personnel")
-          .select("role")
+          .select("role, departments(slug)")
           .eq("auth_id", user.id)
           .single();
 
         const role = p?.role;
+        const deptSlug = (p?.departments as { slug: string } | null)?.slug;
+        const isDesktop = window.innerWidth >= 1024;
 
-        // Yönlendirme: gerçek role göre otomatik, ayrı bir yönetici girişi yok
-        if (role === "admin" || role === "supervisor") router.replace("/yonetici");
+        // Yönlendirme: gerçek role göre otomatik, ayrı bir yönetici girişi yok.
+        // Masaüstünden (geniş ekran) giren güvenlik yöneticisi doğrudan
+        // masaüstü paneline gider; mobilden girenler eskisi gibi /yonetici'ye.
+        if ((role === "admin" || role === "supervisor") && deptSlug === "guvenlik" && isDesktop) router.replace("/web/guvenlik");
+        else if (role === "admin" || role === "supervisor") router.replace("/yonetici");
         else router.replace("/dashboard");
       } else {
         router.replace("/dashboard");
