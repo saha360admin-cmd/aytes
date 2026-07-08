@@ -50,6 +50,7 @@ function initials(name: string) {
 }
 
 const emptyEditForm = { full_name: "", phone: "", position: "", location_id: "", password: "", confirmPassword: "", security_code: "" };
+const emptyAddForm = { full_name: "", phone: "", position: "", location_id: "", password: "", confirmPassword: "", security_code: "" };
 
 export default function WebGuvenlikPersonelPage() {
   const [loading, setLoading] = useState(true);
@@ -71,6 +72,11 @@ export default function WebGuvenlikPersonelPage() {
   const [editForm, setEditForm] = useState(emptyEditForm);
   const [editSaving, setEditSaving] = useState(false);
   const [showEditPassword, setShowEditPassword] = useState(false);
+
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [addForm, setAddForm] = useState(emptyAddForm);
+  const [addSaving, setAddSaving] = useState(false);
+  const [showAddPassword, setShowAddPassword] = useState(false);
 
   useEffect(() => {
     load();
@@ -214,6 +220,49 @@ export default function WebGuvenlikPersonelPage() {
     showToast("Personel güncellendi!");
   }
 
+  function openAdd() {
+    setAddForm({ ...emptyAddForm, position: GUVENLIK_POSITIONS[0]?.value ?? "" });
+    setShowAddPassword(false);
+    setShowAddModal(true);
+  }
+
+  async function handleAddSubmit() {
+    if (!deptId || !addForm.full_name) return;
+    if (!addForm.phone || addForm.phone.length < 10) { showToast("Geçerli bir telefon numarası girin"); return; }
+    if (!addForm.password || addForm.password.length < 6) { showToast("Şifre en az 6 karakter olmalı"); return; }
+    if (addForm.password !== addForm.confirmPassword) { showToast("Şifreler eşleşmiyor"); return; }
+    setAddSaving(true);
+
+    const posObj = GUVENLIK_POSITIONS.find(pos => pos.value === addForm.position);
+    const role = posObj?.role ?? "personel";
+
+    const res = await fetch("/api/create-user", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        phone: addForm.phone,
+        password: addForm.password,
+        full_name: addForm.full_name,
+        position: addForm.position || null,
+        location_id: addForm.location_id || null,
+        department_id: deptId,
+        role,
+        security_code: addForm.security_code || null,
+      }),
+    });
+
+    setAddSaving(false);
+    if (!res.ok) {
+      const { error: apiError } = await res.json();
+      showToast("Hata: " + (apiError || "Bilinmeyen hata"));
+      return;
+    }
+
+    setShowAddModal(false);
+    showToast("Personel başarıyla eklendi!");
+    load();
+  }
+
   const usedLocationIds = useMemo(() => [...new Set(people.map(p => p.location_id).filter(Boolean))] as string[], [people]);
 
   const filtered = people.filter(p => {
@@ -302,14 +351,23 @@ export default function WebGuvenlikPersonelPage() {
           <h1 className="font-display text-headline-lg text-on-background">Personel Yönetimi</h1>
           <p className="text-on-surface-variant">Güvenlik departmanındaki tüm personeli görüntüleyin ve yönetin.</p>
         </div>
-        <div className="relative w-full md:w-80">
-          <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
-          <input
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            placeholder="Personel ara..."
-            className="w-full bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary text-sm outline-none"
-          />
+        <div className="flex items-center gap-3 w-full md:w-auto">
+          <div className="relative flex-1 md:w-80">
+            <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[20px]">search</span>
+            <input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Personel ara..."
+              className="w-full bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary text-sm outline-none"
+            />
+          </div>
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-primary text-on-primary py-2.5 px-5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex-shrink-0"
+          >
+            <span className="material-symbols-outlined text-[20px]">person_add</span>
+            Yeni Personel
+          </button>
         </div>
       </div>
 
@@ -377,6 +435,146 @@ export default function WebGuvenlikPersonelPage() {
           <div className="flex items-center gap-1.5">
             <span className="w-2 h-2 rounded-full bg-amber-500" />
             <span className="text-xs font-semibold text-on-surface-variant">{onLeaveCount} İzinli</span>
+          </div>
+        </div>
+      )}
+
+      {showAddModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowAddModal(false)} />
+          <div className="relative w-full max-w-lg bg-surface-container-lowest rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center px-6 py-5 border-b border-outline-variant/20 flex-shrink-0">
+              <h2 className="font-display text-headline-sm text-on-surface">Yeni Personel Ekle</h2>
+              <button
+                onClick={() => setShowAddModal(false)}
+                className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high transition-colors"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <form className="overflow-y-auto px-6 py-5 space-y-4" onSubmit={e => { e.preventDefault(); handleAddSubmit(); }}>
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-on-surface-variant ml-1">Ad Soyad</label>
+                <input
+                  value={addForm.full_name}
+                  onChange={e => setAddForm({ ...addForm, full_name: e.target.value })}
+                  placeholder="Ahmet Yılmaz"
+                  required
+                  className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-on-surface-variant ml-1">Telefon Numarası</label>
+                <input
+                  type="tel"
+                  maxLength={11}
+                  value={addForm.phone}
+                  onChange={e => setAddForm({ ...addForm, phone: e.target.value.replace(/\s/g, "").slice(0, 11) })}
+                  placeholder="05321234567"
+                  required
+                  className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Görev</label>
+                  <select
+                    value={addForm.position}
+                    onChange={e => setAddForm({ ...addForm, position: e.target.value })}
+                    className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                  >
+                    {GUVENLIK_POSITIONS.map(pos => (
+                      <option key={pos.value} value={pos.value}>{pos.label}</option>
+                    ))}
+                  </select>
+                  {GUVENLIK_POSITIONS.find(pos => pos.value === addForm.position)?.role === "supervisor" && (
+                    <p className="text-xs text-primary ml-1">Bu görev yönetici rolü alır</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Çalıştığı Bölge</label>
+                  <select
+                    value={addForm.location_id}
+                    onChange={e => setAddForm({ ...addForm, location_id: e.target.value })}
+                    className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                  >
+                    <option value="">Lokasyon Seçiniz</option>
+                    {locations.map(loc => (
+                      <option key={loc.id} value={loc.id}>{loc.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="border-t border-outline-variant/20 pt-4 space-y-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Giriş Şifresi</label>
+                  <div className="relative">
+                    <input
+                      type={showAddPassword ? "text" : "password"}
+                      value={addForm.password}
+                      onChange={e => setAddForm({ ...addForm, password: e.target.value })}
+                      placeholder="En az 6 karakter"
+                      minLength={6}
+                      required
+                      className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 pr-10 text-sm focus:ring-2 focus:ring-primary outline-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAddPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors"
+                    >
+                      <span className="material-symbols-outlined text-[18px]">{showAddPassword ? "visibility_off" : "visibility"}</span>
+                    </button>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Şifre Tekrar</label>
+                  <input
+                    type={showAddPassword ? "text" : "password"}
+                    value={addForm.confirmPassword}
+                    onChange={e => setAddForm({ ...addForm, confirmPassword: e.target.value })}
+                    placeholder="Şifreyi tekrar girin"
+                    required
+                    className={`w-full bg-surface-container-low border rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none ${
+                      addForm.confirmPassword && addForm.password !== addForm.confirmPassword ? "border-error" : "border-transparent"
+                    }`}
+                  />
+                  {addForm.confirmPassword && addForm.password !== addForm.confirmPassword && (
+                    <p className="text-xs text-error ml-1">Şifreler eşleşmiyor</p>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Güvenlik Kodu (şifre sıfırlama için, isteğe bağlı)</label>
+                  <input
+                    value={addForm.security_code}
+                    onChange={e => setAddForm({ ...addForm, security_code: e.target.value })}
+                    placeholder="Örn: 4-6 haneli kod"
+                    className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 bg-primary/5 border border-primary/20 rounded-xl">
+                <span className="material-symbols-outlined text-primary text-[18px] flex-shrink-0 mt-0.5">info</span>
+                <p className="text-xs text-primary">
+                  Personel <strong>{addForm.phone || "telefon no"}</strong> numarası ve belirlediğiniz şifreyle giriş yapacak.
+                </p>
+              </div>
+            </form>
+
+            <div className="px-6 py-4 border-t border-outline-variant/20 flex-shrink-0">
+              <button
+                onClick={handleAddSubmit}
+                disabled={addSaving}
+                className="w-full bg-primary text-on-primary rounded-full py-3 font-bold text-sm shadow-md disabled:opacity-60 transition-all"
+              >
+                {addSaving ? "Kaydediliyor..." : "Personel Ekle"}
+              </button>
+            </div>
           </div>
         </div>
       )}
