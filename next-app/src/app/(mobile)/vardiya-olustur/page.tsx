@@ -7,7 +7,15 @@ import { supabase } from "@/lib/supabase";
 import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 
 interface Location { id: string; name: string; }
-interface PersonnelItem { id: string; full_name: string; isGuest?: boolean; }
+interface PersonnelItem { id: string; full_name: string; isGuest?: boolean; position?: string | null; }
+
+// "sabit-guvenlik" personel (ör. Genel Müdürlük'te sabit nöbet tutan
+// personel) rotasyonlu personelden farklı bir desende çalışır — haftada
+// 2 gün değil, kendi sabit programına göre T211 alır. Rotasyonlu personel
+// için var olan "ayda 4'ten fazla T211 = fazladan 7,5 saat kredi" kuralı
+// sabit personelde anlamsız (T211 sayıları zaten normalde 4'ü aşıyor),
+// bu yüzden bu personel için o kural hiç uygulanmıyor.
+const FIXED_POSITION = "sabit-guvenlik";
 interface ShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; duration_hours: number | null; start_time: string | null; end_time: string | null; }
 
 // İki vardiya kodunun aynı takvim gününde saat olarak çakışıp çakışmadığını
@@ -121,7 +129,7 @@ export default function VardiyaOlusturmaPage() {
   // gerektirmiyor — shift_assignments.location_id zaten her atamada var,
   // kişinin ev lokasyonundan (personnel.location_id) farklıysa bu doğal
   // olarak "geçici görevlendirme" anlamına geliyor.
-  const [allPersonnel, setAllPersonnel] = useState<{ id: string; full_name: string; location_id: string | null }[]>([]);
+  const [allPersonnel, setAllPersonnel] = useState<{ id: string; full_name: string; location_id: string | null; position: string | null }[]>([]);
   const [showTempAssign, setShowTempAssign] = useState(false);
   const [tempAssignSearch, setTempAssignSearch] = useState("");
   const [tempAssignForm, setTempAssignForm] = useState({ personnelId: "", startDate: "", endDate: "", shiftCode: "" });
@@ -184,7 +192,7 @@ export default function VardiyaOlusturmaPage() {
         .eq("department_id", personnel!.department_id)
         .order("sort_order")
         .order("created_at"),
-      supabase.from("personnel").select("id, full_name, location_id").eq("department_id", personnel!.department_id).neq("status", "archived").order("full_name"),
+      supabase.from("personnel").select("id, full_name, location_id, position").eq("department_id", personnel!.department_id).neq("status", "archived").order("full_name"),
     ]);
     setShiftTypes(data || []);
     setAllPersonnel(allP || []);
@@ -214,7 +222,7 @@ export default function VardiyaOlusturmaPage() {
     const endStr = toDateStr(monthDays[monthDays.length - 1]);
 
     const [{ data: pData }, { data: saData }] = await Promise.all([
-      supabase.from("personnel").select("id, full_name").eq("location_id", selectedLocId).eq("department_id", personnel!.department_id).neq("status", "archived").order("full_name"),
+      supabase.from("personnel").select("id, full_name, position").eq("location_id", selectedLocId).eq("department_id", personnel!.department_id).neq("status", "archived").order("full_name"),
       // Bu lokasyona ait TÜM atamalar — hem kadrolu personelin hem de
       // buraya geçici görevlendirilmiş misafirlerin kayıtları burada.
       supabase.from("shift_assignments").select("personnel_id, shift_date, shift_code").eq("location_id", selectedLocId).gte("shift_date", startStr).lte("shift_date", endStr),
@@ -232,7 +240,7 @@ export default function VardiyaOlusturmaPage() {
     const guestRows: PersonnelItem[] = guestIds
       .map(id => allPersonnel.find(p => p.id === id))
       .filter((p): p is NonNullable<typeof p> => Boolean(p))
-      .map(p => ({ id: p.id, full_name: p.full_name, isGuest: true }));
+      .map(p => ({ id: p.id, full_name: p.full_name, isGuest: true, position: p.position }));
 
     // Kadrolu personelin bu ay içinde BAŞKA bir lokasyona geçici olarak
     // görevlendirilip görevlendirilmediği — "Başka Lokasyonda" işareti için.
@@ -432,7 +440,7 @@ export default function VardiyaOlusturmaPage() {
       .lte("shift_date", endDate);
 
     if (!personnelList.some(p => p.id === personnelId)) {
-      setPersonnelList(prev => [...prev, { id: person.id, full_name: person.full_name, isGuest: true }]);
+      setPersonnelList(prev => [...prev, { id: person.id, full_name: person.full_name, isGuest: true, position: person.position }]);
     }
 
     const newCells: Record<string, string> = {};
@@ -496,12 +504,21 @@ export default function VardiyaOlusturmaPage() {
   const overtimeByPerson: { id: string; name: string; hours: number }[] = [];
   const deficitByPerson: { id: string; name: string; hours: number }[] = [];
   personnelList.forEach(p => {
+    const isFixed = p.position === FIXED_POSITION;
     let personHours = 0;
     let weeklyRestCount = 0;
+    // Sabit personelin normalde dinlenmesi gereken günde (T211 yerine)
+    // çalıştırıldığını gösteren kodlar — "T211+1", ileride "T211+2" vb.
+    // Bu bir normal çalışma günü değil, doğrudan fazla mesai sayılır.
+    let fixedRestOvertimeHours = 0;
     monthDays.forEach(day => {
       const code = cells[`${p.id}_${toDateStr(day)}`];
       if (!code) return;
       if (code === WEEKLY_REST_CODE) { weeklyRestCount++; return; }
+      if (isFixed && code.startsWith(`${WEEKLY_REST_CODE}+`)) {
+        fixedRestOvertimeHours += hoursForShiftCode(code, shiftTypes);
+        return;
+      }
       if (code === "T245") unpaidLeaveDays++;
       else if (code === "T216") annualLeaveDays++;
       else if (code === "T241") sickReportDays++;
@@ -509,14 +526,29 @@ export default function VardiyaOlusturmaPage() {
     });
     // Eşik formülü ayda 4 hafta tatili varsayıyor; ay 5 hafta tatili
     // içeriyorsa 5. gün normal dinlenme günü sayılmaz, 7,5 saat
-    // çalışılmış gibi eklenir.
-    personHours += Math.max(0, weeklyRestCount - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
-    totalWorkHours += personHours;
-    const personOvertime = Math.max(0, personHours - monthlyThreshold);
-    overtimeHours += personOvertime;
-    if (personOvertime > 0) overtimeByPerson.push({ id: p.id, name: p.full_name, hours: personOvertime });
-    const personDeficit = Math.max(0, monthlyThreshold - personHours);
-    if (personDeficit > 0) deficitByPerson.push({ id: p.id, name: p.full_name, hours: personDeficit });
+    // çalışılmış gibi eklenir. Sabit personelde (FIXED_POSITION) T211
+    // sayısı zaten kendi programı gereği 4'ü aşıyor — takvim sapması
+    // değil, bu yüzden onlara bu kredi hiç uygulanmıyor.
+    if (!isFixed) {
+      personHours += Math.max(0, weeklyRestCount - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
+    }
+    totalWorkHours += personHours + fixedRestOvertimeHours;
+    // Fazla mesai/eksik çalışma eşiği rotasyonlu personelin "günde 7,5
+    // saat, ayda 4 hafta tatili" desenine göre kurulu — sabit personelin
+    // günlük vardiyası 9 saat olduğu için bu eşikle karşılaştırmak
+    // anlamlı değil, bu yüzden sabit personelin normal günleri bu iki
+    // listeye dahil edilmiyor. Ama T211 yerine çalıştığı günler
+    // (fixedRestOvertimeHours) doğrudan fazla mesai listesine yazılıyor.
+    if (isFixed) {
+      overtimeHours += fixedRestOvertimeHours;
+      if (fixedRestOvertimeHours > 0) overtimeByPerson.push({ id: p.id, name: p.full_name, hours: fixedRestOvertimeHours });
+    } else {
+      const personOvertime = Math.max(0, personHours - monthlyThreshold);
+      overtimeHours += personOvertime;
+      if (personOvertime > 0) overtimeByPerson.push({ id: p.id, name: p.full_name, hours: personOvertime });
+      const personDeficit = Math.max(0, monthlyThreshold - personHours);
+      if (personDeficit > 0) deficitByPerson.push({ id: p.id, name: p.full_name, hours: personDeficit });
+    }
   });
   overtimeByPerson.sort((a, b) => b.hours - a.hours);
   deficitByPerson.sort((a, b) => b.hours - a.hours);
