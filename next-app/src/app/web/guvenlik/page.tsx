@@ -3,6 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+// Toplam kadro sayısı — sorguyla hesaplanmıyor, sabit tutuluyor.
+// personnel tablosundaki durum filtreleri (arşiv/izinli/pasif) gerçek
+// kadro sayısını tutarlı vermediği için talep üzerine elle sabitlendi.
+const FIXED_TOTAL_PERSONNEL = 103;
+
 interface LocationCard {
   location_id: string;
   name: string;
@@ -109,14 +114,12 @@ export default function WebGuvenlikPage() {
       const startOfDay = new Date(todayStr + "T00:00:00").toISOString();
 
       const [
-        { count: totalCount },
         { data: activeRows },
         { count: reqCount },
         { data: incDepts },
         { data: todayPatrols },
         { data: allLocations },
       ] = await Promise.all([
-        supabase.from("personnel").select("id", { count: "exact", head: true }).eq("department_id", deptId),
         supabase.from("personnel").select("id, location_id, full_name, role").eq("department_id", deptId).eq("status", "active"),
         supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
         supabase.from("incident_departments").select("incident_id, status").eq("department_id", deptId),
@@ -124,7 +127,8 @@ export default function WebGuvenlikPage() {
         supabase.from("locations").select("id, name, target_count"),
       ]);
 
-      setTotalPersonnel(totalCount || 0);
+      // Toplam kadro sorgudan değil, sabit olarak tutuluyor (talep üzerine).
+      setTotalPersonnel(FIXED_TOTAL_PERSONNEL);
       setActivePersonnel((activeRows || []).length);
       setPendingRequests(reqCount || 0);
       setOpenIncidents((incDepts || []).filter(r => r.status === "open" || r.status === "in_progress").length);
