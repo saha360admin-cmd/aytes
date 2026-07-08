@@ -86,6 +86,8 @@ export default function WebGuvenlikPage() {
   const [hoveredLocId, setHoveredLocId] = useState<string | null>(null);
   const [popoverAbove, setPopoverAbove] = useState(false);
   const locationGridRef = useRef<HTMLDivElement>(null);
+  const [locationShortages, setLocationShortages] = useState<{ id: string; name: string; target: number; actual: number; deficit: number }[]>([]);
+  const [showShortages, setShowShortages] = useState(false);
 
   useEffect(() => {
     load(false);
@@ -112,12 +114,14 @@ export default function WebGuvenlikPage() {
         { count: reqCount },
         { data: incDepts },
         { data: todayPatrols },
+        { data: allLocations },
       ] = await Promise.all([
         supabase.from("personnel").select("id", { count: "exact", head: true }).eq("department_id", deptId),
-        supabase.from("personnel").select("id, location_id, full_name").eq("department_id", deptId).eq("status", "active"),
+        supabase.from("personnel").select("id, location_id, full_name, role").eq("department_id", deptId).eq("status", "active"),
         supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
         supabase.from("incident_departments").select("incident_id, status").eq("department_id", deptId),
         supabase.from("patrols").select("id, status").eq("department_id", deptId).gte("created_at", startOfDay),
+        supabase.from("locations").select("id, name, target_count"),
       ]);
 
       setTotalPersonnel(totalCount || 0);
@@ -132,13 +136,31 @@ export default function WebGuvenlikPage() {
         setPatrolCompletionPct(null);
       }
 
+      // Eksik Güvenlik: mobildeki (mobile)/yonetici/page.tsx'teki
+      // "Eksik Güvenlik" widget'ıyla birebir aynı mantık — yönetici/
+      // süpervizörler idari olarak Genel Müdürlük'e bağlı sayılır,
+      // her lokasyonun target_count'undan aşağı kalanlar "eksik".
+      const allLocs = (allLocations || []) as { id: string; name: string; target_count: number }[];
+      const genelMudId = allLocs.find(l => l.name === "Genel Müdürlük")?.id;
+      const locCounts: Record<string, number> = {};
+      for (const p of (activeRows || []) as { location_id: string | null; role: string }[]) {
+        let locId = p.location_id;
+        if ((p.role === "admin" || p.role === "supervisor") && genelMudId) locId = genelMudId;
+        if (locId) locCounts[locId] = (locCounts[locId] || 0) + 1;
+      }
+      const shortages = allLocs
+        .map(l => ({ id: l.id, name: l.name, target: l.target_count, actual: locCounts[l.id] || 0, deficit: l.target_count - (locCounts[l.id] || 0) }))
+        .filter(l => l.deficit > 0)
+        .sort((a, b) => b.deficit - a.deficit);
+      setLocationShortages(shortages);
+
       // Canlı Lokasyon Takibi: bugün+dün (gece yarısını aşan vardiyalar için)
       // yayınlanmış atamalar, shift_types saatleriyle birleştirilip her
       // atamanın şu anda gerçekten devam edip etmediği hesaplanır.
       const activeIds = (activeRows || []).map(p => p.id);
       const nameById = new Map((activeRows || []).map(p => [p.id, p.full_name as string]));
       if (activeIds.length > 0) {
-        const [{ data: assignments }, { data: shiftTypesData }, { data: locs }] = await Promise.all([
+        const [{ data: assignments }, { data: shiftTypesData }] = await Promise.all([
           supabase.from("shift_assignments")
             .select("location_id, shift_code, shift_date, personnel_id")
             .in("personnel_id", activeIds)
@@ -146,8 +168,8 @@ export default function WebGuvenlikPage() {
             .eq("status", "published")
             .not("location_id", "is", null),
           supabase.from("shift_types").select("code, start_time, end_time, is_day_off").eq("department_id", deptId),
-          supabase.from("locations").select("id, name"),
         ]);
+        const locs = allLocs;
 
         const shiftTypeByCode = new Map((shiftTypesData || []).map(s => [s.code, s]));
         // Sayı ile isim listesinin her zaman birebir örtüşmesi için ikisi
@@ -261,14 +283,52 @@ export default function WebGuvenlikPage() {
 
       {/* İstatistik Kartları */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <div className="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/30 flex items-start justify-between">
-          <div>
-            <p className="text-on-surface-variant text-sm mb-1">Aktif Personel</p>
-            <h3 className="text-4xl text-primary font-bold">{activePersonnel}<span className="text-xl text-on-surface-variant/50">/{totalPersonnel}</span></h3>
+        <div
+          className="relative bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/30 flex flex-col gap-3"
+          onMouseEnter={() => locationShortages.length > 0 && setShowShortages(true)}
+          onMouseLeave={() => setShowShortages(false)}
+        >
+          <div className="flex items-start justify-between">
+            <div>
+              <p className="text-on-surface-variant text-sm mb-1">Aktif Personel</p>
+              <h3 className="text-4xl text-primary font-bold">{activePersonnel}<span className="text-xl text-on-surface-variant/50">/{totalPersonnel}</span></h3>
+            </div>
+            <div className="p-3 bg-primary/10 text-primary rounded-xl flex-shrink-0">
+              <span className="material-symbols-outlined">group</span>
+            </div>
           </div>
-          <div className="p-3 bg-primary/10 text-primary rounded-xl">
-            <span className="material-symbols-outlined">group</span>
-          </div>
+
+          {locationShortages.length > 0 && (
+            <div className="flex items-center gap-1.5 text-error text-xs font-bold">
+              <span className="material-symbols-outlined text-[14px]">person_alert</span>
+              {locationShortages.length} lokasyonda {locationShortages.reduce((s, l) => s + l.deficit, 0)} eksik personel
+            </div>
+          )}
+
+          {showShortages && locationShortages.length > 0 && (
+            <div className="absolute z-50 top-full left-0 mt-2 w-72 bg-surface-container-lowest border border-outline-variant/30 rounded-xl shadow-lg overflow-hidden">
+              <div className="px-4 py-2.5 bg-error/10 border-b border-outline-variant/20 flex items-center gap-2">
+                <span className="material-symbols-outlined text-error text-[16px]" style={{ fontVariationSettings: "'FILL' 1" }}>person_alert</span>
+                <p className="text-xs font-bold text-error">Eksik Güvenlik — {locationShortages.length} lokasyon</p>
+              </div>
+              <div className="max-h-64 overflow-y-auto divide-y divide-outline-variant/10">
+                {locationShortages.map(loc => (
+                  <div key={loc.id} className="px-4 py-2.5">
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className="text-xs font-semibold text-on-surface truncate">{loc.name}</span>
+                      <span className="text-[10px] font-bold text-error bg-error/10 px-1.5 py-0.5 rounded-full flex-shrink-0">-{loc.deficit}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex-1 bg-surface-container-high rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-error rounded-full" style={{ width: `${Math.max(0, Math.round((loc.actual / loc.target) * 100))}%` }} />
+                      </div>
+                      <span className="text-[10px] text-on-surface-variant font-mono flex-shrink-0">{loc.actual}/{loc.target}</span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         <div className="bg-surface-container-lowest p-6 rounded-xl shadow-sm border border-outline-variant/30 flex items-start justify-between">
