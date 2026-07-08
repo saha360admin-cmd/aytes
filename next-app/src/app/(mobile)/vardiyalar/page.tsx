@@ -24,6 +24,68 @@ interface ShiftInfo {
   end_time: string;
 }
 
+interface ShiftType {
+  code: string;
+  duration_hours: number | null;
+  is_day_off: boolean;
+}
+
+// Fazla mesai hesabı — güvenlik biriminin gerçek bordro kuralı, masaüstü
+// ve (mobile)/vardiya-olustur ile birebir aynı: 1/2/3 normal vardiya
+// (7,5s), 5/6 uzun vardiya (11s), 7/8 gece/en uzun vardiya (15s); T216
+// (Yıllık İzin) ve T241 (Rapor) çalışmamış ama 7,5s olarak sayılır, T245
+// (Ücretsiz İzin) hiç sayılmaz. Ay eşiği: (ay gün sayısı - 4 hafta
+// tatili) × 7,5 saat.
+const KNOWN_CODE_HOURS: Record<string, number> = {
+  "1": 7.5, "2": 7.5, "3": 7.5,
+  "5": 11, "6": 11,
+  "7": 15, "8": 15,
+  T216: 7.5,
+  T241: 7.5,
+  T245: 0,
+};
+
+// T211 = hafta tatili. sabit-guvenlik, proje-muduru ve guvenlik-sorumlusu
+// (Proje Sorumlusu) pozisyonundaki personelde T211 sayısı kendi sabit
+// programı gereği 4'ü doğal olarak aşıyor — bu bir takvim sapması
+// değil, bu yüzden onlara hafta tatili kredisi hiç uygulanmıyor. T211
+// yerine çalıştırıldıklarını gösteren "T211+1" gibi kodlar ise doğrudan
+// fazla mesaiye yazılır.
+const WEEKLY_REST_CODE = "T211";
+const WEEKLY_REST_ALLOWANCE = 4;
+const WEEKLY_REST_EXTRA_HOURS = 7.5;
+const FIXED_POSITIONS = ["sabit-guvenlik", "proje-muduru", "guvenlik-sorumlusu"];
+
+// Performans Puanı (0-100, son 1 yıl / hareketli 365 gün) — taban puan
+// devriye tamamlama + mesai hedefi karşılama + iletişim yanıt oranının
+// ağırlıklı ortalaması; devriye kaçırma ve ücretsiz izin/rapor günleri
+// bu taban puandan doğrudan düşülen cezalar. Bir bileşen için veri yoksa
+// (ör. hiç devriye ataması yoksa) o bileşen hesaba katılmaz, kalan
+// bileşenlerin ağırlıkları kendi aralarında yeniden orantılanır.
+const PATROL_SCORE_WEIGHT = 40;
+const MESAI_SCORE_WEIGHT = 35;
+const ILETISIM_SCORE_WEIGHT = 25;
+const PATROL_MISS_PENALTY = 5;
+const PATROL_MISS_PENALTY_CAP = 30;
+const LEAVE_PENALTY_PER_DAY = 2;
+const LEAVE_PENALTY_CAP = 20;
+
+function hoursForShiftCode(code: string, shiftTypes: ShiftType[]): number {
+  if (code in KNOWN_CODE_HOURS) return KNOWN_CODE_HOURS[code];
+  const st = shiftTypes.find(s => s.code === code);
+  if (!st) return 0;
+  if (st.is_day_off) return 0;
+  return st.duration_hours ?? 0;
+}
+
+function monthlyOvertimeThreshold(daysInMonth: number): number {
+  return (daysInMonth - 4) * 7.5;
+}
+
+function formatHours(h: number): string {
+  return Number.isInteger(h) ? String(h) : h.toFixed(1);
+}
+
 const TR_SHORT_DAYS = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 const TR_MONTHS = [
   "Ocak", "Şubat", "Mart", "Nisan", "Mayıs", "Haziran",
@@ -48,6 +110,9 @@ export default function VardiyalarPage() {
   const router = useRouter();
   const { personnel } = useAuth();
   const [assignments, setAssignments] = useState<ShiftAssignment[]>([]);
+  const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
+  const [yearlyLeave, setYearlyLeave] = useState({ unpaid: 0, annual: 0, report: 0 });
+  const [performanceScore, setPerformanceScore] = useState<number | null>(null);
   const [coworkers, setCoworkers] = useState<Coworker[]>([]);
   const [shiftInfo, setShiftInfo] = useState<ShiftInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -86,15 +151,115 @@ export default function VardiyalarPage() {
     if (!personnel) return;
     const start = toDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
     const end = toDateStr(new Date(today.getFullYear(), today.getMonth() + 2, 0));
-    const { data } = await supabase
-      .from("shift_assignments")
-      .select("id, shift_date, shift_code, status")
-      .eq("personnel_id", personnel.id)
-      .eq("status", "published")
-      .gte("shift_date", start)
-      .lte("shift_date", end)
-      .order("shift_date");
+    // Son 1 yıl içindeki izin/rapor günleri + performans puanı bileşenleri
+    // için ayrı, geniş bir pencere — aylık takvim sorgusundan bağımsız
+    // çünkü o sadece bu ay + gelecek ayı kapsıyor.
+    const yearAgo = new Date(today);
+    yearAgo.setDate(yearAgo.getDate() - 365);
+    const yearStart = toDateStr(yearAgo);
+    const yearAgoIso = yearAgo.toISOString();
+    const nowIso = new Date().toISOString();
+
+    // Personele ait iletişimler: tüm personel veya kendi lokasyonu —
+    // (mobile)/iletisim sayfasındaki filtre mantığıyla birebir aynı.
+    const locFilter = personnel.location_id
+      ? `target_type.eq.all,and(target_type.eq.location,location_id.eq.${personnel.location_id})`
+      : "target_type.eq.all";
+
+    const [
+      { data },
+      { data: stData },
+      { data: yearData },
+      { data: patrolData },
+      { data: targetedComms },
+      { data: myReads },
+    ] = await Promise.all([
+      supabase
+        .from("shift_assignments")
+        .select("id, shift_date, shift_code, status")
+        .eq("personnel_id", personnel.id)
+        .eq("status", "published")
+        .gte("shift_date", start)
+        .lte("shift_date", end)
+        .order("shift_date"),
+      supabase.from("shift_types").select("code, duration_hours, is_day_off").eq("department_id", personnel.department_id),
+      supabase
+        .from("shift_assignments")
+        .select("shift_date, shift_code")
+        .eq("personnel_id", personnel.id)
+        .eq("status", "published")
+        .gte("shift_date", yearStart)
+        .lte("shift_date", end),
+      supabase.from("patrol_assignments").select("date, status").eq("personnel_id", personnel.id).gte("date", yearStart).lte("date", todayStr),
+      supabase.from("communications").select("id").eq("department_id", personnel.department_id).or(locFilter).gte("created_at", yearAgoIso).lte("created_at", nowIso),
+      supabase.from("communication_reads").select("communication_id").eq("personnel_id", personnel.id),
+    ]);
     setAssignments(data || []);
+    setShiftTypes(stData || []);
+
+    // Yıllık izin/rapor sayıları + ay bazlı mesai hedefi karşılama oranı
+    // aynı yearData taramasından çıkarılıyor.
+    const isFixed = FIXED_POSITIONS.includes(personnel.position ?? "");
+    const counts = { unpaid: 0, annual: 0, report: 0 };
+    const byMonth: Record<string, { hours: number; weeklyRest: number; fixedOT: number }> = {};
+    (yearData || []).forEach(r => {
+      const code = r.shift_code;
+      if (code === "T245") counts.unpaid++;
+      else if (code === "T216") counts.annual++;
+      else if (code === "T241") counts.report++;
+
+      const monthKey = r.shift_date.slice(0, 7);
+      const bucket = (byMonth[monthKey] ??= { hours: 0, weeklyRest: 0, fixedOT: 0 });
+      if (code === WEEKLY_REST_CODE) { bucket.weeklyRest++; return; }
+      if (isFixed && code.startsWith(`${WEEKLY_REST_CODE}+`)) { bucket.fixedOT += hoursForShiftCode(code, stData || []); return; }
+      bucket.hours += hoursForShiftCode(code, stData || []);
+    });
+    setYearlyLeave(counts);
+
+    let ratioSum = 0, monthCount = 0;
+    Object.entries(byMonth).forEach(([monthKey, b]) => {
+      let hrs = b.hours;
+      if (!isFixed) hrs += Math.max(0, b.weeklyRest - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
+      const [y, m] = monthKey.split("-").map(Number);
+      const daysInM = new Date(y, m, 0).getDate();
+      const threshold = monthlyOvertimeThreshold(daysInM);
+      if (threshold <= 0) return;
+      ratioSum += Math.min(1, (hrs + b.fixedOT) / threshold);
+      monthCount++;
+    });
+    const mesaiScore = monthCount > 0 ? (ratioSum / monthCount) * 100 : null;
+
+    // Devriye tamamlama oranı + kaçırma sayısı
+    const patrolRows = patrolData || [];
+    const completedCount = patrolRows.filter(p => p.status === "completed").length;
+    const missedCount = patrolRows.filter(p => p.status === "missed").length;
+    const patrolScore = patrolRows.length > 0 ? (completedCount / patrolRows.length) * 100 : null;
+
+    // İletişim yanıt oranı — kendisine gelen mesajların kaçını okudu
+    const targetedIds = new Set((targetedComms || []).map(c => c.id));
+    const readIds = new Set((myReads || []).map(r => r.communication_id));
+    let readMatch = 0;
+    targetedIds.forEach(id => { if (readIds.has(id)) readMatch++; });
+    const iletisimScore = targetedIds.size > 0 ? (readMatch / targetedIds.size) * 100 : null;
+
+    // Bileşik puan — veri olan bileşenlerin ağırlıklı ortalaması, ardından
+    // devriye kaçırma ve ücretsiz izin/rapor cezaları düşülür.
+    const components = [
+      { score: patrolScore, weight: PATROL_SCORE_WEIGHT },
+      { score: mesaiScore, weight: MESAI_SCORE_WEIGHT },
+      { score: iletisimScore, weight: ILETISIM_SCORE_WEIGHT },
+    ].filter((c): c is { score: number; weight: number } => c.score !== null);
+
+    let finalScore: number | null = null;
+    if (components.length > 0) {
+      const totalWeight = components.reduce((s, c) => s + c.weight, 0);
+      const base = components.reduce((s, c) => s + c.score * (c.weight / totalWeight), 0);
+      const missedPenalty = Math.min(PATROL_MISS_PENALTY_CAP, missedCount * PATROL_MISS_PENALTY);
+      const leavePenalty = Math.min(LEAVE_PENALTY_CAP, (counts.unpaid + counts.report) * LEAVE_PENALTY_PER_DAY);
+      finalScore = Math.max(0, Math.min(100, base - missedPenalty - leavePenalty));
+    }
+    setPerformanceScore(finalScore);
+
     setLoading(false);
   }
 
@@ -159,18 +324,40 @@ export default function VardiyalarPage() {
 
   const selectedStr = toDateStr(selectedDate);
   const selectedShift = byDate[selectedStr];
-  const upcoming = assignments.filter(a => a.shift_date >= todayStr);
+  // "Gelecek Vardiya" sadece gerçek çalışma günlerini saymalı — T211 (hafta
+  // tatili), T245/T216/T241 (izin/rapor) gibi is_day_off=true kodlar hariç.
+  // T211+1 gibi "dinlenmesi gereken günde çalıştı" kodları is_day_off=false
+  // olduğu için gerçek vardiya sayılıp dahil ediliyor.
+  const dayOffCodes = new Set(shiftTypes.filter(s => s.is_day_off).map(s => s.code));
+  const upcoming = assignments.filter(a => a.shift_date >= todayStr && !dayOffCodes.has(a.shift_code));
   const thisMonth = assignments.filter(a => {
     const d = new Date(a.shift_date + "T00:00:00");
     return d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
   });
 
-  const overtimeHours = thisMonth.reduce((total, a) => {
+  // Gerçek mesai hesabı — masaüstü ve (mobile)/vardiya-olustur'daki
+  // personel bazlı hesapla birebir aynı mantık (shift_types.duration_hours,
+  // hafta tatili kredisi, sabit personel için T211+ fazla mesai istisnası).
+  const isFixed = FIXED_POSITIONS.includes(personnel?.position ?? "");
+  let personHours = 0;
+  let weeklyRestCount = 0;
+  let fixedRestOvertimeHours = 0;
+  thisMonth.forEach(a => {
     const code = a.shift_code;
-    if (code === "5" || code === "6") return total + 3.5;
-    if (code === "7" || code === "8") return total + 7.5;
-    return total;
-  }, 0);
+    if (code === WEEKLY_REST_CODE) { weeklyRestCount++; return; }
+    if (isFixed && code.startsWith(`${WEEKLY_REST_CODE}+`)) {
+      fixedRestOvertimeHours += hoursForShiftCode(code, shiftTypes);
+      return;
+    }
+    personHours += hoursForShiftCode(code, shiftTypes);
+  });
+  if (!isFixed) {
+    personHours += Math.max(0, weeklyRestCount - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
+  }
+  const daysInMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const monthlyThreshold = monthlyOvertimeThreshold(daysInMonth);
+  const overtimeHours = isFixed ? fixedRestOvertimeHours : Math.max(0, personHours - monthlyThreshold);
+  const totalWorkedHours = personHours + fixedRestOvertimeHours;
 
   const unpaidLeaveDays  = thisMonth.filter(a => a.shift_code === "T245").length;
   const annualLeaveDays  = thisMonth.filter(a => a.shift_code === "T216").length;
@@ -401,7 +588,7 @@ export default function VardiyalarPage() {
             <div className="bg-surface-container-lowest rounded-xl shadow-md p-2 flex flex-col items-center justify-center gap-2 border-b-4 border-secondary">
               <span className="material-symbols-outlined text-secondary text-[24px]">timer</span>
               <span className="text-headline-md font-bold text-secondary">
-                {thisMonth.length * 8}
+                {formatHours(totalWorkedHours)}
               </span>
               <span className="text-label-sm text-on-surface-variant text-center">Toplam Saat</span>
             </div>
@@ -414,7 +601,7 @@ export default function VardiyalarPage() {
             </div>
             <div className="bg-surface-container-lowest rounded-xl shadow-md p-2 flex flex-col items-center justify-center gap-2 border-b-4 border-tertiary">
               <span className="material-symbols-outlined text-tertiary text-[24px]">more_time</span>
-              <span className="text-headline-md font-bold text-tertiary">{overtimeHours}</span>
+              <span className="text-headline-md font-bold text-tertiary">{formatHours(overtimeHours)}</span>
               <span className="text-label-sm text-on-surface-variant text-center">Fazla Mesai</span>
             </div>
           </div>
@@ -430,6 +617,7 @@ export default function VardiyalarPage() {
               sub: "Bu ay toplam",
               value: unpaidLeaveDays > 0 ? `${unpaidLeaveDays} Gün` : "—",
               valueClass: "text-primary",
+              yearTotal: yearlyLeave.unpaid,
             },
             {
               icon: "calendar_today",
@@ -440,6 +628,7 @@ export default function VardiyalarPage() {
               sub: "Bu ay toplam",
               value: annualLeaveDays > 0 ? `${annualLeaveDays} Gün` : "—",
               valueClass: "text-primary",
+              yearTotal: yearlyLeave.annual,
             },
             {
               icon: "medical_information",
@@ -450,6 +639,7 @@ export default function VardiyalarPage() {
               sub: "Bu ay toplam",
               value: doctorReportDays > 0 ? `${doctorReportDays} Gün` : "—",
               valueClass: "text-error",
+              yearTotal: yearlyLeave.report,
             },
             {
               icon: "work_history",
@@ -457,9 +647,10 @@ export default function VardiyalarPage() {
               iconText: "text-on-tertiary",
               shadow: "shadow-tertiary/20",
               label: "Yapılan Mesai",
-              sub: "Yıllık toplam",
-              value: `${overtimeHours} Saat`,
+              sub: "Bu ay toplam",
+              value: `${formatHours(totalWorkedHours)} Saat`,
               valueClass: "text-tertiary",
+              yearTotal: undefined,
             },
             {
               icon: "verified",
@@ -467,11 +658,12 @@ export default function VardiyalarPage() {
               iconText: "text-on-secondary",
               shadow: "shadow-secondary/20",
               label: "Performans Puanı",
-              sub: "Mevcut dönem",
-              value: "—",
+              sub: "Son 1 yıl",
+              value: performanceScore !== null ? Math.round(performanceScore) : "—",
               valueClass: "text-secondary",
+              yearTotal: undefined,
             },
-          ].map(({ icon, iconBg, iconText, shadow, label, sub, value, valueClass }) => (
+          ].map(({ icon, iconBg, iconText, shadow, label, sub, value, valueClass, yearTotal }) => (
             <div
               key={label}
               className="bg-surface-container-high rounded-xl p-md flex items-center justify-between mt-2"
@@ -487,7 +679,12 @@ export default function VardiyalarPage() {
                   <p className="text-label-sm text-on-surface-variant">{sub}</p>
                 </div>
               </div>
-              <span className={`text-headline-md font-bold ${valueClass}`}>{value}</span>
+              <div className="text-right">
+                <span className={`text-headline-md font-bold ${valueClass}`}>{value}</span>
+                {yearTotal !== undefined && (
+                  <p className="text-label-sm text-on-surface-variant">Genel toplam: {yearTotal} Gün</p>
+                )}
+              </div>
             </div>
           ))}
         </section>

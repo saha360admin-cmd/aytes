@@ -13,6 +13,7 @@ interface Personnel {
   email: string;
   role: "admin" | "supervisor" | "personel";
   status: string;
+  position: string | null;
   departments: { id: string; name: string; slug: string; icon: string; color: string } | null;
   locations: { id: string; name: string } | null;
 }
