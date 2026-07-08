@@ -1,13 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 interface LocationCard {
   location_id: string;
   name: string;
-  activePersonnel: number;
-  hasShiftToday: boolean;
+  activeNow: number;
+  todayTotal: number;
+  activeNames: { id: string; name: string }[];
 }
 
 interface RecentIncident {
@@ -47,6 +48,20 @@ function toDateStr(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
+// Bir vardiya atamasının (shift_date + shift_types.start/end_time) şu anki
+// saatte gerçekten devam edip etmediğini hesaplar. Gece yarısını aşan
+// vardiyalar (ör. 22:00-06:00) doğru şekilde ele alınır.
+function isAssignmentActiveNow(shiftDateStr: string, startTime: string | null, endTime: string | null, now: Date): boolean {
+  if (!startTime || !endTime) return false;
+  const [sh, sm] = startTime.slice(0, 5).split(":").map(Number);
+  const [eh, em] = endTime.slice(0, 5).split(":").map(Number);
+  const [y, m, d] = shiftDateStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d, sh, sm);
+  let end = new Date(y, m - 1, d, eh, em);
+  if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  return now >= start && now < end;
+}
+
 function timeAgo(dateStr: string) {
   const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
   if (diff < 1) return "az önce";
@@ -67,19 +82,28 @@ export default function WebGuvenlikPage() {
   const [patrolCompletionPct, setPatrolCompletionPct] = useState<number | null>(null);
   const [locations, setLocations] = useState<LocationCard[]>([]);
   const [recentIncidents, setRecentIncidents] = useState<RecentIncident[]>([]);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [hoveredLocId, setHoveredLocId] = useState<string | null>(null);
+  const [popoverAbove, setPopoverAbove] = useState(false);
+  const locationGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    load();
+    load(false);
+    const interval = setInterval(() => load(true), 120000);
+    return () => clearInterval(interval);
   }, []);
 
-  async function load() {
-    setLoading(true);
+  async function load(isBackground: boolean) {
+    if (!isBackground) setLoading(true);
     setError(false);
     try {
       const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
       if (!dept) throw new Error("dept not found");
       const deptId = dept.id;
-      const todayStr = toDateStr(new Date());
+      const now = new Date();
+      const todayStr = toDateStr(now);
+      const yesterday = new Date(now); yesterday.setDate(yesterday.getDate() - 1);
+      const yesterdayStr = toDateStr(yesterday);
       const startOfDay = new Date(todayStr + "T00:00:00").toISOString();
 
       const [
@@ -90,7 +114,7 @@ export default function WebGuvenlikPage() {
         { data: todayPatrols },
       ] = await Promise.all([
         supabase.from("personnel").select("id", { count: "exact", head: true }).eq("department_id", deptId),
-        supabase.from("personnel").select("id, location_id").eq("department_id", deptId).eq("status", "active"),
+        supabase.from("personnel").select("id, location_id, full_name").eq("department_id", deptId).eq("status", "active"),
         supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
         supabase.from("incident_departments").select("incident_id, status").eq("department_id", deptId),
         supabase.from("patrols").select("id, status").eq("department_id", deptId).gte("created_at", startOfDay),
@@ -108,21 +132,64 @@ export default function WebGuvenlikPage() {
         setPatrolCompletionPct(null);
       }
 
-      // Lokasyon özeti: aktif personelin location_id'sine göre grupla
-      const counts: Record<string, number> = {};
-      for (const p of (activeRows || []) as { location_id: string | null }[]) {
-        if (p.location_id) counts[p.location_id] = (counts[p.location_id] || 0) + 1;
-      }
-      const locationIds = Object.keys(counts);
-      if (locationIds.length > 0) {
-        const [{ data: locs }, { data: todayShifts }] = await Promise.all([
-          supabase.from("locations").select("id, name").in("id", locationIds),
-          supabase.from("shift_assignments").select("location_id").in("location_id", locationIds).eq("shift_date", todayStr).eq("status", "published"),
+      // Canlı Lokasyon Takibi: bugün+dün (gece yarısını aşan vardiyalar için)
+      // yayınlanmış atamalar, shift_types saatleriyle birleştirilip her
+      // atamanın şu anda gerçekten devam edip etmediği hesaplanır.
+      const activeIds = (activeRows || []).map(p => p.id);
+      const nameById = new Map((activeRows || []).map(p => [p.id, p.full_name as string]));
+      if (activeIds.length > 0) {
+        const [{ data: assignments }, { data: shiftTypesData }, { data: locs }] = await Promise.all([
+          supabase.from("shift_assignments")
+            .select("location_id, shift_code, shift_date, personnel_id")
+            .in("personnel_id", activeIds)
+            .in("shift_date", [yesterdayStr, todayStr])
+            .eq("status", "published")
+            .not("location_id", "is", null),
+          supabase.from("shift_types").select("code, start_time, end_time, is_day_off").eq("department_id", deptId),
+          supabase.from("locations").select("id, name"),
         ]);
-        const shiftedLocIds = new Set((todayShifts || []).map(s => s.location_id));
+
+        const shiftTypeByCode = new Map((shiftTypesData || []).map(s => [s.code, s]));
+        // Sayı ile isim listesinin her zaman birebir örtüşmesi için ikisi
+        // de AYNI benzersiz-kişi kümesinden (Set) türetiliyor — önceden
+        // sayaç ile isim listesi ayrı ayrı tutulduğunda, aynı kişi için
+        // çakışan/yinelenen atama satırları sayıyı isim listesinden
+        // fazla gösterebiliyordu.
+        const activeNowPeople: Record<string, Set<string>> = {};
+        const todayTotalPeople: Record<string, Set<string>> = {};
+
+        (assignments || []).forEach(a => {
+          // "T" ile başlayan kodlar (T211 hafta tatili, T216 yıllık izin,
+          // T241 rapor, T245 ücretsiz izin vb.) fiilen görevde değil —
+          // is_day_off bayrağı tutarsız olabileceği için doğrudan kod
+          // önekine bakılıyor.
+          if (a.shift_code?.toUpperCase().startsWith("T")) return;
+          const st = shiftTypeByCode.get(a.shift_code);
+          if (!st || st.is_day_off || !a.location_id) return;
+          if (a.shift_date === todayStr) {
+            (todayTotalPeople[a.location_id] ??= new Set()).add(a.personnel_id);
+          }
+          if (isAssignmentActiveNow(a.shift_date, st.start_time, st.end_time, now)) {
+            (activeNowPeople[a.location_id] ??= new Set()).add(a.personnel_id);
+          }
+        });
+
+        const relevantLocIds = new Set([...Object.keys(activeNowPeople), ...Object.keys(todayTotalPeople)]);
         const locCards: LocationCard[] = (locs || [])
-          .map(l => ({ location_id: l.id, name: l.name, activePersonnel: counts[l.id] || 0, hasShiftToday: shiftedLocIds.has(l.id) }))
-          .sort((a, b) => b.activePersonnel - a.activePersonnel);
+          .filter(l => relevantLocIds.has(l.id))
+          .map(l => {
+            const activeSet = activeNowPeople[l.id] ?? new Set<string>();
+            return {
+              location_id: l.id,
+              name: l.name,
+              activeNow: activeSet.size,
+              todayTotal: (todayTotalPeople[l.id] ?? new Set()).size,
+              activeNames: [...activeSet]
+                .map(id => ({ id, name: nameById.get(id) || "İsimsiz Personel" }))
+                .sort((a, b) => a.name.localeCompare(b.name, "tr")),
+            };
+          })
+          .sort((a, b) => b.activeNow - a.activeNow || b.todayTotal - a.todayTotal);
         setLocations(locCards);
       } else {
         setLocations([]);
@@ -142,10 +209,12 @@ export default function WebGuvenlikPage() {
       } else {
         setRecentIncidents([]);
       }
+
+      setLastUpdated(new Date());
     } catch {
       setError(true);
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
   }
 
@@ -235,28 +304,72 @@ export default function WebGuvenlikPage() {
 
       {/* Canlı Lokasyon Takibi */}
       <div className="bg-surface-container-lowest rounded-xl shadow-sm border border-outline-variant/30 overflow-hidden">
-        <div className="p-6 border-b border-outline-variant/20">
-          <h2 className="text-xl text-on-surface font-bold">Canlı Lokasyon Takibi</h2>
-          <p className="text-on-surface-variant text-sm">Personel sayısı ve bugünkü vardiya durumu</p>
+        <div className="p-6 border-b border-outline-variant/20 flex items-center justify-between gap-4">
+          <div>
+            <h2 className="text-xl text-on-surface font-bold flex items-center gap-2">
+              Canlı Lokasyon Takibi
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-secondary opacity-60" />
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-secondary" />
+              </span>
+            </h2>
+            <p className="text-on-surface-variant text-sm">Şu an nöbette olan personel sayısı, saate göre</p>
+          </div>
+          {lastUpdated && (
+            <p className="text-xs text-on-surface-variant flex-shrink-0">Güncellendi: {lastUpdated.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</p>
+          )}
         </div>
-        <div className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-h-[500px] overflow-y-auto no-scrollbar">
+        <div ref={locationGridRef} className="p-6 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4 max-h-[500px] overflow-y-auto no-scrollbar">
           {locations.length === 0 ? (
             <p className="col-span-full text-center text-on-surface-variant py-8">Kayıt bulunamadı</p>
-          ) : locations.map(loc => (
-            <div key={loc.location_id} className="p-4 rounded-lg border border-outline-variant/30 bg-surface hover:bg-surface-container transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <span className={`w-3 h-3 rounded-full ${loc.hasShiftToday ? "bg-secondary" : "bg-outline"}`} />
-                <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">
-                  {loc.hasShiftToday ? "Aktif" : "İnsansız"}
-                </span>
+          ) : locations.map(loc => {
+            const status = loc.activeNow > 0 ? "active" : loc.todayTotal > 0 ? "pending" : "empty";
+            const dotClass = status === "active" ? "bg-secondary" : status === "pending" ? "bg-amber-500" : "bg-outline";
+            const label = status === "active" ? "Nöbette" : status === "pending" ? "Aralarda" : "İnsansız";
+            return (
+              <div
+                key={loc.location_id}
+                className="relative p-4 rounded-lg border border-outline-variant/30 bg-surface hover:bg-surface-container transition-colors"
+                onMouseEnter={e => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const popoverHeight = Math.min(loc.activeNames.length, 13) * 22 + 40;
+                  // Hem ekranın hem de kaydırmalı lokasyon kutusunun alt
+                  // sınırına bakılıyor — hangisi daha yakınsa ona göre
+                  // popup yukarı/aşağı açılıyor (kutunun altındaki
+                  // satırlarda popup aşağı açılırsa kesiliyordu).
+                  const containerBottom = locationGridRef.current?.getBoundingClientRect().bottom ?? window.innerHeight;
+                  const availableSpace = Math.min(window.innerHeight, containerBottom) - rect.bottom;
+                  setPopoverAbove(availableSpace < popoverHeight + 16);
+                  setHoveredLocId(loc.location_id);
+                }}
+                onMouseLeave={() => setHoveredLocId(null)}
+              >
+                <div className="flex items-center justify-between mb-2">
+                  <span className={`w-3 h-3 rounded-full ${dotClass}`} />
+                  <span className="text-[10px] font-bold text-on-surface-variant uppercase tracking-wider">{label}</span>
+                </div>
+                <h4 className="font-bold text-on-surface mb-1 truncate text-sm">{loc.name}</h4>
+                <div className="flex items-center gap-1 text-on-surface-variant">
+                  <span className="material-symbols-outlined text-[16px]">person</span>
+                  <span className="text-xs"><span className="font-bold text-on-surface">{loc.activeNow}</span> şu an · {loc.todayTotal} bugün toplam</span>
+                </div>
+
+                {hoveredLocId === loc.location_id && loc.activeNames.length > 0 && (
+                  <div className={`absolute z-50 left-1/2 -translate-x-1/2 w-56 bg-on-surface text-surface rounded-xl shadow-lg p-3 text-left pointer-events-none ${popoverAbove ? "bottom-full mb-2" : "top-full mt-2"}`}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-surface/60 mb-1.5">Nöbette ({loc.activeNames.length})</p>
+                    <ul className="space-y-1 max-h-72 overflow-y-auto">
+                      {loc.activeNames.map(n => (
+                        <li key={n.id} className="text-xs font-semibold flex items-center gap-1.5">
+                          <span className="material-symbols-outlined text-[14px]">person</span>
+                          {n.name}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
               </div>
-              <h4 className="font-bold text-on-surface mb-1 truncate text-sm">{loc.name}</h4>
-              <div className="flex items-center gap-1 text-on-surface-variant">
-                <span className="material-symbols-outlined text-[16px]">person</span>
-                <span className="text-xs">{loc.activePersonnel} Görevli</span>
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
@@ -294,17 +407,17 @@ export default function WebGuvenlikPage() {
               <span className="material-symbols-outlined text-primary">location_on</span>
             </div>
           </div>
-          {topLocation ? (
+          {topLocation && topLocation.activeNow > 0 ? (
             <div className="mt-auto bg-surface-container-low p-4 rounded-xl border border-outline-variant/30">
-              <p className="text-xs font-bold text-on-surface-variant uppercase">En Çok Personel</p>
+              <p className="text-xs font-bold text-on-surface-variant uppercase">Şu An En Çok Personel</p>
               <p className="text-xl text-primary font-bold truncate">{topLocation.name}</p>
               <div className="flex items-center gap-1.5 mt-2 text-on-surface-variant">
                 <span className="material-symbols-outlined text-[18px]">group</span>
-                <span className="text-sm">{topLocation.activePersonnel} Personel</span>
+                <span className="text-sm">{topLocation.activeNow} Personel Nöbette</span>
               </div>
             </div>
           ) : (
-            <p className="mt-auto text-center text-on-surface-variant py-4">Kayıt bulunamadı</p>
+            <p className="mt-auto text-center text-on-surface-variant py-4">Şu an nöbette kimse yok</p>
           )}
         </div>
       </div>
