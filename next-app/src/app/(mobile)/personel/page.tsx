@@ -50,6 +50,7 @@ const POSITIONS_BY_DEPT: Record<string, { value: string; label: string; role: st
     { value: "cctv-sorumlusu",      label: "CCTV Güvenlik",            role: "personel" },
     { value: "sabit-guvenlik",      label: "Sabit Güvenlik",           role: "personel" },
     { value: "guvenlik-sorumlusu",  label: "Güvenlik Sorumlusu",       role: "supervisor" },
+    { value: "proje-muduru",        label: "Proje Müdürü",             role: "admin" },
   ],
   teknik: [
     { value: "teknik-personel",     label: "Teknik Personel",          role: "personel" },
@@ -1134,6 +1135,12 @@ export default function PersonelPage() {
                   <p className="text-label-sm font-label-sm text-primary ml-1 flex items-center gap-xs">
                     <span className="material-symbols-outlined text-[14px]">info</span>
                     Bu pozisyon yönetici rolü alır
+                  </p>
+                )}
+                {POSITIONS.find((p) => p.value === form.position)?.role === "admin" && (
+                  <p className="text-label-sm font-label-sm text-primary ml-1 flex items-center gap-xs">
+                    <span className="material-symbols-outlined text-[14px]">info</span>
+                    Bu pozisyon tam yönetici (admin) rolü alır
                   </p>
                 )}
               </div>

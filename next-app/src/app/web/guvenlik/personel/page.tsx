@@ -11,6 +11,7 @@ const GUVENLIK_POSITIONS = [
   { value: "cctv-sorumlusu", label: "CCTV Güvenlik", role: "personel" },
   { value: "sabit-guvenlik", label: "Sabit Güvenlik", role: "personel" },
   { value: "guvenlik-sorumlusu", label: "Güvenlik Sorumlusu", role: "supervisor" },
+  { value: "proje-muduru", label: "Proje Müdürü", role: "admin" },
 ];
 
 const STATUS_LABEL: Record<string, { label: string; className: string }> = {
@@ -492,6 +493,9 @@ export default function WebGuvenlikPersonelPage() {
                   </select>
                   {GUVENLIK_POSITIONS.find(pos => pos.value === addForm.position)?.role === "supervisor" && (
                     <p className="text-xs text-primary ml-1">Bu görev yönetici rolü alır</p>
+                  )}
+                  {GUVENLIK_POSITIONS.find(pos => pos.value === addForm.position)?.role === "admin" && (
+                    <p className="text-xs text-primary ml-1">Bu görev tam yönetici (admin) rolü alır</p>
                   )}
                 </div>
                 <div className="space-y-1">
