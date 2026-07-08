@@ -9,13 +9,14 @@ import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
 interface Location { id: string; name: string; }
 interface PersonnelItem { id: string; full_name: string; isGuest?: boolean; position?: string | null; }
 
-// "sabit-guvenlik" personel (ör. Genel Müdürlük'te sabit nöbet tutan
-// personel) rotasyonlu personelden farklı bir desende çalışır — haftada
-// 2 gün değil, kendi sabit programına göre T211 alır. Rotasyonlu personel
-// için var olan "ayda 4'ten fazla T211 = fazladan 7,5 saat kredi" kuralı
-// sabit personelde anlamsız (T211 sayıları zaten normalde 4'ü aşıyor),
-// bu yüzden bu personel için o kural hiç uygulanmıyor.
-const FIXED_POSITION = "sabit-guvenlik";
+// "sabit-guvenlik", "proje-muduru" ve "guvenlik-sorumlusu" (Proje
+// Sorumlusu) pozisyonundaki personel rotasyonlu personelden farklı bir
+// desende çalışır — haftada 2 gün değil, kendi sabit programına göre
+// T211 alır. Rotasyonlu personel için var olan "ayda 4'ten fazla T211 =
+// fazladan 7,5 saat kredi" kuralı sabit personelde anlamsız (T211
+// sayıları zaten normalde 4'ü aşıyor), bu yüzden bu personel için o
+// kural hiç uygulanmıyor.
+const FIXED_POSITIONS = ["sabit-guvenlik", "proje-muduru", "guvenlik-sorumlusu"];
 interface ShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; duration_hours: number | null; start_time: string | null; end_time: string | null; }
 
 // İki vardiya kodunun aynı takvim gününde saat olarak çakışıp çakışmadığını
@@ -504,7 +505,7 @@ export default function VardiyaOlusturmaPage() {
   const overtimeByPerson: { id: string; name: string; hours: number }[] = [];
   const deficitByPerson: { id: string; name: string; hours: number }[] = [];
   personnelList.forEach(p => {
-    const isFixed = p.position === FIXED_POSITION;
+    const isFixed = FIXED_POSITIONS.includes(p.position ?? "");
     let personHours = 0;
     let weeklyRestCount = 0;
     // Sabit personelin normalde dinlenmesi gereken günde (T211 yerine)
@@ -526,7 +527,7 @@ export default function VardiyaOlusturmaPage() {
     });
     // Eşik formülü ayda 4 hafta tatili varsayıyor; ay 5 hafta tatili
     // içeriyorsa 5. gün normal dinlenme günü sayılmaz, 7,5 saat
-    // çalışılmış gibi eklenir. Sabit personelde (FIXED_POSITION) T211
+    // çalışılmış gibi eklenir. Sabit personelde (FIXED_POSITIONS) T211
     // sayısı zaten kendi programı gereği 4'ü aşıyor — takvim sapması
     // değil, bu yüzden onlara bu kredi hiç uygulanmıyor.
     if (!isFixed) {

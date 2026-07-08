@@ -102,13 +102,14 @@ function shiftsOverlap(codeA: string, codeB: string, dateStr: string, shiftTypes
 interface Location { id: string; name: string; }
 interface PersonnelItem { id: string; full_name: string; isGuest?: boolean; position?: string | null; }
 
-// "sabit-guvenlik" personel (ör. Genel Müdürlük'te sabit nöbet tutan
-// personel) rotasyonlu personelden farklı bir desende çalışır — haftada
-// 2 gün değil, kendi sabit programına göre T211 alır. Rotasyonlu personel
-// için var olan "ayda 4'ten fazla T211 = fazladan 7,5 saat kredi" kuralı
-// sabit personelde anlamsız (T211 sayıları zaten normalde 4'ü aşıyor),
-// bu yüzden bu personel için o kural hiç uygulanmıyor.
-const FIXED_POSITION = "sabit-guvenlik";
+// "sabit-guvenlik", "proje-muduru" ve "guvenlik-sorumlusu" (Proje
+// Sorumlusu) pozisyonundaki personel rotasyonlu personelden farklı bir
+// desende çalışır — haftada 2 gün değil, kendi sabit programına göre
+// T211 alır. Rotasyonlu personel için var olan "ayda 4'ten fazla T211 =
+// fazladan 7,5 saat kredi" kuralı sabit personelde anlamsız (T211
+// sayıları zaten normalde 4'ü aşıyor), bu yüzden bu personel için o
+// kural hiç uygulanmıyor.
+const FIXED_POSITIONS = ["sabit-guvenlik", "proje-muduru", "guvenlik-sorumlusu"];
 
 // Fazla mesai hesabı — güvenlik biriminin gerçek bordro kuralı:
 // 1/2/3 normal vardiya (8s - 30dk mola), 5/6 uzun vardiya, 7/8 gece/en uzun
@@ -574,7 +575,7 @@ function ShiftScheduleSection() {
   const overtimeByPerson: { id: string; name: string; hours: number }[] = [];
   const deficitByPerson: { id: string; name: string; hours: number }[] = [];
   personnelList.forEach(p => {
-    const isFixed = p.position === FIXED_POSITION;
+    const isFixed = FIXED_POSITIONS.includes(p.position ?? "");
     let personHours = 0;
     let weeklyRestCount = 0;
     // Sabit personelin normalde dinlenmesi gereken günde (T211 yerine)
@@ -597,7 +598,7 @@ function ShiftScheduleSection() {
     // Eşik formülü ayda 4 hafta tatili varsayıyor; ay 5 hafta tatili
     // içeriyorsa (bazı aylarda T211 5 kez düşer) 5. gün normal dinlenme
     // günü sayılmaz, 7,5 saat çalışılmış gibi eklenir. Sabit personelde
-    // (FIXED_POSITION) T211 sayısı zaten kendi programı gereği 4'ü aşıyor
+    // (FIXED_POSITIONS) T211 sayısı zaten kendi programı gereği 4'ü aşıyor
     // — bu bir takvim sapması değil, bu yüzden onlara bu kredi hiç uygulanmıyor.
     if (!isFixed) {
       personHours += Math.max(0, weeklyRestCount - WEEKLY_REST_ALLOWANCE) * WEEKLY_REST_EXTRA_HOURS;
