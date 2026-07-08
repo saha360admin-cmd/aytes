@@ -76,9 +76,31 @@ interface ShiftType {
   sort_order: number;
 }
 
-interface ScheduleShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; duration_hours: number | null; }
+interface ScheduleShiftType { id: string; code: string; name: string; color: string; is_day_off: boolean; sort_order: number; duration_hours: number | null; start_time: string | null; end_time: string | null; }
+
+// İki vardiya kodunun aynı takvim gününde saat olarak çakışıp çakışmadığını
+// hesaplar (gece yarısını aşan vardiyalar dahil). Saati tanımsız olan
+// (izin/rapor gibi is_day_off) kodlar çakışma sayılmaz.
+function getShiftWindow(code: string, dateStr: string, shiftTypes: ScheduleShiftType[]): { start: Date; end: Date } | null {
+  const st = shiftTypes.find(s => s.code === code);
+  if (!st?.start_time || !st?.end_time) return null;
+  const [sh, sm] = st.start_time.slice(0, 5).split(":").map(Number);
+  const [eh, em] = st.end_time.slice(0, 5).split(":").map(Number);
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const start = new Date(y, m - 1, d, sh, sm);
+  let end = new Date(y, m - 1, d, eh, em);
+  if (end <= start) end = new Date(end.getTime() + 24 * 60 * 60 * 1000);
+  return { start, end };
+}
+
+function shiftsOverlap(codeA: string, codeB: string, dateStr: string, shiftTypes: ScheduleShiftType[]): boolean {
+  const a = getShiftWindow(codeA, dateStr, shiftTypes);
+  const b = getShiftWindow(codeB, dateStr, shiftTypes);
+  if (!a || !b) return false;
+  return a.start < b.end && b.start < a.end;
+}
 interface Location { id: string; name: string; }
-interface PersonnelItem { id: string; full_name: string; }
+interface PersonnelItem { id: string; full_name: string; isGuest?: boolean; }
 
 // Fazla mesai hesabı — güvenlik biriminin gerçek bordro kuralı:
 // 1/2/3 normal vardiya (8s - 30dk mola), 5/6 uzun vardiya, 7/8 gece/en uzun
@@ -163,12 +185,23 @@ function ShiftScheduleSection() {
   const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
   const [personnelList, setPersonnelList] = useState<PersonnelItem[]>([]);
   const [cells, setCells] = useState<Record<string, string>>({});
+  const [awayCells, setAwayCells] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [loadingGrid, setLoadingGrid] = useState(false);
   const [saving, setSaving] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const savedCells = useRef<Record<string, string>>({});
+
+  // Geçici Görevlendirme: bir personel kısa süreliğine (ör. 1-2 gün) başka
+  // bir lokasyona destek amaçlı atanabiliyor. Yeni bir tablo/kolon
+  // gerektirmiyor — shift_assignments.location_id zaten her atamada var,
+  // kişinin ev lokasyonundan (personnel.location_id) farklıysa bu doğal
+  // olarak "geçici görevlendirme" anlamına geliyor.
+  const [allPersonnel, setAllPersonnel] = useState<{ id: string; full_name: string; location_id: string | null }[]>([]);
+  const [showTempAssign, setShowTempAssign] = useState(false);
+  const [tempAssignSearch, setTempAssignSearch] = useState("");
+  const [tempAssignForm, setTempAssignForm] = useState({ personnelId: "", startDate: "", endDate: "", shiftCode: "" });
 
   const today = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }, []);
   const selectedYear = today.getFullYear();
@@ -198,13 +231,16 @@ function ShiftScheduleSection() {
     const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
     if (!dept) return;
     setDeptId(dept.id);
-    const { data } = await supabase
-      .from("shift_types")
-      .select("id, code, name, color, is_day_off, sort_order, duration_hours")
-      .eq("department_id", dept.id)
-      .order("sort_order")
-      .order("created_at");
+    const [{ data }, { data: allP }] = await Promise.all([
+      supabase.from("shift_types")
+        .select("id, code, name, color, is_day_off, sort_order, duration_hours, start_time, end_time")
+        .eq("department_id", dept.id)
+        .order("sort_order")
+        .order("created_at"),
+      supabase.from("personnel").select("id, full_name, location_id").eq("department_id", dept.id).neq("status", "archived").order("full_name"),
+    ]);
     setShiftTypes((data || []) as ScheduleShiftType[]);
+    setAllPersonnel(allP || []);
   }
 
   async function loadLocations() {
@@ -221,18 +257,48 @@ function ShiftScheduleSection() {
     setLoadingGrid(true);
     setPersonnelList([]);
     setCells({});
+    setAwayCells({});
     const startStr = toDateStr(monthDays[0]);
     const endStr = toDateStr(monthDays[monthDays.length - 1]);
 
     const [{ data: pData }, { data: saData }] = await Promise.all([
       supabase.from("personnel").select("id, full_name").eq("location_id", selectedLocId).eq("department_id", deptId).neq("status", "archived").order("full_name"),
+      // Bu lokasyona ait TÜM atamalar — hem kadrolu personelin hem de
+      // buraya geçici görevlendirilmiş misafirlerin kayıtları burada.
       supabase.from("shift_assignments").select("personnel_id, shift_date, shift_code").eq("location_id", selectedLocId).gte("shift_date", startStr).lte("shift_date", endStr),
     ]);
 
-    setPersonnelList((pData || []) as PersonnelItem[]);
+    const homeRoster = (pData || []) as PersonnelItem[];
+    const homeIds = new Set(homeRoster.map(p => p.id));
+
     const newCells: Record<string, string> = {};
     (saData || []).forEach(sa => { newCells[`${sa.personnel_id}_${sa.shift_date}`] = sa.shift_code; });
+
+    // Bu lokasyonda ataması olan ama kadrolu olmayan kişiler = misafir
+    // (geçici görevlendirilmiş) personel — grid'e ayrıca eklenir.
+    const guestIds = [...new Set((saData || []).map(sa => sa.personnel_id))].filter(id => !homeIds.has(id));
+    const guestRows: PersonnelItem[] = guestIds
+      .map(id => allPersonnel.find(p => p.id === id))
+      .filter((p): p is NonNullable<typeof p> => Boolean(p))
+      .map(p => ({ id: p.id, full_name: p.full_name, isGuest: true }));
+
+    // Kadrolu personelin bu ay içinde BAŞKA bir lokasyona geçici olarak
+    // görevlendirilip görevlendirilmediği — "Başka Lokasyonda" işareti için.
+    const newAwayCells: Record<string, boolean> = {};
+    if (homeRoster.length > 0) {
+      const { data: awayData } = await supabase
+        .from("shift_assignments")
+        .select("personnel_id, shift_date, location_id")
+        .in("personnel_id", homeRoster.map(p => p.id))
+        .neq("location_id", selectedLocId)
+        .gte("shift_date", startStr)
+        .lte("shift_date", endStr);
+      (awayData || []).forEach(a => { newAwayCells[`${a.personnel_id}_${a.shift_date}`] = true; });
+    }
+
+    setPersonnelList([...homeRoster, ...guestRows]);
     setCells(newCells);
+    setAwayCells(newAwayCells);
     savedCells.current = { ...newCells };
     setLoadingGrid(false);
   }
@@ -296,7 +362,7 @@ function ShiftScheduleSection() {
     if (!selectedLocId) return;
     status === "draft" ? setSaving(true) : setPublishing(true);
 
-    const upserts: { personnel_id: string; location_id: string; shift_date: string; shift_code: string; status: string }[] = [];
+    let upserts: { personnel_id: string; location_id: string; shift_date: string; shift_code: string; status: string }[] = [];
     personnelList.forEach(p => {
       monthDays.forEach(day => {
         const dateStr = toDateStr(day);
@@ -308,19 +374,58 @@ function ShiftScheduleSection() {
       });
     });
 
-    const toDelete = personnelList.flatMap(p =>
-      monthDays
-        .filter(day => {
-          const key = `${p.id}_${toDateStr(day)}`;
-          return savedCells.current[key] && !cells[key];
-        })
-        .map(day => ({ personnel_id: p.id, shift_date: toDateStr(day) }))
-    );
+    // Başka lokasyonlardaki mevcut atamalarla saat çakışması kontrolü —
+    // hücre nasıl girilmiş olursa olsun (tıklama, blok yapıştırma, geçici
+    // görevlendirme) kaydetme anında tek yerden denetlenir; çakışan
+    // hücreler kaydedilmeden atlanır ve grid'de boşa döner.
+    const conflictKeys: string[] = [];
+    const conflictNames: string[] = [];
+    if (upserts.length > 0) {
+      const personnelIds = Array.from(new Set(upserts.map(u => u.personnel_id)));
+      const { data: otherLocRows } = await supabase
+        .from("shift_assignments")
+        .select("personnel_id, shift_date, shift_code, location_id")
+        .in("personnel_id", personnelIds)
+        .neq("location_id", selectedLocId)
+        .gte("shift_date", toDateStr(monthDays[0]))
+        .lte("shift_date", toDateStr(monthDays[monthDays.length - 1]));
+
+      upserts = upserts.filter(u => {
+        const hit = (otherLocRows ?? []).find(r =>
+          r.personnel_id === u.personnel_id &&
+          r.shift_date === u.shift_date &&
+          shiftsOverlap(u.shift_code, r.shift_code, u.shift_date, shiftTypes)
+        );
+        if (!hit) return true;
+        conflictKeys.push(`${u.personnel_id}_${u.shift_date}`);
+        const person = personnelList.find(p => p.id === u.personnel_id);
+        conflictNames.push(`${person?.full_name ?? "?"} (${u.shift_date})`);
+        return false;
+      });
+
+      if (conflictKeys.length > 0) {
+        setCells(prev => {
+          const next = { ...prev };
+          conflictKeys.forEach(k => delete next[k]);
+          return next;
+        });
+      }
+    }
+
+    // savedCells.current üzerinden hesaplanır (personnelList üzerinden değil)
+    // çünkü geçici görevlendirmesi kaldırılan kişi silme anında listeden
+    // çıkarılmış olabilir — yine de DB'deki eski kayıtları silmemiz gerekir.
+    const toDelete = Object.keys(savedCells.current)
+      .filter(key => savedCells.current[key] && !cells[key])
+      .map(key => {
+        const sep = key.indexOf("_");
+        return { personnel_id: key.slice(0, sep), shift_date: key.slice(sep + 1) };
+      });
 
     let err: { message: string } | null = null;
 
     if (upserts.length > 0) {
-      const res = await supabase.from("shift_assignments").upsert(upserts, { onConflict: "personnel_id,shift_date" });
+      const res = await supabase.from("shift_assignments").upsert(upserts, { onConflict: "personnel_id,shift_date,location_id" });
       if (res.error) err = res.error;
     }
 
@@ -354,7 +459,101 @@ function ShiftScheduleSection() {
     }
 
     status === "draft" ? setSaving(false) : setPublishing(false);
-    err ? showToast("Hata: " + err.message, false) : showToast(status === "draft" ? "Taslak kaydedildi" : "Vardiyalar yayınlandı!", true);
+    if (err) {
+      showToast("Hata: " + err.message, false);
+    } else {
+      const base = status === "draft" ? "Taslak kaydedildi" : "Vardiyalar yayınlandı!";
+      const suffix = conflictNames.length > 0
+        ? ` — saat çakışması nedeniyle kaydedilmeyenler: ${conflictNames.join(", ")}`
+        : "";
+      showToast(base + suffix, conflictNames.length === 0);
+    }
+  }
+
+  function openTempAssign() {
+    setTempAssignSearch("");
+    setTempAssignForm({ personnelId: "", startDate: toDateStr(monthDays[0] > today ? monthDays[0] : today), endDate: "", shiftCode: shiftTypes[0]?.code ?? "" });
+    setShowTempAssign(true);
+  }
+
+  // Geçici görevlendirmeyi kaydetmiyor — sadece grid'e (cells/personnelList)
+  // ekliyor, tıpkı hücreye tıklamak gibi. Kalıcı hale gelmesi için admin
+  // yine "Taslağı Kaydet" / "Vardiyayı Yayınla" butonuna basmalı; bu sayede
+  // ayrı bir kayıt yolu açmadan mevcut mekanizma yeniden kullanılıyor.
+  async function handleTempAssignSubmit() {
+    const { personnelId, startDate, endDate, shiftCode } = tempAssignForm;
+    if (!personnelId || !startDate || !endDate || !shiftCode) {
+      showToast("Tüm alanları doldurun", false);
+      return;
+    }
+    if (endDate < startDate) {
+      showToast("Bitiş tarihi başlangıçtan önce olamaz", false);
+      return;
+    }
+    const person = allPersonnel.find(p => p.id === personnelId);
+    if (!person) return;
+
+    // Kişinin seçilen tarih aralığında (başka lokasyonlarda dahil) mevcut
+    // atamalarını çek — aynı gün saat çakışan bir vardiyası varsa o günü atla.
+    const { data: existing } = await supabase
+      .from("shift_assignments")
+      .select("shift_date, shift_code, location_id")
+      .eq("personnel_id", personnelId)
+      .gte("shift_date", startDate)
+      .lte("shift_date", endDate);
+
+    if (!personnelList.some(p => p.id === personnelId)) {
+      setPersonnelList(prev => [...prev, { id: person.id, full_name: person.full_name, isGuest: true }]);
+    }
+
+    const newCells: Record<string, string> = {};
+    let d = new Date(startDate + "T00:00:00");
+    const end = new Date(endDate + "T00:00:00");
+    let addedCount = 0;
+    const conflictDates: string[] = [];
+    while (d <= end) {
+      const dateStr = toDateStr(d);
+      const cellKey = `${personnelId}_${dateStr}`;
+      const draftCode = cells[cellKey];
+      const otherLocRows = (existing ?? []).filter(r => r.shift_date === dateStr && r.location_id !== selectedLocId);
+      const conflicts = draftCode
+        ? shiftsOverlap(shiftCode, draftCode, dateStr, shiftTypes)
+        : otherLocRows.some(r => shiftsOverlap(shiftCode, r.shift_code, dateStr, shiftTypes));
+      if (conflicts) {
+        conflictDates.push(dateStr);
+      } else {
+        newCells[cellKey] = shiftCode;
+        addedCount++;
+      }
+      d = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+    }
+    setCells(prev => ({ ...prev, ...newCells }));
+    setShowTempAssign(false);
+    if (conflictDates.length > 0) {
+      showToast(`${person.full_name}: ${addedCount} gün eklendi, ${conflictDates.length} gün saat çakışması nedeniyle atlandı — kaydetmeyi unutmayın`, addedCount > 0);
+    } else {
+      showToast(`${person.full_name} ${addedCount} gün için eklendi — kaydetmeyi unutmayın`, true);
+    }
+  }
+
+  const tempAssignResults = tempAssignSearch.trim()
+    ? allPersonnel.filter(p => p.full_name.toLowerCase().includes(tempAssignSearch.trim().toLowerCase())).slice(0, 8)
+    : allPersonnel.slice(0, 8);
+
+  // Geçici görevlendirmeyi tek tıkla iptal eder — kişinin bu ayki tüm
+  // hücrelerini yerel taslaktan temizler ve listeden çıkarır. Kalıcı olması
+  // için admin yine kaydetmeli; kayıt anında DB'deki eski kayıtlar da
+  // silinir (toDelete artık savedCells.current üzerinden hesaplandığı için
+  // kişi personnelList'ten çıkmış olsa bile silme doğru çalışır).
+  function clearGuestCells(personnelId: string, fullName: string) {
+    if (!window.confirm(`${fullName} için bu ay girilen tüm geçici görevlendirme vardiyaları temizlensin mi?`)) return;
+    setCells(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(k => { if (k.startsWith(`${personnelId}_`)) delete next[k]; });
+      return next;
+    });
+    setPersonnelList(prev => prev.filter(p => p.id !== personnelId));
+    showToast(`${fullName} için geçici görevlendirme temizlendi — kaydetmeyi unutmayın`, true);
   }
 
   const dayOffCodes = shiftTypes.filter(s => s.is_day_off).map(s => s.code);
@@ -435,6 +634,14 @@ function ShiftScheduleSection() {
             </div>
           </div>
           <div className="flex gap-2 flex-shrink-0">
+            <button
+              onClick={openTempAssign}
+              disabled={!selectedLocId}
+              className="px-5 py-2.5 rounded-full bg-tertiary/10 text-tertiary font-bold text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+            >
+              <span className="material-symbols-outlined text-[18px]">person_add</span>
+              Geçici Görevlendirme
+            </button>
             <button
               onClick={() => saveAll("draft")}
               disabled={saving || publishing || !selectedLocId}
@@ -569,11 +776,26 @@ function ShiftScheduleSection() {
                           {initials(p.full_name)}
                         </div>
                         <span className="text-xs font-semibold text-on-surface truncate max-w-[100px]">{p.full_name}</span>
+                        {p.isGuest && (
+                          <>
+                            <span title="Geçici Görevlendirme" className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-tertiary/10 text-tertiary flex-shrink-0">Geçici</span>
+                            <button
+                              type="button"
+                              title="Geçici görevlendirmeyi kaldır"
+                              onClick={() => clearGuestCells(p.id, p.full_name)}
+                              className="text-on-surface-variant hover:text-error flex-shrink-0"
+                            >
+                              <span className="material-symbols-outlined text-[14px]">close</span>
+                            </button>
+                          </>
+                        )}
                       </div>
                     </td>
                     {monthDays.map((day, dIdx) => {
                       const dateStr = toDateStr(day);
-                      const code = cells[`${p.id}_${dateStr}`] ?? "";
+                      const cellKey = `${p.id}_${dateStr}`;
+                      const code = cells[cellKey] ?? "";
+                      const isAway = !code && awayCells[cellKey];
                       const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                       const isToday = dateStr === toDateStr(today);
                       return (
@@ -581,10 +803,11 @@ function ShiftScheduleSection() {
                           <button
                             onClick={() => cycleCell(p.id, dateStr)}
                             onPaste={e => handlePasteAt(e, pIdx, dIdx)}
+                            title={isAway ? "Başka lokasyonda görevli" : undefined}
                             className="w-full h-8 flex items-center justify-center text-[11px] font-bold transition-all active:scale-90 rounded-md focus:outline-none focus:ring-2 focus:ring-primary relative focus:z-10"
-                            style={code ? cellBg(code) : { backgroundColor: "transparent", color: "#9aa0b0" }}
+                            style={code ? cellBg(code) : isAway ? { backgroundColor: "#fff3e0", color: "#825100" } : { backgroundColor: "transparent", color: "#9aa0b0" }}
                           >
-                            {code || "—"}
+                            {code || (isAway ? <span className="material-symbols-outlined text-[14px]">flight_takeoff</span> : "—")}
                           </button>
                         </td>
                       );
@@ -603,6 +826,108 @@ function ShiftScheduleSection() {
           Hücrelere tıklayarak vardiya tipini döngüsel olarak değiştirebilir, ya da Excel'de hazırladığınız bir bloğu kopyalayıp bir hücreye tıkladıktan sonra <strong>Ctrl+V</strong> ile yapıştırabilirsiniz — yapıştırma tıkladığınız hücreden başlayarak sağa (günler) ve aşağıya (personel, tablodaki sıraya göre) doğru uygulanır. Tanınmayan kodlar atlanır. Taslağı Kaydet ilerlemenizi saklar, Vardiyayı Yayınla o ayki tüm çizelgeyi personele görünür yapar.
         </p>
       </div>
+
+      {showTempAssign && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowTempAssign(false)} />
+          <div className="relative w-full max-w-md bg-surface-container-lowest rounded-2xl shadow-2xl max-h-[90vh] flex flex-col">
+            <div className="flex justify-between items-center px-6 py-5 border-b border-outline-variant/20 flex-shrink-0">
+              <div>
+                <h2 className="font-display text-headline-sm text-on-surface">Geçici Görevlendirme</h2>
+                <p className="text-xs text-on-surface-variant">{locations.find(l => l.id === selectedLocId)?.name}&apos;a kısa süreli destek personeli ekle</p>
+              </div>
+              <button onClick={() => setShowTempAssign(false)} className="w-9 h-9 flex items-center justify-center rounded-full bg-surface-container-low text-on-surface-variant hover:bg-surface-container-high transition-colors flex-shrink-0">
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto px-6 py-5 space-y-4">
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-on-surface-variant ml-1">Personel</label>
+                <input
+                  value={tempAssignForm.personnelId ? allPersonnel.find(p => p.id === tempAssignForm.personnelId)?.full_name ?? "" : tempAssignSearch}
+                  onChange={e => { setTempAssignSearch(e.target.value); setTempAssignForm(f => ({ ...f, personnelId: "" })); }}
+                  placeholder="İsimle ara..."
+                  className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                />
+                {!tempAssignForm.personnelId && (
+                  <div className="max-h-40 overflow-y-auto rounded-xl border border-outline-variant/20 divide-y divide-outline-variant/10">
+                    {tempAssignResults.length === 0 ? (
+                      <p className="text-xs text-on-surface-variant p-3">Personel bulunamadı</p>
+                    ) : tempAssignResults.map(p => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() => { setTempAssignForm(f => ({ ...f, personnelId: p.id })); setTempAssignSearch(""); }}
+                        className="w-full text-left px-3 py-2 text-sm font-semibold text-on-surface hover:bg-surface-container-low transition-colors flex items-center justify-between gap-2"
+                      >
+                        {p.full_name}
+                        {p.location_id === selectedLocId && <span className="text-[10px] text-on-surface-variant flex-shrink-0">zaten kadrolu</span>}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Başlangıç</label>
+                  <input
+                    type="date"
+                    value={tempAssignForm.startDate}
+                    onChange={e => setTempAssignForm(f => ({ ...f, startDate: e.target.value }))}
+                    className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-semibold text-on-surface-variant ml-1">Bitiş</label>
+                  <input
+                    type="date"
+                    value={tempAssignForm.endDate}
+                    min={tempAssignForm.startDate}
+                    onChange={e => setTempAssignForm(f => ({ ...f, endDate: e.target.value }))}
+                    className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs font-semibold text-on-surface-variant ml-1">Vardiya Kodu</label>
+                <div className="flex flex-wrap gap-2">
+                  {shiftTypes.filter(s => !s.is_day_off).map(s => (
+                    <button
+                      key={s.id}
+                      type="button"
+                      onClick={() => setTempAssignForm(f => ({ ...f, shiftCode: s.code }))}
+                      className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${tempAssignForm.shiftCode === s.code ? "text-white" : "bg-surface-container-low text-on-surface-variant"}`}
+                      style={tempAssignForm.shiftCode === s.code ? { backgroundColor: s.color } : undefined}
+                    >
+                      {s.code}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-start gap-2 p-3 bg-tertiary/5 border border-tertiary/20 rounded-xl">
+                <span className="material-symbols-outlined text-tertiary text-[18px] flex-shrink-0 mt-0.5">info</span>
+                <p className="text-xs text-tertiary">
+                  Bu kişi grid&apos;e eklenecek ama <strong>kaydedilmeyecek</strong> — gözden geçirip Taslağı Kaydet veya Vardiyayı Yayınla ile onaylamanız gerekir.
+                </p>
+              </div>
+            </div>
+
+            <div className="px-6 py-4 border-t border-outline-variant/20 flex-shrink-0">
+              <button
+                onClick={handleTempAssignSubmit}
+                disabled={!tempAssignForm.personnelId || !tempAssignForm.startDate || !tempAssignForm.endDate || !tempAssignForm.shiftCode}
+                className="w-full bg-tertiary text-on-tertiary rounded-full py-3 font-bold text-sm shadow-md disabled:opacity-60 transition-all"
+              >
+                Grid&apos;e Ekle
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {toast && (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-full shadow-lg flex items-center gap-2 ${toast.ok ? "bg-on-surface text-surface" : "bg-error text-on-error"}`}>
