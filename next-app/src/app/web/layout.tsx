@@ -26,6 +26,7 @@ const GUVENLIK_LINKS = [
   { href: "/web/guvenlik/olaylar", label: "Olaylar", icon: "report_problem" },
   { href: "/web/guvenlik/taseron", label: "Taşeron", icon: "handyman" },
   { href: "/web/guvenlik/talepler", label: "Talepler", icon: "assignment" },
+  { href: "/web/guvenlik/iletisim", label: "İletişim", icon: "forum" },
   { href: "/web/guvenlik/raporlama", label: "Raporlama", icon: "assessment" },
 ];
 
