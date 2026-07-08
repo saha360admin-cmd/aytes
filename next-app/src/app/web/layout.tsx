@@ -36,13 +36,26 @@ function Sidebar() {
   const theme = getDepartmentHeaderTheme(isGuvenlikSection ? "guvenlik" : null);
 
   return (
-    <aside className="w-[240px] flex-shrink-0 h-screen sticky top-0 flex flex-col transition-all"
+    <aside className="relative overflow-hidden w-[240px] flex-shrink-0 h-screen sticky top-0 flex flex-col transition-all"
       style={{ background: theme.gradient.replace("135deg", "180deg") }}>
-      <a href="/web/dashboard" className="flex items-center gap-3 px-5 h-16 flex-shrink-0">
+      {/* Dekoratif ikonlar — masaüstü güvenlik dashboard başlığındaki
+          (web/guvenlik/page.tsx) ve mobil headerındaki aynı kompozisyon.
+          Acil Durum Alarmı butonunun (opak, altta) arkasında kalıp
+          görünmez olmaması için kümenin tamamı butonun üstüne, büyütülmüş
+          olarak yerleştirildi. */}
+      {theme.decorative && (
+        <div className="absolute inset-x-0 bottom-0 h-64 pointer-events-none">
+          <span className="material-symbols-outlined absolute" style={{ right: "-16px", bottom: "110px", fontSize: "130px", color: theme.decorativeColor, opacity: 0.16, fontVariationSettings: "'FILL' 1" }}>{theme.decorative[0].icon}</span>
+          <span className="material-symbols-outlined absolute" style={{ right: "64px", bottom: "130px", fontSize: "58px", color: theme.decorativeColor, opacity: 0.24, fontVariationSettings: "'FILL' 1" }}>{theme.decorative[1].icon}</span>
+          <span className="material-symbols-outlined absolute" style={{ right: "20px", bottom: "170px", fontSize: "36px", color: theme.decorativeColor, opacity: 0.3, fontVariationSettings: "'FILL' 1" }}>{theme.decorative[2].icon}</span>
+        </div>
+      )}
+
+      <a href={isGuvenlikSection ? "/web/guvenlik" : "/web/dashboard"} className="relative z-10 flex items-center gap-3 px-5 h-16 flex-shrink-0">
         <span className="material-symbols-outlined text-white text-[26px]" style={{ fontVariationSettings: "'FILL' 1" }}>{theme.icon}</span>
         <span className="font-bold text-white text-lg">{theme.title}</span>
       </a>
-      <nav className="flex-1 px-3 py-2 space-y-1">
+      <nav className="relative z-10 flex-1 px-3 py-2 space-y-1">
         {links.map((link, i) => {
           const active = link.href !== "#" && pathname === link.href;
           return (
@@ -60,7 +73,7 @@ function Sidebar() {
         })}
       </nav>
       {isGuvenlikSection && (
-        <div className="px-3 pb-4">
+        <div className="relative z-10 px-3 pb-4">
           <button className="w-full bg-error text-white rounded-full py-3 font-bold text-sm flex items-center justify-center gap-2 shadow-lg hover:brightness-110 transition-all">
             <span className="material-symbols-outlined text-[18px]">emergency_share</span>
             Acil Durum Alarmı
