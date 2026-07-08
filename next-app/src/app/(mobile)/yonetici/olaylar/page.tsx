@@ -76,6 +76,10 @@ export default function OlaylarPage() {
   const router = useRouter();
   const { personnel } = useAuth();
   const headerTheme = getDepartmentHeaderTheme(personnel?.departments?.slug);
+  // Güvenlik departmanında olay bildirimlerinde personel atama gereksiz
+  // görüldüğü için kaldırıldı — diğer departmanlarda (teknik/temizlik/idari)
+  // duruyor, onlar ayrıca değerlendirilecek.
+  const isGuvenlik = personnel?.departments?.slug === "guvenlik";
   const [tab, setTab] = useState<TabKey>("open");
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
@@ -434,8 +438,8 @@ export default function OlaylarPage() {
                     </div>
                   )}
 
-                  {/* Personel Ata (kendi birimi için) */}
-                  {tab !== "closed" && deptPersonnel.length > 0 && (
+                  {/* Personel Ata (kendi birimi için) — güvenlik departmanında kaldırıldı */}
+                  {!isGuvenlik && tab !== "closed" && deptPersonnel.length > 0 && (
                     <div className="flex items-center gap-2">
                       <span className="material-symbols-outlined text-gray-400 text-[16px] flex-shrink-0">assignment_ind</span>
                       <select
@@ -451,7 +455,7 @@ export default function OlaylarPage() {
                       </select>
                     </div>
                   )}
-                  {tab === "closed" && inc.my_dept_assigned_to && (
+                  {!isGuvenlik && tab === "closed" && inc.my_dept_assigned_to && (
                     <p className="text-[11px] text-gray-400 font-semibold">
                       Atanan: {deptPersonnel.find(p => p.id === inc.my_dept_assigned_to)?.full_name ?? "—"}
                     </p>

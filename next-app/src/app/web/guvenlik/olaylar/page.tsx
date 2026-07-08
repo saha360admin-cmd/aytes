@@ -5,8 +5,10 @@ import { supabase } from "@/lib/supabase";
 import { isSlaBreached } from "@/lib/sla";
 
 // İş mantığı mobildeki (mobile)/yonetici/olaylar/page.tsx ile birebir
-// aynı — incidents/incident_departments tablolarını ve onay/red/atama
-// akışını mobil ve masaüstü aynı kurallarla uygulamalı.
+// aynı — incidents/incident_departments tablolarını ve onay/red akışını
+// mobil ve masaüstü aynı kurallarla uygulamalı. Personel atama özelliği
+// güvenlik departmanında gereksiz görülüp kaldırıldı (talep üzerine) —
+// diğer departmanlarda (mobil yönetici sayfasında) hâlâ duruyor.
 
 interface DeptStatus {
   id: string;
@@ -29,11 +31,8 @@ interface Incident {
   all_depts: DeptStatus[];
   my_dept_record_id: string;
   my_dept_status: "open" | "in_progress" | "pending_approval" | "closed";
-  my_dept_assigned_to: string | null;
   my_dept_rejection_note: string | null;
 }
-
-interface DeptPerson { id: string; full_name: string; }
 
 const TABS = [
   { key: "open", label: "Açık", dot: "bg-red-500", text: "text-red-600" },
@@ -81,9 +80,7 @@ export default function WebGuvenlikOlaylarPage() {
   const [hasMore, setHasMore] = useState(false);
   const [page, setPage] = useState(0);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
-  const [assigningId, setAssigningId] = useState<string | null>(null);
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
-  const [deptPersonnel, setDeptPersonnel] = useState<DeptPerson[]>([]);
   const [rejectSheet, setRejectSheet] = useState<{ incidentId: string; recordId: string } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
 
@@ -104,8 +101,6 @@ export default function WebGuvenlikOlaylarPage() {
     const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
     if (!dept) { setLoading(false); return; }
     setDeptId(dept.id);
-    const { data } = await supabase.from("personnel").select("id, full_name").eq("department_id", dept.id).eq("status", "active").order("full_name");
-    setDeptPersonnel(data || []);
   }
 
   async function load(pageIndex: number, currentDeptId: string) {
@@ -116,7 +111,7 @@ export default function WebGuvenlikOlaylarPage() {
 
     const { data: allRecs } = await supabase
       .from("incident_departments")
-      .select("id, status, incident_id, department_id, updated_at, assigned_to, rejection_note")
+      .select("id, status, incident_id, department_id, updated_at, rejection_note")
       .eq("status", tab)
       .order("updated_at", { ascending: false });
 
@@ -159,7 +154,6 @@ export default function WebGuvenlikOlaylarPage() {
         all_depts: depts,
         my_dept_record_id: myRec?.id ?? "",
         my_dept_status: myRec?.status ?? "open",
-        my_dept_assigned_to: myRec?.assigned_to ?? null,
         my_dept_rejection_note: myRec?.rejection_note ?? null,
       };
     });
@@ -227,26 +221,6 @@ export default function WebGuvenlikOlaylarPage() {
     }
     setUpdatingId(null);
     setRejectSheet(null);
-  }
-
-  async function assignPersonnel(incidentId: string, recordId: string, personnelId: string, currentStatus: "open" | "in_progress" | "pending_approval" | "closed") {
-    setAssigningId(incidentId);
-    const patch: { assigned_to: string | null; status?: "in_progress" } = { assigned_to: personnelId || null };
-    if (personnelId && currentStatus === "open") patch.status = "in_progress";
-
-    const { error } = await supabase.from("incident_departments").update(patch).eq("id", recordId);
-
-    if (!error) {
-      if (patch.status && patch.status !== currentStatus) {
-        setIncidents(prev => prev.filter(i => i.id !== incidentId));
-      } else {
-        setIncidents(prev => prev.map(i => i.id === incidentId ? { ...i, my_dept_assigned_to: personnelId || null } : i));
-      }
-      showToast(personnelId ? "Personel atandı" : "Atama kaldırıldı", true);
-    } else {
-      showToast("İşlem başarısız: " + error.message, false);
-    }
-    setAssigningId(null);
   }
 
   return (
@@ -403,28 +377,6 @@ export default function WebGuvenlikOlaylarPage() {
                           </div>
                         </div>
                       </div>
-                    )}
-
-                    {tab !== "closed" && deptPersonnel.length > 0 && (
-                      <div className="flex items-center gap-2">
-                        <span className="material-symbols-outlined text-outline text-[16px] flex-shrink-0">assignment_ind</span>
-                        <select
-                          value={inc.my_dept_assigned_to ?? ""}
-                          disabled={assigningId === inc.id}
-                          onChange={e => assignPersonnel(inc.id, inc.my_dept_record_id, e.target.value, inc.my_dept_status)}
-                          className="flex-1 text-xs font-semibold bg-surface-container-low border-none rounded-lg px-2.5 py-2 outline-none focus:ring-2 focus:ring-primary disabled:opacity-50"
-                        >
-                          <option value="">— Personel Ata —</option>
-                          {deptPersonnel.map(p => (
-                            <option key={p.id} value={p.id}>{p.full_name}</option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
-                    {tab === "closed" && inc.my_dept_assigned_to && (
-                      <p className="text-[11px] text-on-surface-variant font-semibold">
-                        Atanan: {deptPersonnel.find(p => p.id === inc.my_dept_assigned_to)?.full_name ?? "—"}
-                      </p>
                     )}
 
                     {next && tab !== "closed" && (
