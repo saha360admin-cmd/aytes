@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -26,9 +26,7 @@ export default function DevamPage() {
   const [list, setList] = useState<PersonnelAttendance[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { if (personnel) load(selectedDate); }, [personnel, selectedDate]);
-
-  async function load(dateStr: string) {
+  const load = useCallback(async (dateStr: string) => {
     if (!personnel) return;
     setLoading(true);
 
@@ -46,7 +44,9 @@ export default function DevamPage() {
 
     if (!pData || pData.length === 0) { setList([]); setLoading(false); return; }
 
-    const pIds = pData.map((p: any) => p.id);
+    interface PersonnelRow { id: string; full_name: string; locations: { name: string } | null }
+    const rows = pData as unknown as PersonnelRow[];
+    const pIds = rows.map((p) => p.id);
 
     // O günün giriş/çıkış kayıtları
     const { data: rData } = await supabase
@@ -59,7 +59,7 @@ export default function DevamPage() {
 
     // Her personel için ilk giriş ve son çıkışı bul
     const recordMap: Record<string, { entry: string | null; exit: string | null; entryVerified: boolean; exitVerified: boolean }> = {};
-    (rData || []).forEach((r: any) => {
+    (rData || []).forEach((r) => {
       if (!recordMap[r.personnel_id]) {
         recordMap[r.personnel_id] = { entry: null, exit: null, entryVerified: false, exitVerified: false };
       }
@@ -73,16 +73,18 @@ export default function DevamPage() {
       }
     });
 
-    const result: PersonnelAttendance[] = pData.map((p: any) => ({
+    const result: PersonnelAttendance[] = rows.map((p) => ({
       id: p.id,
       full_name: p.full_name,
-      location: (p.locations as any)?.name || null,
+      location: p.locations?.name || null,
       ...(recordMap[p.id] || { entry: null, exit: null, entryVerified: false, exitVerified: false }),
     }));
 
     setList(result);
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => { if (personnel) load(selectedDate); }, [personnel, selectedDate, load]);
 
   function formatTime(iso: string | null) {
     if (!iso) return "—";

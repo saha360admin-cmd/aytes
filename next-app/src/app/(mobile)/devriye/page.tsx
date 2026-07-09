@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -113,15 +113,7 @@ export default function DevriyePage() {
   const activeCheckpoint = checkpoints.find(c => c.status === "active");
   const allDone = checkpoints.length > 0 && checkpoints.every(c => c.status === "completed");
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.departments?.slug === "teknik") { router.replace("/dashboard"); return; }
-    loadActivePatrol();
-    loadAvailableRoutes();
-    loadTodayAssignments();
-  }, [personnel]);
-
-  async function loadAvailableRoutes() {
+  const loadAvailableRoutes = useCallback(async () => {
     if (!personnel) return;
     const { data } = await supabase
       .from("patrol_routes")
@@ -132,14 +124,14 @@ export default function DevriyePage() {
       .order("created_at", { ascending: false });
 
     if (data) {
-      const routes = data.map((r: any) => ({
+      const routes = data.map((r: { id: string; name: string; points: { name: string; point_order: number }[] }) => ({
         ...r,
-        points: [...(r.points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
+        points: [...(r.points || [])].sort((a, b) => a.point_order - b.point_order),
       }));
       setAvailableRoutes(routes);
       if (routes.length > 0) setSelectedRouteId(routes[0].id);
     }
-  }
+  }, [personnel]);
 
   function generateTimeSlots(startTime: string, intervalMinutes: number, endTime: string | null): string[] {
     const slots: string[] = [];
@@ -158,7 +150,7 @@ export default function DevriyePage() {
     return slots;
   }
 
-  async function loadTodayAssignments() {
+  const loadTodayAssignments = useCallback(async () => {
     if (!personnel) return;
     const today = new Date();
     const dow = today.getDay();
@@ -192,7 +184,7 @@ export default function DevriyePage() {
     if (!scheds || scheds.length === 0) return;
 
     // Personelin lokasyonuyla eşleşen rota bul
-    const routeIds = scheds.map((s: any) => s.route_id);
+    const routeIds = scheds.map((s: { route_id: string }) => s.route_id);
     const locFilter = personnel.location_id
       ? `location_id.eq.${personnel.location_id},location_id.is.null`
       : "location_id.is.null";
@@ -207,13 +199,14 @@ export default function DevriyePage() {
 
     if (!routes || routes.length === 0) return;
 
-    const matchedRoute = routes[0] as any;
-    const matchedSched = scheds.find((s: any) => s.route_id === matchedRoute.id) ?? scheds[0] as any;
+    type MatchedRoute = { id: string; name: string; patrol_route_points: { id: string; name: string; point_order: number }[] };
+    const matchedRoute = routes[0] as unknown as MatchedRoute;
+    const matchedSched = scheds.find((s: { route_id: string }) => s.route_id === matchedRoute.id) ?? scheds[0];
 
     setAssignmentRoute({
       id: matchedRoute.id,
       name: matchedRoute.name,
-      points: [...(matchedRoute.patrol_route_points || [])].sort((a: any, b: any) => a.point_order - b.point_order),
+      points: [...(matchedRoute.patrol_route_points || [])].sort((a, b) => a.point_order - b.point_order),
     });
 
     // Bugünkü pending/missed atamaları temizle (vardiya değişimi sonrası eski slotlar kalmasın)
@@ -285,8 +278,8 @@ export default function DevriyePage() {
       .eq("date", dateStr)
       .in("status", ["active", "completed"])
       .neq("personnel_id", personnel.id);
-    setOccupiedSlots((others || []).map((o: any) => o.scheduled_time.slice(0, 5)));
-  }
+    setOccupiedSlots((others || []).map((o: { scheduled_time: string }) => o.scheduled_time.slice(0, 5)));
+  }, [personnel]);
 
   async function startAssignedPatrol(assignment: PatrolAssignment) {
     if (!personnel || !assignmentRoute) return;
@@ -359,7 +352,7 @@ export default function DevriyePage() {
     return () => clearInterval(interval);
   }, [paused, patrol]);
 
-  async function loadActivePatrol() {
+  const loadActivePatrol = useCallback(async () => {
     if (!personnel) return;
     const { data } = await supabase
       .from("patrols")
@@ -383,7 +376,15 @@ export default function DevriyePage() {
       if (assignRes.data) setActiveAssignmentId(assignRes.data.id);
     }
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.departments?.slug === "teknik") { router.replace("/dashboard"); return; }
+    loadActivePatrol();
+    loadAvailableRoutes();
+    loadTodayAssignments();
+  }, [personnel, router, loadActivePatrol, loadAvailableRoutes, loadTodayAssignments]);
 
   async function startNewPatrol() {
     if (!personnel) return;

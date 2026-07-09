@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -36,9 +36,7 @@ export default function BeaconlarPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
 
-  useEffect(() => { if (personnel) load(); }, [personnel]);
-
-  async function load() {
+  const load = useCallback(async () => {
     if (!personnel) return;
     const [bRes, lRes] = await Promise.all([
       supabase.from("beacons")
@@ -52,7 +50,9 @@ export default function BeaconlarPage() {
     setBeacons((bRes.data || []) as unknown as Beacon[]);
     setLocations(lRes.data || []);
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => { if (personnel) load(); }, [personnel, load]);
 
   function openNew() {
     setForm(EMPTY_FORM);
@@ -158,7 +158,7 @@ export default function BeaconlarPage() {
                   {b.location && (
                     <p className="text-[11px] text-blue-600 mt-0.5 flex items-center gap-1">
                       <span className="material-symbols-outlined text-[12px]">location_on</span>
-                      {(b.location as any).name}
+                      {b.location.name}
                     </p>
                   )}
                 </div>

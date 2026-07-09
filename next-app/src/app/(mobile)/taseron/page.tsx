@@ -58,7 +58,7 @@ export default function TaseronListePage() {
     if (!personnel) return;
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
     loadData();
-  }, [personnel]);
+  }, [personnel, router]);
 
   async function loadData() {
     setLoading(true);

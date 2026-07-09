@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -68,18 +68,9 @@ export default function TaleplerPage() {
   const [rejectSheet, setRejectSheet] = useState<string | null>(null);
   const [rejectNote, setRejectNote] = useState("");
 
-  useEffect(() => {
+  const load = useCallback(async (pageIndex: number) => {
     if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    setRequests([]);
-    setPage(0);
-    setHasMore(false);
-    load(0);
-  }, [personnel, tab]);
-
-  async function load(pageIndex: number) {
-    if (!personnel) return;
-    pageIndex === 0 ? setLoading(true) : setLoadingMore(true);
+    if (pageIndex === 0) setLoading(true); else setLoadingMore(true);
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
     const { data } = await supabase
@@ -93,8 +84,17 @@ export default function TaleplerPage() {
     setRequests(prev => pageIndex === 0 ? rows : [...prev, ...rows]);
     setHasMore(rows.length === PAGE_SIZE);
     setPage(pageIndex);
-    pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
-  }
+    if (pageIndex === 0) setLoading(false); else setLoadingMore(false);
+  }, [personnel, tab]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    setRequests([]);
+    setPage(0);
+    setHasMore(false);
+    load(0);
+  }, [personnel, tab, router, load]);
 
   function loadMore() { load(page + 1); }
 

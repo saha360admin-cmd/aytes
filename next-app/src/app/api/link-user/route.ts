@@ -43,7 +43,7 @@ export async function POST(request: Request) {
     const isEmailExists =
       authError.message?.toLowerCase().includes("already") ||
       authError.message?.toLowerCase().includes("registered") ||
-      (authError as any).code === "user_already_exists";
+      authError.code === "user_already_exists";
 
     if (isEmailExists) {
       const { data: listData } = await supabaseAdmin.auth.admin.listUsers({ perPage: 1000 });

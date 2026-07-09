@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -87,23 +87,13 @@ export default function OlaylarPage() {
     setTimeout(() => setToast(null), 3000);
   }
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "admin" || personnel.role === "supervisor") {
-      router.replace("/yonetici/olaylar");
-      return;
-    }
-    if (personnel.location_id) loadLocationName();
-    loadIncidents();
-  }, [personnel, tab]);
-
-  async function loadLocationName() {
+  const loadLocationName = useCallback(async () => {
     if (!personnel?.location_id) return;
     const { data } = await supabase.from("locations").select("name").eq("id", personnel.location_id).maybeSingle();
     if (data) setLocationName(data.name);
-  }
+  }, [personnel]);
 
-  async function loadIncidents() {
+  const loadIncidents = useCallback(async () => {
     if (!personnel) return;
     setLoading(true);
 
@@ -157,14 +147,23 @@ export default function OlaylarPage() {
       .order("created_at", { ascending: false })
       .limit(50);
 
+    interface IncidentDeptRow { id: string; status: "open" | "in_progress" | "pending_approval" | "closed"; department_id: string; assigned_to: string | null; rejection_note: string | null }
+    interface IncidentRow {
+      id: string; type: string; severity: "low" | "medium" | "high"; title: string | null; description: string;
+      location: string | null; created_at: string; photo_urls: string[] | null; video_urls: string[] | null;
+      reporter: { full_name: string } | { full_name: string }[] | null;
+      my_dept: IncidentDeptRow[] | null;
+    }
     setIncidents(
-      (data || []).map((inc: any) => {
-        const myDeptRec = (inc.my_dept || []).find((d: any) => d.department_id === personnel.department_id);
+      ((data || []) as unknown as IncidentRow[]).map((inc) => {
+        const myDeptRec = (inc.my_dept || []).find((d) => d.department_id === personnel.department_id);
+        const reporterArr = Array.isArray(inc.reporter) ? inc.reporter : null;
+        const reporterObj = !Array.isArray(inc.reporter) ? inc.reporter : null;
         return {
           ...inc,
           status: tab,
-          reporter: Array.isArray(inc.reporter) ? inc.reporter[0] ?? null : inc.reporter,
-          is_mine: inc.reporter?.[0]?.full_name === personnel.full_name || inc.reporter?.full_name === personnel.full_name,
+          reporter: reporterArr ? reporterArr[0] ?? null : reporterObj,
+          is_mine: reporterArr?.[0]?.full_name === personnel.full_name || reporterObj?.full_name === personnel.full_name,
           is_assigned_to_me: assignedIds.includes(inc.id),
           my_dept_record_id: myDeptRec?.id ?? "",
           my_dept_status: myDeptRec?.status ?? tab,
@@ -173,7 +172,17 @@ export default function OlaylarPage() {
       })
     );
     setLoading(false);
-  }
+  }, [personnel, tab]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "admin" || personnel.role === "supervisor") {
+      router.replace("/yonetici/olaylar");
+      return;
+    }
+    if (personnel.location_id) loadLocationName();
+    loadIncidents();
+  }, [personnel, tab, router, loadLocationName, loadIncidents]);
 
   async function submitForApproval(incidentId: string, recordId: string) {
     setSubmittingId(incidentId);

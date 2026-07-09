@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -67,14 +67,7 @@ export default function DevriyePlanlama() {
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    if (personnel.departments?.slug === "teknik") { router.replace("/yonetici"); return; }
-    loadData();
-  }, [personnel]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!personnel) return;
     const [locRes, routeRes] = await Promise.all([
       supabase.from("locations").select("id, name").order("name"),
@@ -85,13 +78,20 @@ export default function DevriyePlanlama() {
       `).eq("department_id", personnel.department_id).order("created_at", { ascending: false }),
     ]);
     setLocations(locRes.data || []);
-    setRoutes((routeRes.data || []).map((r: any) => ({
+    setRoutes(((routeRes.data || []) as PatrolRoute[]).map((r) => ({
       ...r,
       points: [...(r.points || [])].sort((a: RoutePoint, b: RoutePoint) => a.point_order - b.point_order),
       schedules: r.schedules || [],
     })));
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    if (personnel.departments?.slug === "teknik") { router.replace("/yonetici"); return; }
+    loadData();
+  }, [personnel, router, loadData]);
 
   async function createRoute() {
     if (!newRouteName.trim() || !personnel) return;

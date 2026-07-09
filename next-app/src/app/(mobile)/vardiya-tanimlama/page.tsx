@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -72,13 +72,7 @@ export default function VardiyaTanimlamaPage() {
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    load();
-  }, [personnel]);
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     const { data } = await supabase
       .from("shift_types")
@@ -88,7 +82,13 @@ export default function VardiyaTanimlamaPage() {
       .order("created_at");
     setShiftTypes((data || []) as ShiftType[]);
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    load();
+  }, [personnel, router, load]);
 
   function openAdd() {
     setEditingId(null);

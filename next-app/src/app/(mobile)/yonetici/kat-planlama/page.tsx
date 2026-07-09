@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -71,18 +71,7 @@ export default function KatPlanlama() {
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    loadData();
-  }, [personnel]);
-
-  useEffect(() => {
-    if (!qrModal?.qr_token) { setQrDataUrl(""); return; }
-    QRCode.toDataURL(qrModal.qr_token, { width: 280, margin: 1 }).then(setQrDataUrl).catch(() => setQrDataUrl(""));
-  }, [qrModal]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     const [locRes, routeRes] = await Promise.all([
       supabase.from("locations").select("id, name").order("name"),
       supabase.from("patrol_routes").select(`
@@ -92,13 +81,24 @@ export default function KatPlanlama() {
       `).eq("department_id", personnel!.department_id).order("created_at", { ascending: false }),
     ]);
     setLocations(locRes.data || []);
-    setRoutes((routeRes.data || []).map((r: any) => ({
+    setRoutes(((routeRes.data || []) as ControlRoute[]).map((r) => ({
       ...r,
       points: [...(r.points || [])].sort((a: RoutePoint, b: RoutePoint) => a.point_order - b.point_order),
       schedules: r.schedules || [],
     })));
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    loadData();
+  }, [personnel, router, loadData]);
+
+  useEffect(() => {
+    if (!qrModal?.qr_token) { setQrDataUrl(""); return; }
+    QRCode.toDataURL(qrModal.qr_token, { width: 280, margin: 1 }).then(setQrDataUrl).catch(() => setQrDataUrl(""));
+  }, [qrModal]);
 
   async function createRoute() {
     if (!newRouteName.trim() || !personnel) return;

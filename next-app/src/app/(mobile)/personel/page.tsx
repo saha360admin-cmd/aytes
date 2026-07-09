@@ -17,27 +17,6 @@ function toTitleCase(value: string) {
     .join(" ");
 }
 
-const LOCATIONS = [
-  "Genel Müdürlük",
-  "Beykoz Operasyon Merkezi",
-  "Yunus Eğitim Merkezi",
-  "Tuzla-Pendik Operasyon Merkezi (Tavşantepe)",
-  "Marmara (Kartal) Dağıtım Op. Bölge Md.lüğü",
-  "Üsküdar Operasyon Merkezi",
-  "Kurtköy Operasyon Merkezi",
-  "Kadıköy Operasyon Merkezi",
-  "Karadeniz (Sancaktepe) Dağıtım Op. Bölge Md.",
-  "Erenköy Operasyon Merkezi",
-  "Şile Ova İndiricı Merkezi",
-  "Vaniköy Operasyon Merkezi",
-  "SCADA Operasyon Kontrol Merkezi",
-  "Ümraniye Operasyon Merkezi",
-  "Ataşehir Trafo Merkezi",
-  "Şile Merkez Operasyon Müdürlüğü",
-  "Pendik LHM",
-  "İstanbul Anadolu Yakası Elektrik Dağıtım Dudullu",
-];
-
 const POSITIONS_BY_DEPT: Record<string, { value: string; label: string; role: string }[]> = {
   idari: [
     { value: "ofis-asistani",       label: "Ofis Asistanı",            role: "personel" },
@@ -465,7 +444,7 @@ export default function PersonelPage() {
         password: form.password,
         full_name: form.full_name,
         position: form.position,
-        location_id: (form as any).location_id || null,
+        location_id: form.location_id || null,
         department_id: personnel.department_id,
         role,
         avatar_url,
@@ -648,7 +627,7 @@ export default function PersonelPage() {
               const isOpen = expandedGroups.has(key);
               const toggle = () => setExpandedGroups(prev => {
                 const next = new Set(prev);
-                isOpen ? next.delete(key) : next.add(key);
+                if (isOpen) next.delete(key); else next.add(key);
                 return next;
               });
               const isUnassigned = group.locId === null;
@@ -1103,8 +1082,8 @@ export default function PersonelPage() {
                   <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-outline">location_on</span>
                   <select
                     className="w-full pl-12 pr-10 py-md bg-surface-container-low border border-outline-variant rounded-xl focus:ring-2 focus:ring-primary focus:outline-none transition-all appearance-none"
-                    value={(form as any).location_id || ""}
-                    onChange={(e) => setForm({ ...form, location_id: e.target.value } as any)}
+                    value={form.location_id || ""}
+                    onChange={(e) => setForm({ ...form, location_id: e.target.value })}
                   >
                     <option value="">Lokasyon Seçiniz</option>
                     {locations.map((loc) => (

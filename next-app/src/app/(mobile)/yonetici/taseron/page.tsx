@@ -62,7 +62,7 @@ export default function MobileTaseronListePage() {
     if (!personnel) return;
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
     loadData();
-  }, [personnel]);
+  }, [personnel, router]);
 
   async function loadData() {
     setLoading(true);

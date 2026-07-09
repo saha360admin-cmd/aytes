@@ -80,7 +80,7 @@ export default function TaseronRaporPage() {
         setFiltered(d);
         setLoading(false);
       });
-  }, []);
+  }, [personnel, router]);
 
   useEffect(() => {
     let result = [...records];

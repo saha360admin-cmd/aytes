@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -92,12 +92,6 @@ const typeLabels: Record<string, string> = {
   other: "Diğer",
 };
 
-const severityColor: Record<string, string> = {
-  low: "bg-emerald-100 text-emerald-700",
-  medium: "bg-amber-100 text-amber-700",
-  high: "bg-red-100 text-red-700",
-};
-
 export default function YoneticiPage() {
   const { personnel } = useAuth();
   const router = useRouter();
@@ -124,16 +118,7 @@ export default function YoneticiPage() {
   const [alertActionId, setAlertActionId] = useState<string | null>(null);
   const [ownLocationShortages, setOwnLocationShortages] = useState<LocationShortage[]>([]);
 
-  // Request action state
-  const [updatingReq, setUpdatingReq] = useState<string | null>(null);
-
   const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    loadData();
-  }, [personnel]);
 
   useEffect(() => {
     if (!personnel) return;
@@ -187,7 +172,7 @@ export default function YoneticiPage() {
     return Date.now() - new Date(a.created_at).getTime() > 5 * 60 * 1000;
   }
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!personnel) return;
     const deptId = personnel.department_id;
 
@@ -207,7 +192,7 @@ export default function YoneticiPage() {
       supabase.from("shifts").select("id", { count: "exact", head: true }).eq("department_id", deptId),
       supabase.from("personnel").select("id, full_name, status, position, role").eq("department_id", deptId).neq("status", "archived").order("full_name"),
       supabase.from("requests").select("*, requester:personnel_id(full_name)").eq("department_id", deptId).eq("status", "pending").order("created_at", { ascending: false }).limit(10),
-      supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as any,
+      supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as unknown as Promise<{ data: ActivePatrol[] | null }>,
       supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
       supabase.from("service_requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).in("status", ["open", "in_progress"]),
       supabase.from("locations").select("id, name, target_count").gt("target_count", 0),
@@ -225,7 +210,7 @@ export default function YoneticiPage() {
     setShiftFill({ active: 0, total: allP.length });
     setPersonnelList(allP.filter((p) => p.status === "active") as PersonnelItem[]);
     setPendingRequestsList((pendingReqRes.data || []) as PendingRequest[]);
-    setActivePatrolList(((activePatrolRes as any).data || []) as ActivePatrol[]);
+    setActivePatrolList(activePatrolRes.data || []);
     setRecentIncidents((incidentRes.data || []) as unknown as Incident[]);
     setOpenServiceRequests(serviceReqCount.count || 0);
 
@@ -401,17 +386,13 @@ export default function YoneticiPage() {
     }
 
     setLoading(false);
-  }
+  }, [personnel]);
 
-  async function handleRequest(id: string, status: "approved" | "rejected") {
-    setUpdatingReq(id);
-    const { error } = await supabase.from("requests").update({ status }).eq("id", id);
-    if (!error) {
-      setPendingRequestsList((prev) => prev.filter((r) => r.id !== id));
-      setStats((s) => ({ ...s, pendingRequests: s.pendingRequests - 1 }));
-    }
-    setUpdatingReq(null);
-  }
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    loadData();
+  }, [personnel, router, loadData]);
 
   function timeAgo(dateStr: string) {
     const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
@@ -1021,7 +1002,7 @@ export default function YoneticiPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-bold text-gray-800 truncate">{inc.title || inc.type}</p>
-                      <p className="text-xs text-gray-400 font-semibold">{(inc.reporter as any)?.full_name || "Bilinmiyor"} · {timeAgo(inc.created_at)}</p>
+                      <p className="text-xs text-gray-400 font-semibold">{inc.reporter?.full_name || "Bilinmiyor"} · {timeAgo(inc.created_at)}</p>
                     </div>
                     <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0 ${inc.status === "open" ? "bg-red-100 text-red-600" : inc.status === "in_progress" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
                       {inc.status === "open" ? "Açık" : inc.status === "in_progress" ? "İnceleniyor" : "Kapalı"}

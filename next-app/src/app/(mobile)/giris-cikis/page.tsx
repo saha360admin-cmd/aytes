@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -32,13 +32,12 @@ export default function GirisCikisPage() {
   const [beacons, setBeacons] = useState<BeaconConfig[]>([]);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [detectedRssi, setDetectedRssi] = useState<number | null>(null);
+  const [, setDetectedRssi] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
 
   const isBluetoothSupported = typeof navigator !== "undefined" && "bluetooth" in navigator;
-  useEffect(() => { if (personnel) load(); }, [personnel]);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!personnel) return;
     const today = new Date();
     const startOfDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).toISOString();
@@ -62,7 +61,9 @@ export default function GirisCikisPage() {
     setLoading(false);
 
     if (!isBluetoothSupported) setScanState("unsupported");
-  }
+  }, [personnel, isBluetoothSupported]);
+
+  useEffect(() => { if (personnel) load(); }, [personnel, load]);
 
   const lastRecord = todayRecords[0] ?? null;
   const nextAction: "entry" | "exit" = lastRecord?.type === "entry" ? "exit" : "entry";
@@ -80,9 +81,11 @@ export default function GirisCikisPage() {
 
     try {
       // İlk önce isim filtresiyle dene, bulamazsa herhangi bir BLE cihazını ara
-      let device: any = null;
+      type BluetoothLikeDevice = { name?: string };
+      type BluetoothLikeNavigator = { bluetooth: { requestDevice: (opts: { filters: { namePrefix: string }[]; optionalServices: string[] }) => Promise<BluetoothLikeDevice> } };
+      let device: BluetoothLikeDevice | null = null;
       try {
-        device = await (navigator as any).bluetooth.requestDevice({
+        device = await (navigator as unknown as BluetoothLikeNavigator).bluetooth.requestDevice({
           filters: beacons.map(b => ({ namePrefix: b.name.slice(0, 3) })),
           optionalServices: ["battery_service", "generic_access"],
         });
@@ -102,13 +105,14 @@ export default function GirisCikisPage() {
       setDetectedRssi(-65); // Web Bluetooth RSSI'yı desteklemez, sabit bir değer kullanıyoruz
 
       await recordAttendance(type, device.name || "", -65);
-    } catch (err: any) {
-      if (err?.name === "NotFoundError" || err?.message?.includes("cancelled")) {
+    } catch (err) {
+      const e = err as { name?: string; message?: string } | null;
+      if (e?.name === "NotFoundError" || e?.message?.includes("cancelled")) {
         setScanState("notfound");
-      } else if (err?.name === "SecurityError") {
+      } else if (e?.name === "SecurityError") {
         setScanState("unsupported");
       } else {
-        setErrorMsg(err?.message || "Bluetooth hatası");
+        setErrorMsg(e?.message || "Bluetooth hatası");
         setScanState("error");
       }
     }

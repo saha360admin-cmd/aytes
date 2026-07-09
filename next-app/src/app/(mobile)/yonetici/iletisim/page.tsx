@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -52,15 +52,9 @@ export default function IletisimPage() {
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    loadData();
-  }, [personnel]);
-
   const isIdari = personnel?.departments?.slug === "idari";
 
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!personnel) return;
 
     let deptIds = [personnel.department_id];
@@ -84,10 +78,16 @@ export default function IletisimPage() {
         .order("created_at", { ascending: false }),
       supabase.from("locations").select("id, name").order("name"),
     ]);
-    setComms((commRes.data || []) as any);
+    setComms((commRes.data || []) as unknown as Comm[]);
     setLocations(locRes.data || []);
     setLoading(false);
-  }
+  }, [personnel, isIdari]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    loadData();
+  }, [personnel, router, loadData]);
 
   async function openDetail(comm: Comm) {
     setDetailId(comm.id);
@@ -108,7 +108,7 @@ export default function IletisimPage() {
       .select("personnel_id, read_at, reader:personnel!personnel_id(full_name)")
       .eq("communication_id", comm.id)
       .order("read_at");
-    setDetailReads((data || []) as any);
+    setDetailReads((data || []) as unknown as CommRead[]);
     setLoadingReads(false);
   }
 
@@ -231,9 +231,9 @@ export default function IletisimPage() {
                 <div className="flex items-center justify-between mt-3 pt-3 border-t border-gray-100">
                   <span className="text-[11px] text-gray-400 flex items-center gap-1.5">
                     {isIdari && (
-                      <span className="font-bold text-[#3949AB] bg-indigo-50 px-2 py-0.5 rounded-full">{(c.department as any)?.name ?? "—"}</span>
+                      <span className="font-bold text-[#3949AB] bg-indigo-50 px-2 py-0.5 rounded-full">{c.department?.name ?? "—"}</span>
                     )}
-                    {c.target_type === "all" ? "Tüm personel" : (c.location as any)?.name ?? "Bölge"}
+                    {c.target_type === "all" ? "Tüm personel" : c.location?.name ?? "Bölge"}
                   </span>
                   <span className={`text-[11px] font-bold flex items-center gap-1 ${readCount > 0 ? "text-emerald-600" : "text-gray-400"}`}>
                     <span className="material-symbols-outlined text-[13px]">done_all</span>
@@ -275,11 +275,11 @@ export default function IletisimPage() {
                     <h2 className="text-lg font-bold text-gray-800">{detailComm.title}</h2>
                     <p className="text-sm text-gray-600 mt-2 leading-relaxed">{detailComm.content}</p>
                     <div className="flex items-center gap-4 mt-3 text-[11px] text-gray-400 flex-wrap">
-                      <span>{(detailComm.creator as any)?.full_name ?? "—"}</span>
+                      <span>{detailComm.creator?.full_name ?? "—"}</span>
                       <span>{new Date(detailComm.created_at).toLocaleString("tr-TR", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}</span>
-                      <span>{detailComm.target_type === "all" ? "Tüm personel" : (detailComm.location as any)?.name}</span>
+                      <span>{detailComm.target_type === "all" ? "Tüm personel" : detailComm.location?.name}</span>
                       {isIdari && (
-                        <span className="font-bold text-[#3949AB] bg-indigo-50 px-2 py-0.5 rounded-full">{(detailComm.department as any)?.name ?? "—"}</span>
+                        <span className="font-bold text-[#3949AB] bg-indigo-50 px-2 py-0.5 rounded-full">{detailComm.department?.name ?? "—"}</span>
                       )}
                     </div>
                   </>
@@ -314,7 +314,7 @@ export default function IletisimPage() {
                         <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                           <span className="material-symbols-outlined text-emerald-600 text-[14px]" style={{ fontVariationSettings: "'FILL' 1" }}>person</span>
                         </div>
-                        <span className="text-sm font-semibold text-gray-700">{(r.reader as any)?.full_name ?? "—"}</span>
+                        <span className="text-sm font-semibold text-gray-700">{r.reader?.full_name ?? "—"}</span>
                       </div>
                       <span className="text-[10px] text-gray-400">
                         {new Date(r.read_at).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}

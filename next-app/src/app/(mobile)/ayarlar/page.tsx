@@ -35,7 +35,7 @@ export default function AyarlarPage() {
 
   if (!personnel) return null;
 
-  const avatarUrl = avatarPreview || (personnel as any).avatar_url || null;
+  const avatarUrl = avatarPreview || (personnel as unknown as { avatar_url?: string | null }).avatar_url || null;
 
   function handleAvatarChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];

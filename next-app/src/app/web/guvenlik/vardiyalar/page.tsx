@@ -369,7 +369,7 @@ function ShiftScheduleSection() {
 
   async function saveAll(status: "draft" | "published") {
     if (!selectedLocId) return;
-    status === "draft" ? setSaving(true) : setPublishing(true);
+    if (status === "draft") setSaving(true); else setPublishing(true);
 
     let upserts: { personnel_id: string; location_id: string; shift_date: string; shift_code: string; status: string }[] = [];
     personnelList.forEach(p => {
@@ -467,7 +467,7 @@ function ShiftScheduleSection() {
       savedCells.current = newSaved;
     }
 
-    status === "draft" ? setSaving(false) : setPublishing(false);
+    if (status === "draft") setSaving(false); else setPublishing(false);
     if (err) {
       showToast("Hata: " + err.message, false);
     } else {
@@ -856,7 +856,7 @@ function ShiftScheduleSection() {
       <div className="flex gap-3 bg-primary/5 border border-primary/20 rounded-xl p-4">
         <span className="material-symbols-outlined text-primary flex-shrink-0 text-[20px]">content_paste</span>
         <p className="text-sm text-primary">
-          Hücrelere tıklayarak vardiya tipini döngüsel olarak değiştirebilir, ya da Excel'de hazırladığınız bir bloğu kopyalayıp bir hücreye tıkladıktan sonra <strong>Ctrl+V</strong> ile yapıştırabilirsiniz — yapıştırma tıkladığınız hücreden başlayarak sağa (günler) ve aşağıya (personel, tablodaki sıraya göre) doğru uygulanır. Tanınmayan kodlar atlanır. Taslağı Kaydet ilerlemenizi saklar, Vardiyayı Yayınla o ayki tüm çizelgeyi personele görünür yapar.
+          Hücrelere tıklayarak vardiya tipini döngüsel olarak değiştirebilir, ya da Excel&apos;de hazırladığınız bir bloğu kopyalayıp bir hücreye tıkladıktan sonra <strong>Ctrl+V</strong> ile yapıştırabilirsiniz — yapıştırma tıkladığınız hücreden başlayarak sağa (günler) ve aşağıya (personel, tablodaki sıraya göre) doğru uygulanır. Tanınmayan kodlar atlanır. Taslağı Kaydet ilerlemenizi saklar, Vardiyayı Yayınla o ayki tüm çizelgeyi personele görünür yapar.
         </p>
       </div>
 
@@ -1417,7 +1417,7 @@ function ShiftTypesSection() {
               </div>
               <div>
                 <p className="font-bold text-on-surface">Vardiyayı Sil</p>
-                <p className="text-sm text-on-surface-variant">"{deleteConfirm.name}" silinecek. Onaylıyor musunuz?</p>
+                <p className="text-sm text-on-surface-variant">&quot;{deleteConfirm.name}&quot; silinecek. Onaylıyor musunuz?</p>
               </div>
             </div>
             <div className="flex gap-3">

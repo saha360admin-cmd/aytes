@@ -4,8 +4,7 @@
 // Tam proxy desteği için: npm install @supabase/ssr + createServerClient
 
 import { NextResponse } from "next/server";
-import type { NextRequest } from "next/server";
 
-export function middleware(_req: NextRequest) {
+export function middleware() {
   return NextResponse.next();
 }

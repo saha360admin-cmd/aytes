@@ -18,7 +18,7 @@ export default function TaseronFirmaYeniPage() {
   useEffect(() => {
     if (!personnel) return;
     if (personnel.role === "personel") router.replace("/dashboard");
-  }, [personnel]);
+  }, [personnel, router]);
 
   function showToast(msg: string, ok: boolean) {
     setToast({ msg, ok });

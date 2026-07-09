@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import Link from "next/link";
@@ -36,45 +36,7 @@ export default function DashboardPage() {
   const [helpLoading, setHelpLoading] = useState(false);
   const [activeAlerts, setActiveAlerts] = useState<EmergencyAlert[]>([]);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "admin") { router.replace("/yonetici"); return; }
-    if (personnel.role === "supervisor") { router.replace("/amir"); return; }
-    loadDashboard();
-  }, [personnel]);
-
-  useEffect(() => {
-    if (!personnel) return;
-    const deptId = personnel.department_id;
-
-    async function loadActiveAlerts() {
-      const { data } = await supabase
-        .from("emergency_alerts")
-        .select("*, personnel:personnel_id(full_name), location:location_id(name)")
-        .eq("department_id", deptId)
-        .eq("status", "active")
-        .order("created_at", { ascending: false });
-      setActiveAlerts((data || []) as unknown as EmergencyAlert[]);
-    }
-
-    loadActiveAlerts();
-
-    const channel = supabase
-      .channel("emergency-alerts-dashboard")
-      .on("postgres_changes", { event: "*", schema: "public", table: "emergency_alerts" }, () => loadActiveAlerts())
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [personnel]);
-
-  function alertTimeAgo(dateStr: string) {
-    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
-    if (diff < 1) return "az önce";
-    if (diff < 60) return `${diff} dk önce`;
-    return `${Math.floor(diff / 60)} sa önce`;
-  }
-
-  async function loadDashboard() {
+  const loadDashboard = useCallback(async () => {
     if (!personnel) return;
     const deptId = personnel.department_id;
     const pId = personnel.id;
@@ -137,9 +99,9 @@ export default function DashboardPage() {
       const { data: gorevReads } = await supabase.from("communication_reads")
         .select("communication_id")
         .eq("personnel_id", pId)
-        .in("communication_id", gorevComms.map((g: any) => g.id));
-      const readSet = new Set((gorevReads || []).map((r: any) => r.communication_id));
-      setGorevler(gorevComms.map((g: any) => ({ ...g, isRead: readSet.has(g.id) })));
+        .in("communication_id", gorevComms.map((g: { id: string }) => g.id));
+      const readSet = new Set((gorevReads || []).map((r: { communication_id: string }) => r.communication_id));
+      setGorevler(gorevComms.map((g: { id: string; title: string; content: string; priority: string }) => ({ ...g, isRead: readSet.has(g.id) })));
     }
 
     // Okunmamış iletişim sayısı
@@ -148,13 +110,13 @@ export default function DashboardPage() {
       .eq("department_id", deptId)
       .or(locFilter)
       .or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`);
-    const commIds = (allComms || []).map((c: any) => c.id);
+    const commIds = (allComms || []).map((c: { id: string }) => c.id);
     if (commIds.length > 0) {
       const { data: myReads } = await supabase.from("communication_reads")
         .select("communication_id")
         .eq("personnel_id", pId)
         .in("communication_id", commIds);
-      const readSet = new Set((myReads || []).map((r: any) => r.communication_id));
+      const readSet = new Set((myReads || []).map((r: { communication_id: string }) => r.communication_id));
       setUnreadComms(commIds.length - readSet.size);
 
       // En son mesajı göster (önce okunmamış+acil)
@@ -171,6 +133,44 @@ export default function DashboardPage() {
     }
 
     setLoading(false);
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "admin") { router.replace("/yonetici"); return; }
+    if (personnel.role === "supervisor") { router.replace("/amir"); return; }
+    loadDashboard();
+  }, [personnel, router, loadDashboard]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    const deptId = personnel.department_id;
+
+    async function loadActiveAlerts() {
+      const { data } = await supabase
+        .from("emergency_alerts")
+        .select("*, personnel:personnel_id(full_name), location:location_id(name)")
+        .eq("department_id", deptId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      setActiveAlerts((data || []) as unknown as EmergencyAlert[]);
+    }
+
+    loadActiveAlerts();
+
+    const channel = supabase
+      .channel("emergency-alerts-dashboard")
+      .on("postgres_changes", { event: "*", schema: "public", table: "emergency_alerts" }, () => loadActiveAlerts())
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [personnel]);
+
+  function alertTimeAgo(dateStr: string) {
+    const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 60000);
+    if (diff < 1) return "az önce";
+    if (diff < 60) return `${diff} dk önce`;
+    return `${Math.floor(diff / 60)} sa önce`;
   }
 
   async function openHelpModal() {

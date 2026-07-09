@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -93,28 +93,9 @@ export default function OlaylarPage() {
   const [rejectSheet, setRejectSheet] = useState<{ incidentId: string; recordId: string } | null>(null);
   const [rejectNote, setRejectNote] = useState("");
 
-  useEffect(() => {
+  const load = useCallback(async (pageIndex: number) => {
     if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    setIncidents([]);
-    setPage(0);
-    setHasMore(false);
-    load(0);
-  }, [personnel, tab]);
-
-  useEffect(() => {
-    if (!personnel) return;
-    supabase.from("personnel")
-      .select("id, full_name")
-      .eq("department_id", personnel.department_id)
-      .eq("status", "active")
-      .order("full_name")
-      .then(({ data }) => setDeptPersonnel(data || []));
-  }, [personnel]);
-
-  async function load(pageIndex: number) {
-    if (!personnel) return;
-    pageIndex === 0 ? setLoading(true) : setLoadingMore(true);
+    if (pageIndex === 0) setLoading(true); else setLoadingMore(true);
 
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
@@ -139,7 +120,7 @@ export default function OlaylarPage() {
     if (pageIds.length === 0) {
       setIncidents(prev => pageIndex === 0 ? [] : prev);
       setHasMore(false);
-      pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
+      if (pageIndex === 0) setLoading(false); else setLoadingMore(false);
       return;
     }
 
@@ -161,9 +142,15 @@ export default function OlaylarPage() {
 
     const deptMap = Object.fromEntries((deptData || []).map(d => [d.id, d]));
 
-    const merged: Incident[] = (incData || []).map((inc: any) => {
+    interface IncidentRow {
+      id: string; type: string; severity: "low" | "medium" | "high"; title: string | null; description: string;
+      location: string | null; created_at: string; photo_urls: string[] | null; video_urls: string[] | null;
+      reporter: { full_name: string } | null;
+      all_depts: { id: string; status: DeptStatus["status"]; department_id: string }[] | null;
+    }
+    const merged: Incident[] = ((incData || []) as unknown as IncidentRow[]).map((inc) => {
       const myRec = myRows.find(r => r.incident_id === inc.id);
-      const depts: DeptStatus[] = (inc.all_depts || []).map((d: any) => ({
+      const depts: DeptStatus[] = (inc.all_depts || []).map((d) => ({
         id: d.id,
         status: d.status,
         department_id: d.department_id,
@@ -183,8 +170,27 @@ export default function OlaylarPage() {
     setIncidents(prev => pageIndex === 0 ? merged : [...prev, ...merged]);
     setHasMore(allIncidentIds.length > to + 1);
     setPage(pageIndex);
-    pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
-  }
+    if (pageIndex === 0) setLoading(false); else setLoadingMore(false);
+  }, [personnel, tab]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    setIncidents([]);
+    setPage(0);
+    setHasMore(false);
+    load(0);
+  }, [personnel, tab, router, load]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    supabase.from("personnel")
+      .select("id, full_name")
+      .eq("department_id", personnel.department_id)
+      .eq("status", "active")
+      .order("full_name")
+      .then(({ data }) => setDeptPersonnel(data || []));
+  }, [personnel]);
 
   async function updateStatus(incidentId: string, recordId: string, newStatus: "in_progress" | "closed") {
     setUpdatingId(incidentId);

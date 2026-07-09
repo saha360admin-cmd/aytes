@@ -148,7 +148,7 @@ function PatrolRoutesSection() {
       `).eq("department_id", dept.id).order("created_at", { ascending: false }),
     ]);
     setLocations((locRes.data || []) as Location[]);
-    setRoutes(((routeRes.data || []) as any[]).map(r => ({
+    setRoutes(((routeRes.data || []) as PatrolRoute[]).map(r => ({
       ...r,
       points: [...(r.points || [])].sort((a: RoutePoint, b: RoutePoint) => a.point_order - b.point_order),
       schedules: r.schedules || [],
@@ -301,7 +301,7 @@ function PatrolRoutesSection() {
             <span className="material-symbols-outlined text-primary text-[32px]">route</span>
           </div>
           <p className="font-bold text-on-surface">Henüz rota oluşturulmadı</p>
-          <p className="text-sm text-on-surface-variant">"Yeni Rota" butonuna basarak başlayın</p>
+          <p className="text-sm text-on-surface-variant">&quot;Yeni Rota&quot; butonuna basarak başlayın</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -621,7 +621,7 @@ function PatrolRoutesSection() {
               </div>
               <div>
                 <p className="font-bold text-on-surface">Rotayı Sil</p>
-                <p className="text-sm text-on-surface-variant">"{deleteRouteConfirm.name}" ve tüm kontrol noktaları/planları silinecek. Onaylıyor musunuz?</p>
+                <p className="text-sm text-on-surface-variant">&quot;{deleteRouteConfirm.name}&quot; ve tüm kontrol noktaları/planları silinecek. Onaylıyor musunuz?</p>
               </div>
             </div>
             <div className="flex gap-3">

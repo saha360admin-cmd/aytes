@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -52,12 +52,7 @@ export default function TaleplerPage() {
     setPhotos((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  useEffect(() => {
-    if (!personnel) return;
-    loadRequests();
-  }, [personnel]);
-
-  async function loadRequests() {
+  const loadRequests = useCallback(async () => {
     if (!personnel) return;
     const { data } = await supabase
       .from("requests")
@@ -65,7 +60,12 @@ export default function TaleplerPage() {
       .eq("personnel_id", personnel.id)
       .order("created_at", { ascending: false });
     setMyRequests(data || []);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    loadRequests();
+  }, [personnel, loadRequests]);
 
   async function handleSubmit() {
     if (!personnel || !details) return;

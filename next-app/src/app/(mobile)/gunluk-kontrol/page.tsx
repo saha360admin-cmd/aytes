@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -32,12 +32,7 @@ export default function GunlukKontrolPage() {
   const [uploadingId, setUploadingId] = useState<string | null>(null);
   const fileInputs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  useEffect(() => {
-    if (!personnel) return;
-    loadToday();
-  }, [personnel]);
-
-  async function loadToday() {
+  const loadToday = useCallback(async () => {
     if (!personnel?.location_id) { setNoProgram(true); setLoading(false); return; }
     const today = new Date();
     const dateStr = toDateStr(today);
@@ -60,7 +55,7 @@ export default function GunlukKontrolPage() {
         .eq("location_id", personnel.location_id)
         .eq("active", true);
 
-      const match = (programs || []).find((p: any) =>
+      const match = (programs || []).find((p: { recurrence_type: string; days_of_week: number[] | null }) =>
         p.recurrence_type === "daily" || (p.recurrence_type === "weekly" && (p.days_of_week || []).includes(dow))
       );
 
@@ -102,7 +97,12 @@ export default function GunlukKontrolPage() {
     const sorted = ((rows || []) as unknown as ItemRow[]).sort((a, b) => a.area.sort_order - b.area.sort_order);
     setItems(sorted);
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    loadToday();
+  }, [personnel, loadToday]);
 
   async function updateStatus(item: ItemRow, status: CleaningChecklistItem["status"]) {
     if (status === "tamamlandı" && item.area.requires_photo && !item.photo_url) {

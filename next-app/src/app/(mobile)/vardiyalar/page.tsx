@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useCallback, useEffect, useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -130,24 +130,7 @@ export default function VardiyalarPage() {
 
   const todayStr = toDateStr(today);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "admin" || personnel.role === "supervisor") {
-      router.replace("/yonetici/vardiyalar");
-      return;
-    }
-    loadAssignments();
-  }, [personnel]);
-
-  useEffect(() => {
-    if (!personnel || assignments.length === 0) return;
-    const sel = toDateStr(selectedDate);
-    const sa = assignments.find(a => a.shift_date === sel);
-    if (sa) loadDetails(sa.shift_code, sel);
-    else { setCoworkers([]); setShiftInfo(null); }
-  }, [selectedDate, assignments]);
-
-  async function loadAssignments() {
+  const loadAssignments = useCallback(async () => {
     if (!personnel) return;
     const start = toDateStr(new Date(today.getFullYear(), today.getMonth(), 1));
     const end = toDateStr(new Date(today.getFullYear(), today.getMonth() + 2, 0));
@@ -261,9 +244,9 @@ export default function VardiyalarPage() {
     setPerformanceScore(finalScore);
 
     setLoading(false);
-  }
+  }, [personnel, today, todayStr]);
 
-  async function loadDetails(code: string, dateStr: string) {
+  const loadDetails = useCallback(async (code: string, dateStr: string) => {
     if (!personnel || !personnel.location_id) return;
 
     const overlapMap: Record<string, string[]> = { "1": ["1", "5", "7"], "2": ["2", "5", "6", "7", "8"], "3": ["3", "6", "8"], "5": ["1", "2", "5"], "6": ["2", "3", "6"], "7": ["1", "2", "7"], "8": ["2", "3", "8"] };
@@ -302,7 +285,24 @@ export default function VardiyalarPage() {
     }
 
     setShiftInfo(shiftRes.data || null);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "admin" || personnel.role === "supervisor") {
+      router.replace("/yonetici/vardiyalar");
+      return;
+    }
+    loadAssignments();
+  }, [personnel, router, loadAssignments]);
+
+  useEffect(() => {
+    if (!personnel || assignments.length === 0) return;
+    const sel = toDateStr(selectedDate);
+    const sa = assignments.find(a => a.shift_date === sel);
+    if (sa) loadDetails(sa.shift_code, sel);
+    else { setCoworkers([]); setShiftInfo(null); }
+  }, [selectedDate, assignments, personnel, loadDetails]);
 
   // Current week Mon–Sun
   const weekDays = useMemo(() => {

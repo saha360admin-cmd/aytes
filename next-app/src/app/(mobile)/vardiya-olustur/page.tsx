@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useMemo, useRef } from "react";
+import React, { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -162,31 +162,7 @@ export default function VardiyaOlusturmaPage() {
 
   const currentWeek = weeks[weekIndex] ?? weeks[0] ?? [];
 
-  // Close dropdowns on outside click
-  useEffect(() => {
-    function handler(e: MouseEvent) {
-      if (locRef.current && !locRef.current.contains(e.target as Node)) setLocOpen(false);
-      if (monthRef.current && !monthRef.current.contains(e.target as Node)) setMonthOpen(false);
-    }
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, []);
-
-  // Vardiya tipleri sayfasından geri dönünce yenile
-  useEffect(() => {
-    function onVisible() { if (document.visibilityState === "visible" && personnel) loadShiftTypes(); }
-    document.addEventListener("visibilitychange", onVisible);
-    return () => document.removeEventListener("visibilitychange", onVisible);
-  }, [personnel]);
-
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    loadLocations();
-    loadShiftTypes();
-  }, [personnel]);
-
-  async function loadShiftTypes() {
+  const loadShiftTypes = useCallback(async () => {
     const [{ data }, { data: allP }] = await Promise.all([
       supabase.from("shift_types")
         .select("id, code, name, color, is_day_off, sort_order, duration_hours, start_time, end_time")
@@ -197,25 +173,9 @@ export default function VardiyaOlusturmaPage() {
     ]);
     setShiftTypes(data || []);
     setAllPersonnel(allP || []);
-  }
+  }, [personnel]);
 
-  useEffect(() => {
-    if (!selectedLocId) return;
-    loadPersonnel();
-  }, [selectedLocId, selectedMonth]);
-
-  useEffect(() => { setWeekIndex(0); }, [selectedMonth]);
-
-  async function loadLocations() {
-    const { data } = await supabase.from("locations").select("id, name").order("name");
-    if (data && data.length > 0) {
-      setLocations(data);
-      setSelectedLocId(data[0].id);
-    }
-    setLoading(false);
-  }
-
-  async function loadPersonnel() {
+  const loadPersonnel = useCallback(async () => {
     setPersonnelList([]);
     setCells({});
     setAwayCells({});
@@ -261,6 +221,46 @@ export default function VardiyaOlusturmaPage() {
     setCells(newCells);
     setAwayCells(newAwayCells);
     savedCells.current = { ...newCells };
+  }, [selectedLocId, monthDays, personnel, allPersonnel]);
+
+  // Close dropdowns on outside click
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (locRef.current && !locRef.current.contains(e.target as Node)) setLocOpen(false);
+      if (monthRef.current && !monthRef.current.contains(e.target as Node)) setMonthOpen(false);
+    }
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  // Vardiya tipleri sayfasından geri dönünce yenile
+  useEffect(() => {
+    function onVisible() { if (document.visibilityState === "visible" && personnel) loadShiftTypes(); }
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [personnel, loadShiftTypes]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    loadLocations();
+    loadShiftTypes();
+  }, [personnel, router, loadShiftTypes]);
+
+  useEffect(() => {
+    if (!selectedLocId) return;
+    loadPersonnel();
+  }, [selectedLocId, selectedMonth, loadPersonnel]);
+
+  useEffect(() => { setWeekIndex(0); }, [selectedMonth]);
+
+  async function loadLocations() {
+    const { data } = await supabase.from("locations").select("id, name").order("name");
+    if (data && data.length > 0) {
+      setLocations(data);
+      setSelectedLocId(data[0].id);
+    }
+    setLoading(false);
   }
 
   // Dinamik döngü: shift_types sırasıyla → boş
@@ -294,7 +294,7 @@ export default function VardiyaOlusturmaPage() {
 
   async function saveAll(status: "draft" | "published") {
     if (!selectedLocId || !personnel) return;
-    status === "draft" ? setSaving(true) : setPublishing(true);
+    if (status === "draft") setSaving(true); else setPublishing(true);
 
     // Sadece değişen veya yeni eklenen hücreler
     let upserts: { personnel_id: string; location_id: string; shift_date: string; shift_code: string; status: string; created_by: string }[] = [];
@@ -396,7 +396,7 @@ export default function VardiyaOlusturmaPage() {
       savedCells.current = newSaved;
     }
 
-    status === "draft" ? setSaving(false) : setPublishing(false);
+    if (status === "draft") setSaving(false); else setPublishing(false);
     if (err) {
       showToast("Hata: " + err.message, false);
     } else {

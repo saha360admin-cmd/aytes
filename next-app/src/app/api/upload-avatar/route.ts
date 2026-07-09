@@ -40,7 +40,8 @@ export async function POST(req: NextRequest) {
       .eq("id", personnelId);
 
     return NextResponse.json({ avatar_url: proxyUrl });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message ?? "Sunucu hatası" }, { status: 500 });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Sunucu hatası";
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

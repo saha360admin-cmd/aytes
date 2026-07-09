@@ -19,7 +19,7 @@ export default function TaseronFirmaPage() {
     if (!personnel) return;
     if (personnel.role === "personel") { router.replace("/dashboard"); return; }
     loadFirms();
-  }, [personnel]);
+  }, [personnel, router]);
 
   async function loadFirms() {
     setLoading(true);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -57,13 +57,7 @@ export default function TemizlikProgramPage() {
   const [progShiftCode, setProgShiftCode] = useState("");
   const [savingProgram, setSavingProgram] = useState(false);
 
-  useEffect(() => {
-    if (!personnel) return;
-    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
-    loadData();
-  }, [personnel]);
-
-  async function loadData() {
+  const loadData = useCallback(async () => {
     if (!personnel) return;
     const [locRes, areaRes, progRes, persRes] = await Promise.all([
       supabase.from("locations").select("id, name").order("name"),
@@ -83,7 +77,13 @@ export default function TemizlikProgramPage() {
     })));
     setPersonnelOptions((persRes.data || []) as PersonnelOption[]);
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    if (personnel.role === "personel") { router.replace("/dashboard"); return; }
+    loadData();
+  }, [personnel, router, loadData]);
 
   function flash(msg: string, ok: boolean) {
     setToast({ msg, ok });

@@ -83,7 +83,7 @@ export default function WebGuvenlikTaleplerPage() {
   }, [deptId, tab]);
 
   async function load(pageIndex: number, currentDeptId: string) {
-    pageIndex === 0 ? setLoading(true) : setLoadingMore(true);
+    if (pageIndex === 0) setLoading(true); else setLoadingMore(true);
     const from = pageIndex * PAGE_SIZE;
     const to = from + PAGE_SIZE - 1;
     const { data } = await supabase
@@ -97,7 +97,7 @@ export default function WebGuvenlikTaleplerPage() {
     setRequests(prev => pageIndex === 0 ? rows : [...prev, ...rows]);
     setHasMore(rows.length === PAGE_SIZE);
     setPage(pageIndex);
-    pageIndex === 0 ? setLoading(false) : setLoadingMore(false);
+    if (pageIndex === 0) setLoading(false); else setLoadingMore(false);
   }
 
   async function approveRequest(id: string) {

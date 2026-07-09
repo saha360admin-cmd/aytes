@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
@@ -27,12 +27,7 @@ export default function IletisimPersonelPage() {
   const [selected, setSelected] = useState<Comm | null>(null);
   const [confirming, setConfirming] = useState(false);
 
-  useEffect(() => {
-    if (!personnel) return;
-    loadComms();
-  }, [personnel]);
-
-  async function loadComms() {
+  const loadComms = useCallback(async () => {
     if (!personnel) return;
     const now = new Date().toISOString();
 
@@ -54,7 +49,8 @@ export default function IletisimPersonelPage() {
     ]);
 
     const reads = new Map((readRes.data || []).map(r => [r.communication_id, r.read_at]));
-    const list: Comm[] = (commRes.data || []).map((c: any) => ({
+    type CommRow = Omit<Comm, "isRead" | "read_at">;
+    const list: Comm[] = (commRes.data as unknown as CommRow[] || []).map((c) => ({
       ...c,
       isRead: reads.has(c.id),
       read_at: reads.get(c.id) ?? null,
@@ -69,7 +65,12 @@ export default function IletisimPersonelPage() {
 
     setComms(list);
     setLoading(false);
-  }
+  }, [personnel]);
+
+  useEffect(() => {
+    if (!personnel) return;
+    loadComms();
+  }, [personnel, loadComms]);
 
   async function markRead(comm: Comm) {
     if (!personnel || comm.isRead) {
