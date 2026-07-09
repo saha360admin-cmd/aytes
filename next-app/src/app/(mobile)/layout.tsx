@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import BottomNav from "@/components/mobile/BottomNav";
+import PTTWidget from "@/components/mobile/PTTWidget";
 import { Loader2 } from "lucide-react";
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
@@ -41,6 +42,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
     <div className="min-h-screen bg-gray-100 flex items-start justify-center">
       <div className="w-full max-w-[430px] min-h-screen bg-background text-on-surface shadow-2xl relative mx-auto pb-28">
         {children}
+        <PTTWidget />
         <BottomNav />
       </div>
     </div>

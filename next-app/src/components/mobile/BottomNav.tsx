@@ -7,6 +7,7 @@ import { useAuth } from "@/context/AuthContext";
 const staffPatrolItem = { href: "/devriye",     label: "Devriye",       icon: "route",             color: "#7B1FA2" };
 const staffKatKontrolItem = { href: "/kat-kontrol", label: "Kat Kontrolü", icon: "cleaning_services", color: "#7B1FA2" };
 const staffGunlukKontrolItem = { href: "/gunluk-kontrol", label: "Kontrol Listesi", icon: "checklist", color: "#00838F" };
+const staffPttItem = { href: "/ptt", label: "Telsiz", icon: "mic", color: "#D84315" };
 
 function patrolOrKatSlot(isTemizlik: boolean, isTeknik: boolean, patrolItem: typeof staffPatrolItem, katItem: typeof staffKatKontrolItem) {
   if (isTemizlik) return [katItem];
@@ -14,11 +15,12 @@ function patrolOrKatSlot(isTemizlik: boolean, isTeknik: boolean, patrolItem: typ
   return [patrolItem];
 }
 
-const staffItems = (isTemizlik: boolean, isTeknik: boolean) => [
+const staffItems = (isTemizlik: boolean, isTeknik: boolean, isGuvenlik: boolean) => [
   { href: "/dashboard",   label: "Ana Sayfa", icon: "home",           color: "#3949AB" },
   { href: "/vardiyalar",  label: "Vardiyam",  icon: "calendar_month", color: "#00897B" },
   ...patrolOrKatSlot(isTemizlik, isTeknik, staffPatrolItem, staffKatKontrolItem),
   ...(isTemizlik ? [staffGunlukKontrolItem] : []),
+  ...(isGuvenlik ? [staffPttItem] : []),
   { href: "/talepler",    label: "Talepler",  icon: "assignment",     color: "#E65100" },
   { href: "/olaylar",     label: "Olaylar",   icon: "report_problem", color: "#C62828" },
   { href: "/ayarlar",     label: "Profil",    icon: "person",         color: "#546E7A" },
@@ -27,25 +29,28 @@ const staffItems = (isTemizlik: boolean, isTeknik: boolean) => [
 const adminPlanlamaItem = { href: "/yonetici/devriye-planlama", label: "Devriye",       icon: "route",             color: "#7B1FA2" };
 const adminKatPlanlamaItem = { href: "/yonetici/kat-planlama",  label: "Kat Kontrolü", icon: "cleaning_services", color: "#7B1FA2" };
 const adminTemizlikProgramItem = { href: "/yonetici/temizlik-program", label: "Program", icon: "checklist", color: "#00838F" };
+const adminPttItem = { href: "/ptt", label: "Telsiz", icon: "mic", color: "#D84315" };
 
-const adminItems = (isTemizlik: boolean, isTeknik: boolean) => [
+const adminItems = (isTemizlik: boolean, isTeknik: boolean, isGuvenlik: boolean) => [
   { href: "/yonetici",                  label: "Panel",    icon: "dashboard",      color: "#3949AB" },
   { href: "/personel",                  label: "Personel", icon: "group",          color: "#1565C0" },
   { href: "/vardiya-olustur",           label: "Vardiya",  icon: "edit_calendar",  color: "#00897B" },
   ...patrolOrKatSlot(isTemizlik, isTeknik, adminPlanlamaItem, adminKatPlanlamaItem),
   ...(isTemizlik ? [adminTemizlikProgramItem] : []),
+  ...(isGuvenlik ? [adminPttItem] : []),
   { href: "/yonetici/olaylar",          label: "Olaylar",  icon: "report_problem", color: "#C62828" },
   { href: "/yonetici/taseron",          label: "Taşeron",  icon: "engineering",    color: "#00695C" },
   { href: "/yonetici/talepler",         label: "Talepler", icon: "assignment",     color: "#E65100" },
   { href: "/ayarlar",                   label: "Profil",   icon: "person",         color: "#546E7A" },
 ];
 
-const supervisorItems = (isTemizlik: boolean, isTeknik: boolean) => [
+const supervisorItems = (isTemizlik: boolean, isTeknik: boolean, isGuvenlik: boolean) => [
   { href: "/yonetici",                  label: "Panel",    icon: "dashboard",      color: "#3949AB" },
   { href: "/personel",                  label: "Ekibim",   icon: "group",          color: "#1565C0" },
   { href: "/vardiya-olustur",           label: "Vardiya",  icon: "edit_calendar",  color: "#00897B" },
   ...patrolOrKatSlot(isTemizlik, isTeknik, adminPlanlamaItem, adminKatPlanlamaItem),
   ...(isTemizlik ? [adminTemizlikProgramItem] : []),
+  ...(isGuvenlik ? [adminPttItem] : []),
   { href: "/yonetici/olaylar",          label: "Olaylar",  icon: "report_problem", color: "#C62828" },
   { href: "/yonetici/taseron",          label: "Taşeron",  icon: "engineering",    color: "#00695C" },
   { href: "/yonetici/talepler",         label: "Talepler", icon: "assignment",     color: "#E65100" },
@@ -94,7 +99,8 @@ export default function BottomNav() {
   const role = personnel?.role;
   const isTemizlik = personnel?.departments?.slug === "temizlik";
   const isTeknik = personnel?.departments?.slug === "teknik";
-  const items = role === "admin" ? adminItems(isTemizlik, isTeknik) : role === "supervisor" ? supervisorItems(isTemizlik, isTeknik) : staffItems(isTemizlik, isTeknik);
+  const isGuvenlik = personnel?.departments?.slug === "guvenlik";
+  const items = role === "admin" ? adminItems(isTemizlik, isTeknik, isGuvenlik) : role === "supervisor" ? supervisorItems(isTemizlik, isTeknik, isGuvenlik) : staffItems(isTemizlik, isTeknik, isGuvenlik);
 
   const mid = Math.ceil(items.length / 2);
   const row1 = items.slice(0, mid);
