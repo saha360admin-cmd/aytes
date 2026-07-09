@@ -1,8 +1,10 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { RtcTokenBuilder, RtcRole } from "https://esm.sh/agora-token@2.0.3";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+// Deno.serve is built into the Supabase Edge Runtime (Deno v2) — the old
+// `https://deno.land/std@.../http/server.ts` serve() wrapper is incompatible
+// with this runtime and made the function crash on boot ("EarlyDrop").
+import { RtcTokenBuilder, RtcRole } from "npm:agora-token@2.0.5";
+import { createClient } from "npm:@supabase/supabase-js@2";
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", {
       headers: {
@@ -60,9 +62,9 @@ serve(async (req) => {
       },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Token üretilemedi" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": "*" },
     });
   }
 });
