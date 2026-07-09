@@ -55,7 +55,7 @@ function AuthForm() {
           .single();
 
         const role = p?.role;
-        const deptSlug = (p?.departments as { slug: string } | null)?.slug;
+        const deptSlug = (p?.departments as unknown as { slug: string } | null)?.slug;
         const isDesktop = window.innerWidth >= 1024;
 
         // Yönlendirme: gerçek role göre otomatik, ayrı bir yönetici girişi yok.

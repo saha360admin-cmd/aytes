@@ -75,7 +75,7 @@ export default function TaseronRaporPage() {
       .select(`id, department_id, contractor_name, contractor_ticket_no, description, location_detail, status, opened_at, resolved_at, department:departments(id,name)`)
       .order("opened_at", { ascending: false })
       .then(({ data }) => {
-        const d = (data || []) as ServiceRequest[];
+        const d = (data || []) as unknown as ServiceRequest[];
         setRecords(d);
         setFiltered(d);
         setLoading(false);
@@ -159,7 +159,7 @@ export default function TaseronRaporPage() {
       sanitizeCsvCell(STATUS_LABELS[r.status] ?? r.status),
     ]);
     const csv = "sep=;\n" + [header, ...rows].map(row => row.map(c => `"${c}"`).join(";")).join("\n");
-    const blob = new Blob([toWin1254(csv)], { type: "text/csv;charset=windows-1254;" });
+    const blob = new Blob([toWin1254(csv) as unknown as BlobPart], { type: "text/csv;charset=windows-1254;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = `taseron-rapor-${new Date().toISOString().slice(0, 10)}.csv`;

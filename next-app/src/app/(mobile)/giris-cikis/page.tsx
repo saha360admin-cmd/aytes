@@ -80,7 +80,7 @@ export default function GirisCikisPage() {
 
     try {
       // İlk önce isim filtresiyle dene, bulamazsa herhangi bir BLE cihazını ara
-      let device: BluetoothDevice | null = null;
+      let device: any = null;
       try {
         device = await (navigator as any).bluetooth.requestDevice({
           filters: beacons.map(b => ({ namePrefix: b.name.slice(0, 3) })),

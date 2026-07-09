@@ -49,7 +49,7 @@ export default function BeaconlarPage() {
         .select("id, name")
         .order("name"),
     ]);
-    setBeacons(bRes.data || []);
+    setBeacons((bRes.data || []) as unknown as Beacon[]);
     setLocations(lRes.data || []);
     setLoading(false);
   }

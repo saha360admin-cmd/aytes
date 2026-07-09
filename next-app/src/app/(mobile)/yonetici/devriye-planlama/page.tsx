@@ -75,6 +75,7 @@ export default function DevriyePlanlama() {
   }, [personnel]);
 
   async function loadData() {
+    if (!personnel) return;
     const [locRes, routeRes] = await Promise.all([
       supabase.from("locations").select("id, name").order("name"),
       supabase.from("patrol_routes").select(`
