@@ -12,8 +12,8 @@ interface GorevComm { id: string; title: string; content: string; priority: stri
 interface ActiveShift {
   shift_code: string;
   name: string;
-  start_time: string;
-  end_time: string;
+  start_time: string | null;
+  end_time: string | null;
 }
 
 function toDateStr(d: Date) {
@@ -284,16 +284,18 @@ export default function DashboardPage() {
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">Bugünkü Vardiya</p>
-              {shift ? (
+              {shift && shift.start_time && shift.end_time ? (
                 <>
                   <p className="text-xl font-bold text-gray-800 mt-0.5">{shift.start_time.slice(0, 5)} – {shift.end_time.slice(0, 5)}</p>
                   <p className="text-xs text-gray-400 mt-0.5 truncate">{shift.name} · {shift.shift_code}</p>
                 </>
+              ) : shift ? (
+                <p className="text-xl font-bold text-gray-800 mt-0.5 truncate">{shift.name}</p>
               ) : (
                 <p className="text-base font-semibold text-gray-400 mt-0.5">Bugün vardiya yok</p>
               )}
             </div>
-            {shift && <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex-shrink-0">Aktif</span>}
+            {shift && shift.start_time && shift.end_time && <span className="bg-emerald-100 text-emerald-700 px-3 py-1 rounded-full text-xs font-bold flex-shrink-0">Aktif</span>}
           </div>
 
           <div className="bg-white p-5 rounded-2xl shadow-sm border-l-4 border-l-[#00BCD4]">
