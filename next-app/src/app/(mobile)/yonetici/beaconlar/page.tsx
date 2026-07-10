@@ -35,6 +35,28 @@ export default function BeaconlarPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
+  const [scanningTag, setScanningTag] = useState(false);
+
+  async function scanTag() {
+    setScanningTag(true);
+    try {
+      const { CapacitorNfc } = await import("@capgo/capacitor-nfc");
+      const listener = await CapacitorNfc.addListener("nfcEvent", async (event) => {
+        await listener.remove();
+        await CapacitorNfc.stopScanning().catch(() => {});
+        setScanningTag(false);
+        if (event.tag?.id) {
+          const uid = event.tag.id.map(b => b.toString(16).padStart(2, "0")).join(":");
+          setForm(p => ({ ...p, uuid: uid }));
+        }
+      });
+      await CapacitorNfc.startScanning({ alertMessage: "Kaydedilecek etiketi telefona yaklaştırın" });
+    } catch {
+      setScanningTag(false);
+      setToast("NFC taranamadı — bu cihazda NFC olmayabilir");
+      setTimeout(() => setToast(""), 3000);
+    }
+  }
 
   const load = useCallback(async () => {
     if (!personnel) return;
@@ -211,10 +233,18 @@ export default function BeaconlarPage() {
 
                 <div>
                   <label className="text-xs font-bold text-gray-500 mb-1.5 block">NFC UID *</label>
-                  <input value={form.uuid} onChange={e => setForm(p => ({ ...p, uuid: e.target.value }))}
-                    placeholder="04:a1:b2:c3:d4:e5:f6"
-                    className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  <p className="text-[10px] text-gray-400 mt-1">Etiketi telefonla bir kez okutup UID&apos;sini buraya girin</p>
+                  <div className="flex gap-2">
+                    <input value={form.uuid} onChange={e => setForm(p => ({ ...p, uuid: e.target.value }))}
+                      placeholder="04:a1:b2:c3:d4:e5:f6"
+                      className="flex-1 min-w-0 border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
+                    <button type="button" onClick={scanTag} disabled={scanningTag}
+                      className="flex-shrink-0 px-4 rounded-xl text-white text-xs font-bold flex items-center gap-1.5 disabled:opacity-60"
+                      style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                      <span className={`material-symbols-outlined text-[18px] ${scanningTag ? "animate-pulse" : ""}`}>nfc</span>
+                      {scanningTag ? "Bekleniyor..." : "Tara"}
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">Etiketi telefonla okutmak için &quot;Tara&quot;ya basıp cihazı yaklaştırın</p>
                 </div>
 
                 <div>
