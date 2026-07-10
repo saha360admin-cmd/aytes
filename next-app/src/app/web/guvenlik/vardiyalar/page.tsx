@@ -879,13 +879,6 @@ function ShiftScheduleSection({ canEdit }: { canEdit: boolean }) {
         </div>
       </div>
 
-      <div className="flex gap-3 bg-primary/5 border border-primary/20 rounded-xl p-4">
-        <span className="material-symbols-outlined text-primary flex-shrink-0 text-[20px]">content_paste</span>
-        <p className="text-sm text-primary">
-          Hücrelere tıklayarak vardiya tipini döngüsel olarak değiştirebilir, ya da Excel&apos;de hazırladığınız bir bloğu kopyalayıp bir hücreye tıkladıktan sonra <strong>Ctrl+V</strong> ile yapıştırabilirsiniz — yapıştırma tıkladığınız hücreden başlayarak sağa (günler) ve aşağıya (personel, tablodaki sıraya göre) doğru uygulanır. Tanınmayan kodlar atlanır. Taslağı Kaydet ilerlemenizi saklar, Vardiyayı Yayınla o ayki tüm çizelgeyi personele görünür yapar.
-        </p>
-      </div>
-
       {showTempAssign && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowTempAssign(false)} />
