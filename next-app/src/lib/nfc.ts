@@ -28,33 +28,38 @@ export interface ScanNfcTagOptions {
 export async function scanNfcTagOnce(options?: ScanNfcTagOptions): Promise<string | null> {
   const { CapacitorNfc } = await import("@capgo/capacitor-nfc");
 
-  return new Promise((resolve) => {
-    let settled = false;
-    let listenerHandle: { remove: () => Promise<void> } | null = null;
+  let settled = false;
+  let resolveResult!: (uid: string | null) => void;
+  const result = new Promise<string | null>(res => { resolveResult = res; });
 
-    const finish = async (uid: string | null) => {
-      if (settled) return;
-      settled = true;
-      clearTimeout(timeoutId);
-      await listenerHandle?.remove();
-      await CapacitorNfc.stopScanning().catch(() => {});
-      resolve(uid);
-    };
+  const finish = async (uid: string | null) => {
+    if (settled) return;
+    settled = true;
+    clearTimeout(timeoutId);
+    await listener.remove();
+    await CapacitorNfc.stopScanning().catch(() => {});
+    resolveResult(uid);
+  };
 
-    const timeoutId = setTimeout(() => finish(null), options?.timeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS);
+  const timeoutId = setTimeout(() => finish(null), options?.timeoutMs ?? DEFAULT_SCAN_TIMEOUT_MS);
 
-    CapacitorNfc.addListener("nfcEvent", (event) => {
-      if (settled || !event.tag?.id) return;
-      const uid = formatTagUid(event.tag.id);
-      if (options?.isMatch && !options.isMatch(uid)) return; // farklı etiket dene, taramayı sürdür
-      finish(uid);
-    }).then(handle => {
-      listenerHandle = handle;
-    });
-
-    CapacitorNfc.startScanning({ alertMessage: options?.alertMessage ?? "Telefonunuzu NFC etiketine yaklaştırın" })
-      .catch(() => finish(null));
+  // Dinleyicinin tam olarak kaydolduğundan emin olmadan taramayı başlatmak
+  // (startScanning'i beklemeden çağırmak) etiket olayının kaçırılmasına yol
+  // açıyordu — addListener burada mutlaka startScanning'den önce beklenmeli.
+  const listener = await CapacitorNfc.addListener("nfcEvent", (event) => {
+    if (settled || !event.tag?.id) return;
+    const uid = formatTagUid(event.tag.id);
+    if (options?.isMatch && !options.isMatch(uid)) return; // farklı etiket dene, taramayı sürdür
+    finish(uid);
   });
+
+  try {
+    await CapacitorNfc.startScanning({ alertMessage: options?.alertMessage ?? "Telefonunuzu NFC etiketine yaklaştırın" });
+  } catch {
+    await finish(null);
+  }
+
+  return result;
 }
 
 /** Taramayı dışarıdan (örn. bileşen unmount olurken) iptal etmek için. */
