@@ -1,9 +1,25 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
+import { Capacitor } from "@capacitor/core";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+
+const APPLE_COMPANY_ID = "76"; // iBeacon manufacturer data is advertised under Apple's BLE company ID (0x004C = 76)
+const SCAN_TIMEOUT_MS = 10000;
+
+// Standard iBeacon manufacturer data layout (after the company-ID key is stripped by the
+// plugin): type(1) + length(1) + uuid(16) + major(2) + minor(2) + measured power(1) = 23 bytes.
+function parseIBeacon(data: DataView): { uuid: string; major: number; minor: number } | null {
+  if (data.byteLength < 23 || data.getUint8(0) !== 0x02 || data.getUint8(1) !== 0x15) return null;
+  let hex = "";
+  for (let i = 2; i < 18; i++) hex += data.getUint8(i).toString(16).padStart(2, "0");
+  const uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+  const major = data.getUint16(18, false);
+  const minor = data.getUint16(20, false);
+  return { uuid, major, minor };
+}
 
 type ScanState = "idle" | "scanning" | "found" | "notfound" | "recording" | "success" | "error" | "unsupported";
 
@@ -34,8 +50,12 @@ export default function GirisCikisPage() {
   const [loading, setLoading] = useState(true);
   const [, setDetectedRssi] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const scanningRef = useRef(false);
 
-  const isBluetoothSupported = typeof navigator !== "undefined" && "bluetooth" in navigator;
+  // Real BLE scanning (needed to read iBeacon UUID/major/minor/RSSI) only works through
+  // the native plugin bridge — Web Bluetooth in a plain browser can't passively scan for
+  // beacon advertisements at all, so we don't even try there.
+  const isNative = Capacitor.isNativePlatform();
 
   const load = useCallback(async () => {
     if (!personnel) return;
@@ -60,10 +80,21 @@ export default function GirisCikisPage() {
     setTodayRecords(rRes.data || []);
     setLoading(false);
 
-    if (!isBluetoothSupported) setScanState("unsupported");
-  }, [personnel, isBluetoothSupported]);
+    if (!isNative) setScanState("unsupported");
+  }, [personnel, isNative]);
 
   useEffect(() => { if (personnel) load(); }, [personnel, load]);
+
+  // Hard requirement: stop an in-progress scan if the user navigates away mid-scan.
+  useEffect(() => {
+    return () => {
+      if (scanningRef.current) {
+        import("@capacitor-community/bluetooth-le").then(({ BleClient }) => {
+          BleClient.stopLEScan().catch(() => {});
+        });
+      }
+    };
+  }, []);
 
   const lastRecord = todayRecords[0] ?? null;
   const nextAction: "entry" | "exit" = lastRecord?.type === "entry" ? "exit" : "entry";
@@ -80,60 +111,66 @@ export default function GirisCikisPage() {
     setErrorMsg("");
 
     try {
-      // İlk önce isim filtresiyle dene, bulamazsa herhangi bir BLE cihazını ara
-      type BluetoothLikeDevice = { name?: string };
-      type BluetoothLikeNavigator = { bluetooth: { requestDevice: (opts: { filters: { namePrefix: string }[]; optionalServices: string[] }) => Promise<BluetoothLikeDevice> } };
-      let device: BluetoothLikeDevice | null = null;
-      try {
-        device = await (navigator as unknown as BluetoothLikeNavigator).bluetooth.requestDevice({
-          filters: beacons.map(b => ({ namePrefix: b.name.slice(0, 3) })),
-          optionalServices: ["battery_service", "generic_access"],
-        });
-      } catch {
-        // Kullanıcı cihaz seçmedi veya hiç cihaz bulunamadı
-        device = null;
-      }
+      const { BleClient } = await import("@capacitor-community/bluetooth-le");
+      await BleClient.initialize();
 
-      if (!device) {
+      scanningRef.current = true;
+      let settled = false;
+
+      const finishScan = async () => {
+        scanningRef.current = false;
+        try { await BleClient.stopLEScan(); } catch { /* already stopped */ }
+      };
+
+      const timeoutId = setTimeout(async () => {
+        if (settled) return;
+        settled = true;
+        await finishScan();
         setScanState("notfound");
-        return;
-      }
+      }, SCAN_TIMEOUT_MS);
 
-      // GATT bağlantısı ile RSSI ölçümü (Web Bluetooth RSSI'yı doğrudan vermez)
-      // Bağlantı kurabiliyorsak "yakında" sayıyoruz
-      setScanState("found");
-      setDetectedRssi(-65); // Web Bluetooth RSSI'yı desteklemez, sabit bir değer kullanıyoruz
+      await BleClient.requestLEScan({}, async (result) => {
+        if (settled) return;
+        const appleData = result.manufacturerData?.[APPLE_COMPANY_ID];
+        if (!appleData) return;
+        const parsed = parseIBeacon(appleData);
+        if (!parsed) return;
 
-      await recordAttendance(type, device.name || "", -65);
+        const matched = beacons.find(b =>
+          b.uuid.toLowerCase() === parsed.uuid.toLowerCase() &&
+          b.major === parsed.major &&
+          b.minor === parsed.minor
+        );
+        const rssi = result.rssi ?? -999;
+        if (!matched || rssi < matched.min_rssi) return;
+
+        settled = true;
+        clearTimeout(timeoutId);
+        await finishScan();
+        setScanState("found");
+        setDetectedRssi(rssi);
+        await recordAttendance(type, matched, rssi);
+      });
     } catch (err) {
-      const e = err as { name?: string; message?: string } | null;
-      if (e?.name === "NotFoundError" || e?.message?.includes("cancelled")) {
-        setScanState("notfound");
-      } else if (e?.name === "SecurityError") {
-        setScanState("unsupported");
-      } else {
-        setErrorMsg(e?.message || "Bluetooth hatası");
-        setScanState("error");
-      }
+      scanningRef.current = false;
+      const e = err as { message?: string } | null;
+      setErrorMsg(e?.message || "Bluetooth hatası");
+      setScanState("error");
     }
   }
 
-  async function recordAttendance(type: "entry" | "exit", beaconName: string, rssi: number) {
+  async function recordAttendance(type: "entry" | "exit", matchedBeacon: BeaconConfig, rssi: number) {
     if (!personnel) return;
     setScanState("recording");
-
-    const matchedBeacon = beacons.find(b =>
-      beaconName.toLowerCase().includes(b.name.toLowerCase().slice(0, 3))
-    ) ?? beacons[0];
 
     const { error } = await supabase.from("attendance_records").insert({
       personnel_id: personnel.id,
       department_id: personnel.department_id,
       location_id: personnel.location_id || null,
       type,
-      beacon_uuid: matchedBeacon?.uuid || null,
+      beacon_uuid: matchedBeacon.uuid,
       rssi,
-      verified: false,
+      verified: true,
       recorded_at: new Date().toISOString(),
     });
 
@@ -222,7 +259,7 @@ export default function GirisCikisPage() {
                 </p>
               </div>
 
-              {isBluetoothSupported ? (
+              {isNative ? (
                 <button
                   onClick={() => startScan(nextAction)}
                   className={`w-full py-5 rounded-2xl text-white text-base font-bold flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg
@@ -241,7 +278,7 @@ export default function GirisCikisPage() {
                 <div className="w-full space-y-3">
                   <div className="bg-amber-50 rounded-xl p-3 flex items-start gap-2">
                     <span className="material-symbols-outlined text-amber-500 text-[18px] flex-shrink-0 mt-0.5">warning</span>
-                    <p className="text-xs text-amber-700">Tarayıcınız Bluetooth desteklemiyor. Manuel kayıt yapılacak, doğrulamasız işaretlenecek.</p>
+                    <p className="text-xs text-amber-700">Beacon taraması yalnızca mobil uygulamada çalışır. Manuel kayıt yapılacak, doğrulamasız işaretlenecek.</p>
                   </div>
                   <button
                     onClick={() => recordManual(nextAction)}
@@ -344,8 +381,8 @@ export default function GirisCikisPage() {
                 <span className="material-symbols-outlined text-gray-400 text-[48px]">bluetooth_disabled</span>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-gray-800">Bluetooth Desteklenmiyor</p>
-                <p className="text-sm text-gray-400 mt-1">Bu tarayıcı Web Bluetooth API desteklemiyor. Chrome (Android) kullanın.</p>
+                <p className="text-lg font-bold text-gray-800">Beacon Taraması Kullanılamıyor</p>
+                <p className="text-sm text-gray-400 mt-1">Doğrulamalı giriş yalnızca AYTES mobil uygulamasında çalışır.</p>
               </div>
               <button onClick={() => recordManual(nextAction)}
                 className="w-full py-4 rounded-2xl font-bold text-white active:scale-95 transition-all"
