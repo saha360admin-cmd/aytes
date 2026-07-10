@@ -26,6 +26,7 @@ function daysInMonth(year: number, month: number) {
 
 const SECTIONS = [
   { key: "one-cikanlar", label: "Öne Çıkanlar", icon: "emoji_events" },
+  { key: "devam", label: "Devam Raporu", icon: "nfc" },
   { key: "izin-rapor", label: "İzin & Rapor", icon: "event_note" },
   { key: "devriye", label: "Devriye Raporu", icon: "route" },
   { key: "olay", label: "Olay Bildir Raporu", icon: "report_problem" },
@@ -71,6 +72,7 @@ export default function WebGuvenlikRaporlamaPage() {
       </div>
 
       {section === "one-cikanlar" && <HighlightsSection month={selectedMonth} year={selectedYear} />}
+      {section === "devam" && <AttendanceReportSection month={selectedMonth} year={selectedYear} />}
       {section === "izin-rapor" && <LeaveReportSection month={selectedMonth} year={selectedYear} />}
       {section === "devriye" && <PatrolReportSection month={selectedMonth} year={selectedYear} />}
       {section === "olay" && <IncidentReportSection month={selectedMonth} year={selectedYear} />}
@@ -544,6 +546,186 @@ function IncidentReportSection({ month, year }: { month: number; year: number })
       <section className="space-y-3">
         <h2 className="font-display text-headline-sm text-on-surface">En Çok Olay Bildiren Personel</h2>
         <DataTable columns={reporterColumns} data={reporterLeaderboard} loading={false} exportable />
+      </section>
+    </div>
+  );
+}
+
+// ───────────────────────── Devam Raporu (NFC etiket doğrulamalı giriş/çıkış) ─────────────────────────
+
+interface AttendanceRow {
+  personnel_id: string;
+  type: "entry" | "exit";
+  recorded_at: string;
+  verified: boolean;
+}
+
+interface DayShift {
+  entry: string | null;
+  exit: string | null;
+  entryVerified: boolean;
+  exitVerified: boolean;
+}
+
+interface PersonAttendanceSummary {
+  id: string;
+  name: string;
+  daysPresent: number;
+  totalHours: number;
+  verifiedCount: number;
+  manualCount: number;
+  missingExit: number;
+}
+
+function AttendanceReportSection({ month, year }: { month: number; year: number }) {
+  const [loading, setLoading] = useState(true);
+  const [records, setRecords] = useState<AttendanceRow[]>([]);
+  const [nameById, setNameById] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    setLoading(true);
+    (async () => {
+      const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
+      if (!dept) { setRecords([]); setLoading(false); return; }
+
+      const { data: personnel } = await supabase.from("personnel").select("id, full_name").eq("department_id", dept.id);
+      const people = personnel || [];
+      const nameMap: Record<string, string> = {};
+      people.forEach(p => { nameMap[p.id] = p.full_name; });
+      setNameById(nameMap);
+      if (people.length === 0) { setRecords([]); setLoading(false); return; }
+
+      const start = new Date(year, month, 1).toISOString();
+      const end = new Date(year, month + 1, 1).toISOString();
+      const { data } = await supabase
+        .from("attendance_records")
+        .select("personnel_id, type, recorded_at, verified")
+        .in("personnel_id", people.map(p => p.id))
+        .gte("recorded_at", start)
+        .lt("recorded_at", end)
+        .order("recorded_at", { ascending: true });
+      setRecords((data || []) as AttendanceRow[]);
+      setLoading(false);
+    })();
+  }, [month, year]);
+
+  if (loading) {
+    return (
+      <div className="flex justify-center py-16">
+        <span className="material-symbols-outlined animate-spin text-[32px] text-primary">progress_activity</span>
+      </div>
+    );
+  }
+
+  // Kişi + gün bazında ilk girişi ve son çıkışı eşleştir (mobil Devam Takibi sayfasıyla aynı mantık).
+  const byPerson = new Map<string, Map<string, DayShift>>();
+  records.forEach(r => {
+    const dateKey = toDateStr(new Date(r.recorded_at));
+    if (!byPerson.has(r.personnel_id)) byPerson.set(r.personnel_id, new Map());
+    const days = byPerson.get(r.personnel_id)!;
+    if (!days.has(dateKey)) days.set(dateKey, { entry: null, exit: null, entryVerified: false, exitVerified: false });
+    const day = days.get(dateKey)!;
+    if (r.type === "entry" && !day.entry) { day.entry = r.recorded_at; day.entryVerified = r.verified; }
+    if (r.type === "exit") { day.exit = r.recorded_at; day.exitVerified = r.verified; }
+  });
+
+  const summaries: PersonAttendanceSummary[] = [...byPerson.entries()].map(([personId, days]) => {
+    let totalHours = 0, verifiedCount = 0, manualCount = 0, missingExit = 0;
+    days.forEach(day => {
+      if (day.entry) { if (day.entryVerified) verifiedCount++; else manualCount++; }
+      if (day.exit) { if (day.exitVerified) verifiedCount++; else manualCount++; }
+      if (day.entry && day.exit) {
+        const diff = new Date(day.exit).getTime() - new Date(day.entry).getTime();
+        if (diff > 0) totalHours += diff / 3600000;
+      } else if (day.entry && !day.exit) {
+        missingExit++;
+      }
+    });
+    return {
+      id: personId,
+      name: nameById[personId] ?? "Bilinmiyor",
+      daysPresent: days.size,
+      totalHours,
+      verifiedCount,
+      manualCount,
+      missingExit,
+    };
+  }).sort((a, b) => b.totalHours - a.totalHours);
+
+  const totalRecords = records.length;
+  const verifiedTotal = records.filter(r => r.verified).length;
+  const verifiedRate = totalRecords > 0 ? Math.round((verifiedTotal / totalRecords) * 100) : 0;
+  const totalMissingExit = summaries.reduce((a, s) => a + s.missingExit, 0);
+
+  const summaryColumns: DataTableColumn[] = [
+    { key: "name", label: "Personel", sortable: true },
+    { key: "daysPresent", label: "Gün Sayısı", sortable: true },
+    { key: "totalHours", label: "Toplam Saat", sortable: true },
+    { key: "verifiedCount", label: "Doğrulanmış Kayıt", sortable: true },
+    { key: "manualCount", label: "Manuel Kayıt", sortable: true },
+    { key: "missingExit", label: "Eksik Çıkış", sortable: true },
+  ];
+  const summaryData = summaries.map(s => ({
+    name: s.name,
+    daysPresent: s.daysPresent,
+    totalHours: formatHours(s.totalHours),
+    verifiedCount: s.verifiedCount,
+    manualCount: s.manualCount,
+    missingExit: s.missingExit,
+  }));
+
+  const detailColumns: DataTableColumn[] = [
+    { key: "date", label: "Tarih", sortable: true },
+    { key: "time", label: "Saat", sortable: true },
+    { key: "name", label: "Personel", sortable: true },
+    { key: "type", label: "Tür", sortable: true },
+    { key: "verified", label: "Doğrulama" },
+  ];
+  const detailData = [...records]
+    .sort((a, b) => new Date(b.recorded_at).getTime() - new Date(a.recorded_at).getTime())
+    .map(r => {
+      const d = new Date(r.recorded_at);
+      const verifiedCell: DataTableCell = r.verified
+        ? { csv: "Doğrulandı", display: <span className="text-emerald-600 font-bold text-xs">Doğrulandı</span> }
+        : { csv: "Manuel", display: <span className="text-amber-600 font-bold text-xs">Manuel</span> };
+      return {
+        date: toDateStr(d),
+        time: d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
+        name: nameById[r.personnel_id] ?? "Bilinmiyor",
+        type: r.type === "entry" ? "Giriş" : "Çıkış",
+        verified: verifiedCell,
+      };
+    });
+
+  return (
+    <div className="space-y-6">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
+          <p className="text-xs font-semibold text-on-surface-variant">Toplam Kayıt</p>
+          <h3 className="font-display text-headline-sm text-on-surface">{totalRecords}</h3>
+        </div>
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
+          <p className="text-xs font-semibold text-on-surface-variant">NFC Doğrulama Oranı</p>
+          <h3 className="font-display text-headline-sm text-on-surface">%{verifiedRate}</h3>
+        </div>
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
+          <p className="text-xs font-semibold text-on-surface-variant">Takip Edilen Personel</p>
+          <h3 className="font-display text-headline-sm text-on-surface">{summaries.length}</h3>
+        </div>
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10">
+          <p className="text-xs font-semibold text-on-surface-variant">Eksik Çıkış</p>
+          <h3 className="font-display text-headline-sm text-on-surface">{totalMissingExit}</h3>
+        </div>
+      </div>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-headline-sm text-on-surface">Personel Bazlı Özet</h2>
+        <DataTable columns={summaryColumns} data={summaryData} loading={false} exportable />
+      </section>
+
+      <section className="space-y-3">
+        <h2 className="font-display text-headline-sm text-on-surface">Detaylı Kayıtlar</h2>
+        <DataTable columns={detailColumns} data={detailData} loading={false} exportable />
       </section>
     </div>
   );
