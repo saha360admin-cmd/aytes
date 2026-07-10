@@ -2,23 +2,13 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
-import { Capacitor } from "@capacitor/core";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 
-const APPLE_COMPANY_ID = "76"; // iBeacon manufacturer data is advertised under Apple's BLE company ID (0x004C = 76)
-const SCAN_TIMEOUT_MS = 10000;
+const SCAN_TIMEOUT_MS = 20000;
 
-// Standard iBeacon manufacturer data layout (after the company-ID key is stripped by the
-// plugin): type(1) + length(1) + uuid(16) + major(2) + minor(2) + measured power(1) = 23 bytes.
-function parseIBeacon(data: DataView): { uuid: string; major: number; minor: number } | null {
-  if (data.byteLength < 23 || data.getUint8(0) !== 0x02 || data.getUint8(1) !== 0x15) return null;
-  let hex = "";
-  for (let i = 2; i < 18; i++) hex += data.getUint8(i).toString(16).padStart(2, "0");
-  const uuid = `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
-  const major = data.getUint16(18, false);
-  const minor = data.getUint16(20, false);
-  return { uuid, major, minor };
+function formatTagUid(bytes: number[]): string {
+  return bytes.map(b => b.toString(16).padStart(2, "0")).join(":");
 }
 
 type ScanState = "idle" | "scanning" | "found" | "notfound" | "recording" | "success" | "error" | "unsupported";
@@ -31,12 +21,9 @@ interface AttendanceRecord {
   rssi: number | null;
 }
 
-interface BeaconConfig {
+interface TagConfig {
   id: string;
-  uuid: string;
-  major: number;
-  minor: number;
-  min_rssi: number;
+  uuid: string; // NFC etiket UID'si (örn. "04:a1:b2:c3:d4:e5:f6") — eski BLE alan adı korunuyor
   name: string;
 }
 
@@ -45,17 +32,19 @@ export default function GirisCikisPage() {
   const { personnel } = useAuth();
   const [scanState, setScanState] = useState<ScanState>("idle");
   const [pendingType, setPendingType] = useState<"entry" | "exit" | null>(null);
-  const [beacons, setBeacons] = useState<BeaconConfig[]>([]);
+  const [tags, setTags] = useState<TagConfig[]>([]);
   const [todayRecords, setTodayRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [, setDetectedRssi] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
+  const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
   const scanningRef = useRef(false);
 
-  // Real BLE scanning (needed to read iBeacon UUID/major/minor/RSSI) only works through
-  // the native plugin bridge — Web Bluetooth in a plain browser can't passively scan for
-  // beacon advertisements at all, so we don't even try there.
-  const isNative = Capacitor.isNativePlatform();
+  useEffect(() => {
+    import("@capgo/capacitor-nfc")
+      .then(({ CapacitorNfc }) => CapacitorNfc.isSupported())
+      .then(({ supported }) => setNfcSupported(supported))
+      .catch(() => setNfcSupported(false));
+  }, []);
 
   const load = useCallback(async () => {
     if (!personnel) return;
@@ -65,7 +54,7 @@ export default function GirisCikisPage() {
 
     const [bRes, rRes] = await Promise.all([
       supabase.from("beacons")
-        .select("id, uuid, major, minor, min_rssi, name")
+        .select("id, uuid, name")
         .eq("department_id", personnel.department_id)
         .eq("active", true),
       supabase.from("attendance_records")
@@ -76,21 +65,23 @@ export default function GirisCikisPage() {
         .order("recorded_at", { ascending: false }),
     ]);
 
-    setBeacons(bRes.data || []);
+    setTags(bRes.data || []);
     setTodayRecords(rRes.data || []);
     setLoading(false);
-
-    if (!isNative) setScanState("unsupported");
-  }, [personnel, isNative]);
+  }, [personnel]);
 
   useEffect(() => { if (personnel) load(); }, [personnel, load]);
+
+  useEffect(() => {
+    if (nfcSupported === false) setScanState("unsupported");
+  }, [nfcSupported]);
 
   // Hard requirement: stop an in-progress scan if the user navigates away mid-scan.
   useEffect(() => {
     return () => {
       if (scanningRef.current) {
-        import("@capacitor-community/bluetooth-le").then(({ BleClient }) => {
-          BleClient.stopLEScan().catch(() => {});
+        import("@capgo/capacitor-nfc").then(({ CapacitorNfc }) => {
+          CapacitorNfc.stopScanning().catch(() => {});
         });
       }
     };
@@ -100,27 +91,39 @@ export default function GirisCikisPage() {
   const nextAction: "entry" | "exit" = lastRecord?.type === "entry" ? "exit" : "entry";
 
   async function startScan(type: "entry" | "exit") {
-    if (!personnel || beacons.length === 0) {
-      setErrorMsg("Sistemde tanımlı beacon bulunamadı. Yönetici ile iletişime geçin.");
+    if (!personnel || tags.length === 0) {
+      setErrorMsg("Sistemde tanımlı NFC etiketi bulunamadı. Yönetici ile iletişime geçin.");
       setScanState("error");
       return;
     }
     setPendingType(type);
     setScanState("scanning");
-    setDetectedRssi(null);
     setErrorMsg("");
 
     try {
-      const { BleClient } = await import("@capacitor-community/bluetooth-le");
-      await BleClient.initialize();
+      const { CapacitorNfc } = await import("@capgo/capacitor-nfc");
 
       scanningRef.current = true;
       let settled = false;
 
       const finishScan = async () => {
         scanningRef.current = false;
-        try { await BleClient.stopLEScan(); } catch { /* already stopped */ }
+        await listener.remove();
+        try { await CapacitorNfc.stopScanning(); } catch { /* already stopped */ }
       };
+
+      const listener = await CapacitorNfc.addListener("nfcEvent", async (event) => {
+        if (settled || !event.tag?.id) return;
+        const uid = formatTagUid(event.tag.id);
+        const matched = tags.find(t => t.uuid.toLowerCase() === uid.toLowerCase());
+        if (!matched) return;
+
+        settled = true;
+        clearTimeout(timeoutId);
+        await finishScan();
+        setScanState("found");
+        await recordAttendance(type, matched);
+      });
 
       const timeoutId = setTimeout(async () => {
         if (settled) return;
@@ -129,37 +132,16 @@ export default function GirisCikisPage() {
         setScanState("notfound");
       }, SCAN_TIMEOUT_MS);
 
-      await BleClient.requestLEScan({}, async (result) => {
-        if (settled) return;
-        const appleData = result.manufacturerData?.[APPLE_COMPANY_ID];
-        if (!appleData) return;
-        const parsed = parseIBeacon(appleData);
-        if (!parsed) return;
-
-        const matched = beacons.find(b =>
-          b.uuid.toLowerCase() === parsed.uuid.toLowerCase() &&
-          b.major === parsed.major &&
-          b.minor === parsed.minor
-        );
-        const rssi = result.rssi ?? -999;
-        if (!matched || rssi < matched.min_rssi) return;
-
-        settled = true;
-        clearTimeout(timeoutId);
-        await finishScan();
-        setScanState("found");
-        setDetectedRssi(rssi);
-        await recordAttendance(type, matched, rssi);
-      });
+      await CapacitorNfc.startScanning({ alertMessage: "Telefonunuzu NFC etiketine yaklaştırın" });
     } catch (err) {
       scanningRef.current = false;
       const e = err as { message?: string } | null;
-      setErrorMsg(e?.message || "Bluetooth hatası");
+      setErrorMsg(e?.message || "NFC hatası");
       setScanState("error");
     }
   }
 
-  async function recordAttendance(type: "entry" | "exit", matchedBeacon: BeaconConfig, rssi: number) {
+  async function recordAttendance(type: "entry" | "exit", matchedTag: TagConfig) {
     if (!personnel) return;
     setScanState("recording");
 
@@ -168,8 +150,8 @@ export default function GirisCikisPage() {
       department_id: personnel.department_id,
       location_id: personnel.location_id || null,
       type,
-      beacon_uuid: matchedBeacon.uuid,
-      rssi,
+      beacon_uuid: matchedTag.uuid,
+      rssi: null,
       verified: true,
       recorded_at: new Date().toISOString(),
     });
@@ -187,7 +169,7 @@ export default function GirisCikisPage() {
     }
   }
 
-  // iOS / desteklenmeyen cihazlar için manuel kayıt (beacon doğrulaması olmadan)
+  // NFC desteklemeyen cihazlar için manuel kayıt (etiket doğrulaması olmadan)
   async function recordManual(type: "entry" | "exit") {
     if (!personnel) return;
     setScanState("recording");
@@ -228,7 +210,7 @@ export default function GirisCikisPage() {
         </button>
         <div className="flex-1">
           <h1 className="font-bold text-blue-800 text-lg">Giriş / Çıkış</h1>
-          <p className="text-xs text-gray-400">Bluetooth ile doğrulamalı kayıt</p>
+          <p className="text-xs text-gray-400">NFC ile doğrulamalı kayıt</p>
         </div>
       </header>
 
@@ -254,12 +236,12 @@ export default function GirisCikisPage() {
                 </p>
                 <p className="text-sm text-gray-400 mt-1">
                   {nextAction === "entry"
-                    ? "Beacon yakınınızda olduğunda giriş yapın"
+                    ? "Telefonunuzu NFC etiketine dokundurun"
                     : "Çıkmadan önce kaydı tamamlayın"}
                 </p>
               </div>
 
-              {isNative ? (
+              {nfcSupported ? (
                 <button
                   onClick={() => startScan(nextAction)}
                   className={`w-full py-5 rounded-2xl text-white text-base font-bold flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg
@@ -271,14 +253,14 @@ export default function GirisCikisPage() {
                       ? "linear-gradient(135deg, #1B5E20, #2E7D32)"
                       : "linear-gradient(135deg, #B71C1C, #C62828)"
                   }}>
-                  <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>bluetooth_searching</span>
+                  <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>nfc</span>
                   {nextAction === "entry" ? "Giriş Yap" : "Çıkış Yap"}
                 </button>
               ) : (
                 <div className="w-full space-y-3">
                   <div className="bg-amber-50 rounded-xl p-3 flex items-start gap-2">
                     <span className="material-symbols-outlined text-amber-500 text-[18px] flex-shrink-0 mt-0.5">warning</span>
-                    <p className="text-xs text-amber-700">Beacon taraması yalnızca mobil uygulamada çalışır. Manuel kayıt yapılacak, doğrulamasız işaretlenecek.</p>
+                    <p className="text-xs text-amber-700">NFC taraması yalnızca NFC destekli mobil cihazlarda çalışır. Manuel kayıt yapılacak, doğrulamasız işaretlenecek.</p>
                   </div>
                   <button
                     onClick={() => recordManual(nextAction)}
@@ -299,12 +281,12 @@ export default function GirisCikisPage() {
                 <div className="absolute inset-0 rounded-full bg-blue-100 animate-ping opacity-60" />
                 <div className="absolute inset-2 rounded-full bg-blue-200 animate-ping opacity-40" style={{ animationDelay: "0.3s" }} />
                 <div className="relative w-24 h-24 rounded-full bg-blue-600 flex items-center justify-center">
-                  <span className="material-symbols-outlined text-white text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>bluetooth_searching</span>
+                  <span className="material-symbols-outlined text-white text-[40px]" style={{ fontVariationSettings: "'FILL' 1" }}>nfc</span>
                 </div>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-gray-800">Beacon Aranıyor...</p>
-                <p className="text-sm text-gray-400 mt-1">Lütfen cihazı seçin</p>
+                <p className="text-lg font-bold text-gray-800">Etiket Bekleniyor...</p>
+                <p className="text-sm text-gray-400 mt-1">Telefonunuzu etikete yaklaştırın</p>
               </div>
             </div>
           )}
@@ -343,11 +325,11 @@ export default function GirisCikisPage() {
           {scanState === "notfound" && (
             <div className="flex flex-col items-center gap-5 py-4 w-full">
               <div className="w-24 h-24 rounded-full bg-amber-100 flex items-center justify-center">
-                <span className="material-symbols-outlined text-amber-500 text-[48px]" style={{ fontVariationSettings: "'FILL' 1" }}>bluetooth_disabled</span>
+                <span className="material-symbols-outlined text-amber-500 text-[48px]" style={{ fontVariationSettings: "'FILL' 1" }}>nfc</span>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-gray-800">Beacon Bulunamadı</p>
-                <p className="text-sm text-gray-400 mt-1">İşletme girişinde olduğunuzdan emin olun ve tekrar deneyin</p>
+                <p className="text-lg font-bold text-gray-800">Etiket Okunamadı</p>
+                <p className="text-sm text-gray-400 mt-1">Telefonunuzu etikete yaklaştırıp tekrar deneyin</p>
               </div>
               <button onClick={() => setScanState("idle")}
                 className="w-full py-3.5 rounded-2xl font-bold text-white active:scale-95 transition-all"
@@ -378,11 +360,11 @@ export default function GirisCikisPage() {
           {scanState === "unsupported" && (
             <div className="flex flex-col items-center gap-5 py-4 w-full">
               <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
-                <span className="material-symbols-outlined text-gray-400 text-[48px]">bluetooth_disabled</span>
+                <span className="material-symbols-outlined text-gray-400 text-[48px]">nfc</span>
               </div>
               <div className="text-center">
-                <p className="text-lg font-bold text-gray-800">Beacon Taraması Kullanılamıyor</p>
-                <p className="text-sm text-gray-400 mt-1">Doğrulamalı giriş yalnızca AYTES mobil uygulamasında çalışır.</p>
+                <p className="text-lg font-bold text-gray-800">NFC Kullanılamıyor</p>
+                <p className="text-sm text-gray-400 mt-1">Bu cihazda NFC donanımı bulunmuyor.</p>
               </div>
               <button onClick={() => recordManual(nextAction)}
                 className="w-full py-4 rounded-2xl font-bold text-white active:scale-95 transition-all"
@@ -431,9 +413,6 @@ export default function GirisCikisPage() {
                         <span className="text-[10px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
                           Manuel
                         </span>
-                      )}
-                      {r.rssi && (
-                        <span className="text-[10px] text-gray-400">{r.rssi} dBm</span>
                       )}
                     </div>
                   </div>

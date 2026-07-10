@@ -22,7 +22,7 @@ interface Location {
   name: string;
 }
 
-const EMPTY_FORM = { name: "", uuid: "", major: "0", minor: "0", min_rssi: "-80", location_id: "", active: true };
+const EMPTY_FORM = { name: "", uuid: "", location_id: "", active: true };
 
 export default function BeaconlarPage() {
   const router = useRouter();
@@ -64,9 +64,6 @@ export default function BeaconlarPage() {
     setForm({
       name: b.name,
       uuid: b.uuid,
-      major: String(b.major),
-      minor: String(b.minor),
-      min_rssi: String(b.min_rssi),
       location_id: b.location_id || "",
       active: b.active,
     });
@@ -77,15 +74,17 @@ export default function BeaconlarPage() {
   async function save() {
     if (!personnel) return;
     if (!form.name.trim() || !form.uuid.trim()) {
-      setToast("Ad ve UUID zorunlu"); setTimeout(() => setToast(""), 3000); return;
+      setToast("Ad ve UID zorunlu"); setTimeout(() => setToast(""), 3000); return;
     }
     setSaving(true);
     const payload = {
       name: form.name.trim(),
       uuid: form.uuid.trim().toLowerCase(),
-      major: parseInt(form.major) || 0,
-      minor: parseInt(form.minor) || 0,
-      min_rssi: parseInt(form.min_rssi) || -80,
+      // NFC etiketleri için kullanılmıyor — beacons tablosunun eski BLE alanları, şema
+      // değişikliği yapmamak için sabit değerlerle dolduruluyor.
+      major: 0,
+      minor: 0,
+      min_rssi: 0,
       location_id: form.location_id || null,
       active: form.active,
       department_id: personnel.department_id,
@@ -124,8 +123,8 @@ export default function BeaconlarPage() {
           <span className="material-symbols-outlined text-blue-800">arrow_back</span>
         </button>
         <div className="flex-1">
-          <h1 className="font-bold text-blue-800 text-lg">Beacon Yönetimi</h1>
-          <p className="text-xs text-gray-400">{beacons.length} beacon tanımlı</p>
+          <h1 className="font-bold text-blue-800 text-lg">NFC Etiket Yönetimi</h1>
+          <p className="text-xs text-gray-400">{beacons.length} etiket tanımlı</p>
         </div>
         <button onClick={openNew}
           className="w-10 h-10 flex items-center justify-center rounded-full bg-blue-800 text-white active:scale-90 transition-all">
@@ -136,12 +135,12 @@ export default function BeaconlarPage() {
       <main className="px-4 pt-4 space-y-3">
         {beacons.length === 0 ? (
           <div className="bg-white rounded-2xl p-10 flex flex-col items-center gap-3 shadow-sm mt-4">
-            <span className="material-symbols-outlined text-gray-300 text-[48px]">bluetooth</span>
-            <p className="text-gray-500 font-semibold">Henüz beacon eklenmedi</p>
+            <span className="material-symbols-outlined text-gray-300 text-[48px]">nfc</span>
+            <p className="text-gray-500 font-semibold">Henüz NFC etiketi eklenmedi</p>
             <button onClick={openNew}
               className="mt-2 px-5 py-2.5 rounded-full text-white text-sm font-bold"
               style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-              Beacon Ekle
+              Etiket Ekle
             </button>
           </div>
         ) : beacons.map(b => (
@@ -150,7 +149,7 @@ export default function BeaconlarPage() {
               <div className="flex items-center gap-3">
                 <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${b.active ? "bg-emerald-100" : "bg-gray-100"}`}>
                   <span className={`material-symbols-outlined text-[20px] ${b.active ? "text-emerald-600" : "text-gray-400"}`}
-                    style={{ fontVariationSettings: "'FILL' 1" }}>bluetooth</span>
+                    style={{ fontVariationSettings: "'FILL' 1" }}>nfc</span>
                 </div>
                 <div>
                   <p className="font-bold text-gray-800 text-sm">{b.name}</p>
@@ -165,15 +164,6 @@ export default function BeaconlarPage() {
               </div>
               <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full flex-shrink-0 ${b.active ? "bg-emerald-100 text-emerald-700" : "bg-gray-100 text-gray-500"}`}>
                 {b.active ? "Aktif" : "Pasif"}
-              </span>
-            </div>
-
-            <div className="flex items-center gap-2 mt-3 flex-wrap">
-              <span className="text-[11px] bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full font-mono">
-                Major: {b.major} · Minor: {b.minor}
-              </span>
-              <span className="text-[11px] bg-gray-100 text-gray-600 px-2.5 py-1 rounded-full">
-                Min RSSI: {b.min_rssi} dBm
               </span>
             </div>
 
@@ -209,49 +199,22 @@ export default function BeaconlarPage() {
           <div className="relative w-full max-w-[430px] bg-white rounded-t-3xl shadow-2xl max-h-[90vh] overflow-y-auto">
             <div className="px-6 pt-5 pb-8 space-y-4">
               <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-2" />
-              <h2 className="text-lg font-bold text-gray-800">{sheet === "new" ? "Yeni Beacon" : "Beacon Düzenle"}</h2>
+              <h2 className="text-lg font-bold text-gray-800">{sheet === "new" ? "Yeni NFC Etiketi" : "NFC Etiketi Düzenle"}</h2>
 
               <div className="space-y-3">
                 <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1.5 block">Beacon Adı *</label>
+                  <label className="text-xs font-bold text-gray-500 mb-1.5 block">Etiket Adı *</label>
                   <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="Örn: Ana Giriş Beacon"
+                    placeholder="Örn: Ana Giriş Etiketi"
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
                 </div>
 
                 <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1.5 block">Beacon UUID *</label>
+                  <label className="text-xs font-bold text-gray-500 mb-1.5 block">NFC UID *</label>
                   <input value={form.uuid} onChange={e => setForm(p => ({ ...p, uuid: e.target.value }))}
-                    placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                    placeholder="04:a1:b2:c3:d4:e5:f6"
                     className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm font-mono focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  <p className="text-[10px] text-gray-400 mt-1">Beacon cihazınızın UUID bilgisini girin</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 mb-1.5 block">Major</label>
-                    <input type="number" value={form.major} onChange={e => setForm(p => ({ ...p, major: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                  <div>
-                    <label className="text-xs font-bold text-gray-500 mb-1.5 block">Minor</label>
-                    <input type="number" value={form.minor} onChange={e => setForm(p => ({ ...p, minor: e.target.value }))}
-                      className="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-blue-300" />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-xs font-bold text-gray-500 mb-1.5 block">
-                    Minimum Sinyal Gücü (RSSI) — Şu an: {form.min_rssi} dBm
-                  </label>
-                  <input type="range" min="-100" max="-40" value={form.min_rssi}
-                    onChange={e => setForm(p => ({ ...p, min_rssi: e.target.value }))}
-                    className="w-full accent-blue-700" />
-                  <div className="flex justify-between text-[10px] text-gray-400 mt-1">
-                    <span>-100 (Uzak)</span>
-                    <span>-40 (Çok Yakın)</span>
-                  </div>
-                  <p className="text-[10px] text-gray-400 mt-1">Önerilen: -80 dBm (yaklaşık 5-10 metre)</p>
+                  <p className="text-[10px] text-gray-400 mt-1">Etiketi telefonla bir kez okutup UID&apos;sini buraya girin</p>
                 </div>
 
                 <div>
@@ -266,7 +229,7 @@ export default function BeaconlarPage() {
                 <div className="flex items-center justify-between bg-gray-50 rounded-xl px-4 py-3">
                   <div>
                     <p className="text-sm font-bold text-gray-700">Aktif</p>
-                    <p className="text-xs text-gray-400">Devre dışı bırakılan beacon taranmaz</p>
+                    <p className="text-xs text-gray-400">Devre dışı bırakılan etiket okutulamaz</p>
                   </div>
                   <button onClick={() => setForm(p => ({ ...p, active: !p.active }))}
                     className={`w-12 h-6 rounded-full transition-colors relative ${form.active ? "bg-emerald-500" : "bg-gray-300"}`}>
