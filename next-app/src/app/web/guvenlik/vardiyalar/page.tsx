@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import DataTable, { DataTableCell, DataTableColumn } from "@/components/web/DataTable";
 
@@ -155,6 +157,27 @@ type TabKey = typeof TABS[number]["key"];
 
 export default function WebGuvenlikVardiyalarPage() {
   const [tab, setTab] = useState<TabKey>("program");
+  const { personnel, loading } = useAuth();
+  const router = useRouter();
+  const slug = personnel?.departments?.slug;
+  const canEdit = slug === "guvenlik";
+  const canView = canEdit || slug === "idari";
+
+  // İdari İşler yöneticisi bu sayfayı kendi genel dashboard'undan
+  // (/web/dashboard) Güvenlik'e geçerek görüntüleyebilir ama düzenleyemez
+  // — (mobile)/yonetici/page.tsx'teki salt-okunur çapraz-departman
+  // deseniyle aynı fikir. Teknik/Temizlik'in bu sayfayla ilgisi yok.
+  useEffect(() => {
+    if (!loading && personnel && !canView) router.replace("/web/dashboard");
+  }, [loading, personnel, canView, router]);
+
+  if (loading || !personnel || !canView) {
+    return (
+      <div className="flex justify-center py-24">
+        <span className="material-symbols-outlined animate-spin text-[40px] text-primary">progress_activity</span>
+      </div>
+    );
+  }
 
   return (
     <div className="p-8 space-y-6">
@@ -179,14 +202,14 @@ export default function WebGuvenlikVardiyalarPage() {
         </div>
       </div>
 
-      {tab === "program" ? <ShiftScheduleSection /> : <ShiftTypesSection />}
+      {tab === "program" ? <ShiftScheduleSection canEdit={canEdit} /> : <ShiftTypesSection canEdit={canEdit} />}
     </div>
   );
 }
 
 // ───────────────────────── Vardiya Programı (schedule grid) ─────────────────────────
 
-function ShiftScheduleSection() {
+function ShiftScheduleSection({ canEdit }: { canEdit: boolean }) {
   const [deptId, setDeptId] = useState<string | null>(null);
   const [shiftTypes, setShiftTypes] = useState<ScheduleShiftType[]>([]);
   const [locations, setLocations] = useState<Location[]>([]);
@@ -666,32 +689,34 @@ function ShiftScheduleSection() {
               </select>
             </div>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button
-              onClick={openTempAssign}
-              disabled={!selectedLocId}
-              className="px-5 py-2.5 rounded-full bg-tertiary/10 text-tertiary font-bold text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            >
-              <span className="material-symbols-outlined text-[18px]">person_add</span>
-              Geçici Görevlendirme
-            </button>
-            <button
-              onClick={() => saveAll("draft")}
-              disabled={saving || publishing || !selectedLocId}
-              className="px-5 py-2.5 rounded-full bg-surface-container-low text-on-surface-variant font-bold text-sm transition-all disabled:opacity-50 flex items-center gap-2"
-            >
-              {saving && <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>}
-              Taslağı Kaydet
-            </button>
-            <button
-              onClick={() => saveAll("published")}
-              disabled={saving || publishing || !selectedLocId}
-              className="px-5 py-2.5 rounded-full bg-primary text-on-primary font-bold text-sm shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
-            >
-              {publishing && <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>}
-              Vardiyayı Yayınla
-            </button>
-          </div>
+          {canEdit && (
+            <div className="flex gap-2 flex-shrink-0">
+              <button
+                onClick={openTempAssign}
+                disabled={!selectedLocId}
+                className="px-5 py-2.5 rounded-full bg-tertiary/10 text-tertiary font-bold text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                <span className="material-symbols-outlined text-[18px]">person_add</span>
+                Geçici Görevlendirme
+              </button>
+              <button
+                onClick={() => saveAll("draft")}
+                disabled={saving || publishing || !selectedLocId}
+                className="px-5 py-2.5 rounded-full bg-surface-container-low text-on-surface-variant font-bold text-sm transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving && <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>}
+                Taslağı Kaydet
+              </button>
+              <button
+                onClick={() => saveAll("published")}
+                disabled={saving || publishing || !selectedLocId}
+                className="px-5 py-2.5 rounded-full bg-primary text-on-primary font-bold text-sm shadow-md transition-all disabled:opacity-50 flex items-center gap-2"
+              >
+                {publishing && <span className="material-symbols-outlined animate-spin text-[16px]">progress_activity</span>}
+                Vardiyayı Yayınla
+              </button>
+            </div>
+          )}
         </div>
       </section>
 
@@ -836,8 +861,9 @@ function ShiftScheduleSection() {
                           <button
                             onClick={() => cycleCell(p.id, dateStr)}
                             onPaste={e => handlePasteAt(e, pIdx, dIdx)}
+                            disabled={!canEdit}
                             title={isAway ? "Başka lokasyonda görevli" : undefined}
-                            className="w-full h-8 flex items-center justify-center text-[11px] font-bold transition-all active:scale-90 rounded-md focus:outline-none focus:ring-2 focus:ring-primary relative focus:z-10"
+                            className="w-full h-8 flex items-center justify-center text-[11px] font-bold transition-all active:scale-90 rounded-md focus:outline-none focus:ring-2 focus:ring-primary relative focus:z-10 disabled:active:scale-100 disabled:cursor-default"
                             style={code ? cellBg(code) : isAway ? { backgroundColor: "#fff3e0", color: "#825100" } : { backgroundColor: "transparent", color: "#9aa0b0" }}
                           >
                             {code || (isAway ? <span className="material-symbols-outlined text-[14px]">flight_takeoff</span> : "—")}
@@ -974,7 +1000,7 @@ function ShiftScheduleSection() {
 
 // ───────────────────────── Vardiya Tanımları (shift type CRUD) ─────────────────────────
 
-function ShiftTypesSection() {
+function ShiftTypesSection({ canEdit }: { canEdit: boolean }) {
   const [deptId, setDeptId] = useState<string | null>(null);
   const [shiftTypes, setShiftTypes] = useState<ShiftType[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1109,7 +1135,7 @@ function ShiftTypesSection() {
     { key: "hours", label: "Saat Aralığı" },
     { key: "breakHours", label: "Mola" },
     { key: "duration", label: "Toplam Süre" },
-    { key: "actions", label: "İşlemler", exportable: false },
+    ...(canEdit ? [{ key: "actions", label: "İşlemler", exportable: false }] : []),
   ];
 
   const tableData = filtered.map(s => {
@@ -1165,15 +1191,17 @@ function ShiftTypesSection() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={openAdd}
-          className="flex items-center gap-2 bg-primary text-on-primary py-2.5 px-5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex-shrink-0"
-        >
-          <span className="material-symbols-outlined text-[20px]">add_circle</span>
-          Yeni Vardiya Ekle
-        </button>
-      </div>
+      {canEdit && (
+        <div className="flex justify-end">
+          <button
+            onClick={openAdd}
+            className="flex items-center gap-2 bg-primary text-on-primary py-2.5 px-5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex-shrink-0"
+          >
+            <span className="material-symbols-outlined text-[20px]">add_circle</span>
+            Yeni Vardiya Ekle
+          </button>
+        </div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
