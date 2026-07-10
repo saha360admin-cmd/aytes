@@ -28,7 +28,6 @@ const GUVENLIK_LINKS = [
   { href: "/web/guvenlik/talepler", label: "Talepler", icon: "assignment" },
   { href: "/web/guvenlik/iletisim", label: "İletişim", icon: "forum" },
   { href: "/web/guvenlik/raporlama", label: "Raporlama", icon: "assessment" },
-  { href: "/web/guvenlik/raporlar-2", label: "Raporlar 2", icon: "dashboard_customize" },
 ];
 
 function Sidebar() {
