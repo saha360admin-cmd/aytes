@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { scanNfcTagOnce } from "@/lib/nfc";
 
 interface Beacon {
   id: string;
@@ -39,23 +40,10 @@ export default function BeaconlarPage() {
 
   async function scanTag() {
     setScanningTag(true);
-    try {
-      const { CapacitorNfc } = await import("@capgo/capacitor-nfc");
-      const listener = await CapacitorNfc.addListener("nfcEvent", async (event) => {
-        await listener.remove();
-        await CapacitorNfc.stopScanning().catch(() => {});
-        setScanningTag(false);
-        if (event.tag?.id) {
-          const uid = event.tag.id.map(b => b.toString(16).padStart(2, "0")).join(":");
-          setForm(p => ({ ...p, uuid: uid }));
-        }
-      });
-      await CapacitorNfc.startScanning({ alertMessage: "Kaydedilecek etiketi telefona yaklaştırın" });
-    } catch {
-      setScanningTag(false);
-      setToast("NFC taranamadı — bu cihazda NFC olmayabilir");
-      setTimeout(() => setToast(""), 3000);
-    }
+    const uid = await scanNfcTagOnce({ alertMessage: "Kaydedilecek etiketi telefona yaklaştırın" });
+    setScanningTag(false);
+    if (uid) setForm(p => ({ ...p, uuid: uid }));
+    else { setToast("NFC taranamadı — bu cihazda NFC olmayabilir"); setTimeout(() => setToast(""), 3000); }
   }
 
   const load = useCallback(async () => {

@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import { scanNfcTagOnce } from "@/lib/nfc";
 import type { Patrol, PatrolCheckpoint, PatrolAssignment } from "@/lib/types";
 
 function toDateStr(d: Date) {
@@ -18,7 +19,7 @@ const defaultCheckpoints = [
 interface AvailableRoute {
   id: string;
   name: string;
-  points: { name: string; point_order: number }[];
+  points: { name: string; point_order: number; nfc_uid: string | null }[];
 }
 
 const patrolTips = [
@@ -106,6 +107,8 @@ export default function DevriyePage() {
   const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
   const [slotBlockedMsg, setSlotBlockedMsg] = useState<string | null>(null);
   const [schedMeta, setSchedMeta] = useState<{ startMin: number; endMin: number; crossMidnight: boolean } | null>(null);
+  const [scanningCheckpoint, setScanningCheckpoint] = useState(false);
+  const [checkpointScanError, setCheckpointScanError] = useState<string | null>(null);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -117,14 +120,14 @@ export default function DevriyePage() {
     if (!personnel) return;
     const { data } = await supabase
       .from("patrol_routes")
-      .select("id, name, points:patrol_route_points(name, point_order)")
+      .select("id, name, points:patrol_route_points(name, point_order, nfc_uid)")
       .eq("is_active", true)
       .eq("department_id", personnel.department_id)
       .or(`location_id.eq.${personnel.location_id ?? "00000000-0000-0000-0000-000000000000"},location_id.is.null`)
       .order("created_at", { ascending: false });
 
     if (data) {
-      const routes = data.map((r: { id: string; name: string; points: { name: string; point_order: number }[] }) => ({
+      const routes = data.map((r: { id: string; name: string; points: { name: string; point_order: number; nfc_uid: string | null }[] }) => ({
         ...r,
         points: [...(r.points || [])].sort((a, b) => a.point_order - b.point_order),
       }));
@@ -191,7 +194,7 @@ export default function DevriyePage() {
 
     const { data: routes } = await supabase
       .from("patrol_routes")
-      .select("id, name, location_id, patrol_route_points(id, name, point_order)")
+      .select("id, name, location_id, patrol_route_points(id, name, point_order, nfc_uid)")
       .in("id", routeIds)
       .eq("is_active", true)
       .eq("department_id", personnel.department_id)
@@ -199,7 +202,7 @@ export default function DevriyePage() {
 
     if (!routes || routes.length === 0) return;
 
-    type MatchedRoute = { id: string; name: string; patrol_route_points: { id: string; name: string; point_order: number }[] };
+    type MatchedRoute = { id: string; name: string; patrol_route_points: { id: string; name: string; point_order: number; nfc_uid: string | null }[] };
     const matchedRoute = routes[0] as unknown as MatchedRoute;
     const matchedSched = scheds.find((s: { route_id: string }) => s.route_id === matchedRoute.id) ?? scheds[0];
 
@@ -304,9 +307,9 @@ export default function DevriyePage() {
       return;
     }
 
-    const cpNames = assignmentRoute.points.length > 0
-      ? assignmentRoute.points.map(p => p.name)
-      : defaultCheckpoints;
+    const cpSource: { name: string; nfc_uid: string | null }[] = assignmentRoute.points.length > 0
+      ? assignmentRoute.points.map(p => ({ name: p.name, nfc_uid: p.nfc_uid }))
+      : defaultCheckpoints.map(name => ({ name, nfc_uid: null }));
 
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
       department_id: personnel.department_id,
@@ -314,7 +317,7 @@ export default function DevriyePage() {
       route_name: assignmentRoute.name,
       status: "active",
       started_at: new Date().toISOString(),
-      total_checkpoints: cpNames.length,
+      total_checkpoints: cpSource.length,
       completed_checkpoints: 0,
     }).select().single();
 
@@ -326,10 +329,11 @@ export default function DevriyePage() {
 
     setActiveAssignmentId(assignment.id);
 
-    const cpInserts = cpNames.map((name, i) => ({
+    const cpInserts = cpSource.map((cp, i) => ({
       patrol_id: newPatrol.id,
       checkpoint_order: i + 1,
-      name,
+      name: cp.name,
+      nfc_uid: cp.nfc_uid,
       status: i === 0 ? "active" : "pending",
     }));
     await supabase.from("patrol_checkpoints").insert(cpInserts);
@@ -390,9 +394,9 @@ export default function DevriyePage() {
     if (!personnel) return;
 
     const route = availableRoutes.find(r => r.id === selectedRouteId);
-    const cpNames = route && route.points.length > 0
-      ? route.points.map(p => p.name)
-      : defaultCheckpoints;
+    const cpSource: { name: string; nfc_uid: string | null }[] = route && route.points.length > 0
+      ? route.points.map(p => ({ name: p.name, nfc_uid: p.nfc_uid }))
+      : defaultCheckpoints.map(name => ({ name, nfc_uid: null }));
     const routeName = route ? route.name : "Ana Bina Çevresi";
 
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
@@ -400,16 +404,17 @@ export default function DevriyePage() {
       personnel_id: personnel.id,
       route_name: routeName,
       status: "active",
-      total_checkpoints: cpNames.length,
+      total_checkpoints: cpSource.length,
       completed_checkpoints: 0,
     }).select().single();
 
     if (error || !newPatrol) return;
 
-    const cpInserts = cpNames.map((name, i) => ({
+    const cpInserts = cpSource.map((cp, i) => ({
       patrol_id: newPatrol.id,
       checkpoint_order: i + 1,
-      name,
+      name: cp.name,
+      nfc_uid: cp.nfc_uid,
       status: i === 0 ? "active" : "pending",
     }));
 
@@ -425,8 +430,9 @@ export default function DevriyePage() {
     setCheckpoints(cps || []);
   }
 
-  async function scanCheckpoint() {
+  async function completeCheckpoint() {
     if (!patrol || !activeCheckpoint) return;
+    setCheckpointScanError(null);
     const now = new Date().toISOString();
 
     await supabase.from("patrol_checkpoints").update({ status: "completed", scanned_at: now }).eq("id", activeCheckpoint.id);
@@ -441,6 +447,29 @@ export default function DevriyePage() {
 
     const { data: cps } = await supabase.from("patrol_checkpoints").select("*").eq("patrol_id", patrol.id).order("checkpoint_order");
     setCheckpoints(cps || []);
+  }
+
+  async function scanCheckpoint() {
+    if (!patrol || !activeCheckpoint) return;
+
+    // Geriye dönük uyumluluk: bu nokta henüz bir NFC etiketiyle eşleştirilmemişse
+    // (eski rotalar veya admin henüz atamadıysa) eski dokunmatik tamamlama çalışmaya devam eder.
+    if (!activeCheckpoint.nfc_uid) {
+      await completeCheckpoint();
+      return;
+    }
+
+    setCheckpointScanError(null);
+    setScanningCheckpoint(true);
+    const uid = await scanNfcTagOnce({ alertMessage: "Kontrol noktasındaki etiketi telefona yaklaştırın" });
+    setScanningCheckpoint(false);
+
+    if (!uid) { setCheckpointScanError("Etiket okunamadı, tekrar deneyin"); return; }
+    if (uid.toLowerCase() !== activeCheckpoint.nfc_uid.toLowerCase()) {
+      setCheckpointScanError("Yanlış nokta — bu etiket bu kontrol noktasına ait değil");
+      return;
+    }
+    await completeCheckpoint();
   }
 
   async function togglePause() {
@@ -797,14 +826,19 @@ export default function DevriyePage() {
                       </div>
                       <div className="flex-1">
                         <p className="text-base font-bold text-blue-800">Nokta {cp.checkpoint_order}: {cp.name}</p>
-                        <p className="text-xs font-semibold text-gray-500">Hedefe ulaşıldı, lütfen okutun</p>
+                        <p className="text-xs font-semibold text-gray-500">
+                          {cp.nfc_uid ? "Hedefe ulaşıldı, etiketi okutun" : "Hedefe ulaşıldı, lütfen okutun"}
+                        </p>
                       </div>
                     </div>
-                    <button onClick={scanCheckpoint}
-                      className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
+                    {checkpointScanError && (
+                      <p className="text-xs font-semibold text-red-600 -mt-2">{checkpointScanError}</p>
+                    )}
+                    <button onClick={scanCheckpoint} disabled={scanningCheckpoint}
+                      className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200 disabled:opacity-60"
                       style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                      <span className="material-symbols-outlined">nfc</span>
-                      OKUT (NFC / QR)
+                      <span className={`material-symbols-outlined ${scanningCheckpoint ? "animate-pulse" : ""}`}>nfc</span>
+                      {scanningCheckpoint ? "Taranıyor..." : cp.nfc_uid ? "OKUT (NFC)" : "OKUT"}
                     </button>
                   </div>
                 )}

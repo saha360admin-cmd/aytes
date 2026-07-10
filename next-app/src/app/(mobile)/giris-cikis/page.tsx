@@ -4,12 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-
-const SCAN_TIMEOUT_MS = 20000;
-
-function formatTagUid(bytes: number[]): string {
-  return bytes.map(b => b.toString(16).padStart(2, "0")).join(":");
-}
+import { scanNfcTagOnce, stopNfcScan } from "@/lib/nfc";
 
 type ScanState = "idle" | "scanning" | "found" | "notfound" | "recording" | "success" | "error" | "unsupported";
 
@@ -79,11 +74,7 @@ export default function GirisCikisPage() {
   // Hard requirement: stop an in-progress scan if the user navigates away mid-scan.
   useEffect(() => {
     return () => {
-      if (scanningRef.current) {
-        import("@capgo/capacitor-nfc").then(({ CapacitorNfc }) => {
-          CapacitorNfc.stopScanning().catch(() => {});
-        });
-      }
+      if (scanningRef.current) stopNfcScan();
     };
   }, []);
 
@@ -100,45 +91,19 @@ export default function GirisCikisPage() {
     setScanState("scanning");
     setErrorMsg("");
 
-    try {
-      const { CapacitorNfc } = await import("@capgo/capacitor-nfc");
+    scanningRef.current = true;
+    const uid = await scanNfcTagOnce({
+      alertMessage: "Telefonunuzu NFC etiketine yaklaştırın",
+      isMatch: (candidate) => tags.some(t => t.uuid.toLowerCase() === candidate.toLowerCase()),
+    });
+    scanningRef.current = false;
 
-      scanningRef.current = true;
-      let settled = false;
+    if (!uid) { setScanState("notfound"); return; }
+    const matched = tags.find(t => t.uuid.toLowerCase() === uid.toLowerCase());
+    if (!matched) { setScanState("notfound"); return; }
 
-      const finishScan = async () => {
-        scanningRef.current = false;
-        await listener.remove();
-        try { await CapacitorNfc.stopScanning(); } catch { /* already stopped */ }
-      };
-
-      const listener = await CapacitorNfc.addListener("nfcEvent", async (event) => {
-        if (settled || !event.tag?.id) return;
-        const uid = formatTagUid(event.tag.id);
-        const matched = tags.find(t => t.uuid.toLowerCase() === uid.toLowerCase());
-        if (!matched) return;
-
-        settled = true;
-        clearTimeout(timeoutId);
-        await finishScan();
-        setScanState("found");
-        await recordAttendance(type, matched);
-      });
-
-      const timeoutId = setTimeout(async () => {
-        if (settled) return;
-        settled = true;
-        await finishScan();
-        setScanState("notfound");
-      }, SCAN_TIMEOUT_MS);
-
-      await CapacitorNfc.startScanning({ alertMessage: "Telefonunuzu NFC etiketine yaklaştırın" });
-    } catch (err) {
-      scanningRef.current = false;
-      const e = err as { message?: string } | null;
-      setErrorMsg(e?.message || "NFC hatası");
-      setScanState("error");
-    }
+    setScanState("found");
+    await recordAttendance(type, matched);
   }
 
   async function recordAttendance(type: "entry" | "exit", matchedTag: TagConfig) {

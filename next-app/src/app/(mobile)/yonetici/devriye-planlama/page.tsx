@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
+import { scanNfcTagOnce } from "@/lib/nfc";
 
 interface Location { id: string; name: string }
-interface RoutePoint { id: string; name: string; point_order: number }
+interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null }
 interface Schedule {
   id: string;
   day_type: "weekday" | "weekend" | "everyday";
@@ -55,6 +56,7 @@ export default function DevriyePlanlama() {
   const [addingPointTo, setAddingPointTo] = useState<string | null>(null);
   const [newPointName, setNewPointName]   = useState("");
   const [savingPoint, setSavingPoint]     = useState(false);
+  const [scanningPointId, setScanningPointId] = useState<string | null>(null);
 
   /* ── Plan ekle / düzenle ── */
   const [editingSched, setEditingSched] = useState<{ routeId: string; sched: Schedule | null } | null>(null);
@@ -73,7 +75,7 @@ export default function DevriyePlanlama() {
       supabase.from("locations").select("id, name").order("name"),
       supabase.from("patrol_routes").select(`
         id, name, location_id, is_active,
-        points:patrol_route_points(id, name, point_order),
+        points:patrol_route_points(id, name, point_order, nfc_uid),
         schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active, shift_code)
       `).eq("department_id", personnel.department_id).order("created_at", { ascending: false }),
     ]);
@@ -115,7 +117,7 @@ export default function DevriyePlanlama() {
     const route = routes.find(r => r.id === routeId);
     const { data, error } = await supabase.from("patrol_route_points")
       .insert({ route_id: routeId, name: newPointName.trim(), point_order: (route?.points.length ?? 0) + 1 })
-      .select("id, name, point_order").single();
+      .select("id, name, point_order, nfc_uid").single();
     if (!error && data) {
       setRoutes(p => p.map(r => r.id === routeId ? { ...r, points: [...r.points, data] } : r));
       setNewPointName(""); setAddingPointTo(null);
@@ -129,6 +131,19 @@ export default function DevriyePlanlama() {
     setRoutes(p => p.map(r => r.id === routeId
       ? { ...r, points: r.points.filter(pt => pt.id !== pointId).map((pt, i) => ({ ...pt, point_order: i + 1 })) }
       : r));
+  }
+
+  async function assignNfcToPoint(routeId: string, pointId: string) {
+    setScanningPointId(pointId);
+    const uid = await scanNfcTagOnce({ alertMessage: "Kontrol noktasına yerleştirilecek etiketi telefona yaklaştırın" });
+    setScanningPointId(null);
+    if (!uid) { flash("NFC taranamadı", false); return; }
+    const { error } = await supabase.from("patrol_route_points").update({ nfc_uid: uid }).eq("id", pointId);
+    if (error) { flash(error.message, false); return; }
+    setRoutes(p => p.map(r => r.id === routeId
+      ? { ...r, points: r.points.map(pt => pt.id === pointId ? { ...pt, nfc_uid: uid } : pt) }
+      : r));
+    flash("NFC etiketi noktaya atandı", true);
   }
 
   function openSchedForm(routeId: string, sched: Schedule | null) {
@@ -312,6 +327,14 @@ export default function DevriyePlanlama() {
                                 <span className="text-[11px] font-bold text-[#3949AB]">{pt.point_order}</span>
                               </div>
                               <span className="flex-1 text-sm font-semibold text-gray-700">{pt.name}</span>
+                              <button onClick={() => assignNfcToPoint(route.id, pt.id)}
+                                disabled={scanningPointId === pt.id}
+                                className={`px-2.5 h-8 rounded-full flex items-center gap-1 text-[10px] font-bold flex-shrink-0 active:scale-95 transition-all disabled:opacity-60 ${
+                                  pt.nfc_uid ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-600"
+                                }`}>
+                                <span className="material-symbols-outlined text-[14px]">nfc</span>
+                                {scanningPointId === pt.id ? "Taranıyor..." : pt.nfc_uid ? "Atandı" : "Tara"}
+                              </button>
                               <button onClick={() => deletePoint(route.id, pt.id)}
                                 className="w-8 h-8 rounded-full bg-red-50 flex items-center justify-center active:scale-90 transition-all">
                                 <span className="material-symbols-outlined text-red-400 text-[16px]">delete</span>

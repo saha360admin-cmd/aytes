@@ -36,7 +36,7 @@ function formatDuration(seconds: number | null) {
 }
 
 interface Location { id: string; name: string; }
-interface RoutePoint { id: string; name: string; point_order: number; }
+interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null; }
 interface Schedule {
   id: string;
   day_type: "weekday" | "weekend" | "everyday";
@@ -143,7 +143,7 @@ function PatrolRoutesSection() {
       supabase.from("locations").select("id, name").order("name"),
       supabase.from("patrol_routes").select(`
         id, name, location_id, is_active,
-        points:patrol_route_points(id, name, point_order),
+        points:patrol_route_points(id, name, point_order, nfc_uid),
         schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active, shift_code)
       `).eq("department_id", dept.id).order("created_at", { ascending: false }),
     ]);
@@ -179,7 +179,7 @@ function PatrolRoutesSection() {
     const route = routes.find(r => r.id === routeId);
     const { data, error } = await supabase.from("patrol_route_points")
       .insert({ route_id: routeId, name: newPointName.trim(), point_order: (route?.points.length ?? 0) + 1 })
-      .select("id, name, point_order").single();
+      .select("id, name, point_order, nfc_uid").single();
     if (!error && data) {
       setRoutes(p => p.map(r => r.id === routeId ? { ...r, points: [...r.points, data] } : r));
       setNewPointName("");
@@ -353,6 +353,15 @@ function PatrolRoutesSection() {
                                 <span className="text-[11px] font-bold text-primary">{pt.point_order}</span>
                               </div>
                               <span className="flex-1 text-sm font-semibold text-on-surface">{pt.name}</span>
+                              <span
+                                title={pt.nfc_uid ? undefined : "NFC etiketi mobil uygulamadan atanır"}
+                                className={`px-2.5 h-7 rounded-full flex items-center gap-1 text-[10px] font-bold flex-shrink-0 ${
+                                  pt.nfc_uid ? "bg-emerald-500/10 text-emerald-600" : "bg-on-surface-variant/10 text-on-surface-variant"
+                                }`}
+                              >
+                                <span className="material-symbols-outlined text-[13px]">nfc</span>
+                                {pt.nfc_uid ? "Atandı" : "Atanmadı"}
+                              </span>
                               <button
                                 onClick={() => deletePoint(route.id, pt.id)}
                                 className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center transition-all"

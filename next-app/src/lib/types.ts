@@ -46,6 +46,7 @@ export interface PatrolCheckpoint {
   status: "pending" | "active" | "completed";
   scanned_at: string | null;
   qr_token?: string | null;
+  nfc_uid?: string | null;
   detail?: string | null;
 }
 
