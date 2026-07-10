@@ -558,6 +558,7 @@ interface AttendanceRow {
   type: "entry" | "exit";
   recorded_at: string;
   verified: boolean;
+  location_id: string | null;
 }
 
 interface DayShift {
@@ -581,6 +582,7 @@ function AttendanceReportSection({ month, year }: { month: number; year: number 
   const [loading, setLoading] = useState(true);
   const [records, setRecords] = useState<AttendanceRow[]>([]);
   const [nameById, setNameById] = useState<Record<string, string>>({});
+  const [locationById, setLocationById] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setLoading(true);
@@ -588,18 +590,24 @@ function AttendanceReportSection({ month, year }: { month: number; year: number 
       const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
       if (!dept) { setRecords([]); setLoading(false); return; }
 
-      const { data: personnel } = await supabase.from("personnel").select("id, full_name").eq("department_id", dept.id);
+      const [{ data: personnel }, { data: locations }] = await Promise.all([
+        supabase.from("personnel").select("id, full_name").eq("department_id", dept.id),
+        supabase.from("locations").select("id, name"),
+      ]);
       const people = personnel || [];
       const nameMap: Record<string, string> = {};
       people.forEach(p => { nameMap[p.id] = p.full_name; });
       setNameById(nameMap);
+      const locMap: Record<string, string> = {};
+      (locations || []).forEach(l => { locMap[l.id] = l.name; });
+      setLocationById(locMap);
       if (people.length === 0) { setRecords([]); setLoading(false); return; }
 
       const start = new Date(year, month, 1).toISOString();
       const end = new Date(year, month + 1, 1).toISOString();
       const { data } = await supabase
         .from("attendance_records")
-        .select("personnel_id, type, recorded_at, verified")
+        .select("personnel_id, type, recorded_at, verified, location_id")
         .in("personnel_id", people.map(p => p.id))
         .gte("recorded_at", start)
         .lt("recorded_at", end)
@@ -678,6 +686,7 @@ function AttendanceReportSection({ month, year }: { month: number; year: number 
     { key: "date", label: "Tarih", sortable: true },
     { key: "time", label: "Saat", sortable: true },
     { key: "name", label: "Personel", sortable: true },
+    { key: "location", label: "Lokasyon", sortable: true },
     { key: "type", label: "Tür", sortable: true },
     { key: "verified", label: "Doğrulama" },
   ];
@@ -692,6 +701,7 @@ function AttendanceReportSection({ month, year }: { month: number; year: number 
         date: toDateStr(d),
         time: d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" }),
         name: nameById[r.personnel_id] ?? "Bilinmiyor",
+        location: r.location_id ? (locationById[r.location_id] ?? "Bilinmiyor") : "—",
         type: r.type === "entry" ? "Giriş" : "Çıkış",
         verified: verifiedCell,
       };
