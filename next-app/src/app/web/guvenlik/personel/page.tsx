@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import DataTable, { DataTableCell, DataTableColumn } from "@/components/web/DataTable";
 
@@ -54,6 +56,20 @@ const emptyEditForm = { full_name: "", phone: "", position: "", location_id: "",
 const emptyAddForm = { full_name: "", phone: "", position: "", location_id: "", password: "", confirmPassword: "", security_code: "" };
 
 export default function WebGuvenlikPersonelPage() {
+  const { personnel: viewer, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const slug = viewer?.departments?.slug;
+  const canEdit = slug === "guvenlik";
+  const canView = canEdit || slug === "idari";
+
+  // İdari İşler bu sayfayı Güvenlik'e geçerek görüntüleyebilir ama sadece
+  // bilgi amaçlı — düzenleme, erişim kapatma/açma, arşivleme yapamaz.
+  // Bu yetkiler Güvenlik yöneticisine ait kalır. vardiyalar/page.tsx'teki
+  // aynı canEdit/canView deseni.
+  useEffect(() => {
+    if (!authLoading && viewer && !canView) router.replace("/web/dashboard");
+  }, [authLoading, viewer, canView, router]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
@@ -286,7 +302,7 @@ export default function WebGuvenlikPersonelPage() {
     { key: "location", label: "Çalıştığı Bölge" },
     { key: "phone", label: "Telefon" },
     { key: "statusBadge", label: "Durum" },
-    { key: "actions", label: "İşlemler", exportable: false },
+    ...(canEdit ? [{ key: "actions", label: "İşlemler", exportable: false }] : []),
   ];
 
   const tableData = filtered.map(p => {
@@ -345,6 +361,14 @@ export default function WebGuvenlikPersonelPage() {
     };
   });
 
+  if (authLoading || !viewer || !canView) {
+    return (
+      <div className="flex justify-center py-24">
+        <span className="material-symbols-outlined animate-spin text-[40px] text-primary">progress_activity</span>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -362,13 +386,15 @@ export default function WebGuvenlikPersonelPage() {
               className="w-full bg-surface-container-low border-none rounded-full pl-10 pr-4 py-2.5 focus:ring-2 focus:ring-primary text-sm outline-none"
             />
           </div>
-          <button
-            onClick={openAdd}
-            className="flex items-center gap-2 bg-primary text-on-primary py-2.5 px-5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex-shrink-0"
-          >
-            <span className="material-symbols-outlined text-[20px]">person_add</span>
-            Yeni Personel
-          </button>
+          {canEdit && (
+            <button
+              onClick={openAdd}
+              className="flex items-center gap-2 bg-primary text-on-primary py-2.5 px-5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex-shrink-0"
+            >
+              <span className="material-symbols-outlined text-[20px]">person_add</span>
+              Yeni Personel
+            </button>
+          )}
         </div>
       </div>
 
