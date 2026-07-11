@@ -36,6 +36,7 @@ const autoDeptSlugsByType: Record<string, string[]> = {
   fight: ["guvenlik", "idari"],
   medical: ["guvenlik", "idari"],
   unauthorized_entry: ["guvenlik", "idari"],
+  other: ["idari", "guvenlik"],
 };
 
 function OlayBildirForm() {

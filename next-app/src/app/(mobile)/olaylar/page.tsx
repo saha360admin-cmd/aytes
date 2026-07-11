@@ -34,11 +34,15 @@ const TABS = [
 type TabKey = typeof TABS[number]["key"];
 
 const typeConfig: Record<string, { label: string; icon: string; bg: string; color: string }> = {
-  fire:        { label: "Yangın",          icon: "local_fire_department", bg: "bg-red-100",     color: "text-red-600"     },
-  theft:       { label: "Hırsızlık",       icon: "lock_person",           bg: "bg-indigo-100",  color: "text-indigo-700"  },
-  suspicious:  { label: "Şüpheli Durum",   icon: "visibility",            bg: "bg-amber-100",   color: "text-amber-700"   },
-  maintenance: { label: "Teknik Arıza",    icon: "build",                 bg: "bg-emerald-100", color: "text-emerald-700" },
-  other:       { label: "Diğer",           icon: "more_horiz",            bg: "bg-purple-100",  color: "text-purple-700"  },
+  fire:                { label: "Yangın",          icon: "local_fire_department", bg: "bg-red-100",     color: "text-red-600"     },
+  theft:               { label: "Hırsızlık",       icon: "lock_person",           bg: "bg-indigo-100",  color: "text-indigo-700"  },
+  fight:               { label: "Kavga / Tehdit",  icon: "sports_mma",            bg: "bg-orange-100",  color: "text-orange-700"  },
+  medical:             { label: "Tıbbi Acil",      icon: "medical_services",      bg: "bg-rose-100",    color: "text-rose-700"    },
+  unauthorized_entry:  { label: "Yetkisiz Giriş",  icon: "gpp_bad",               bg: "bg-sky-100",     color: "text-sky-700"     },
+  suspicious:          { label: "Şüpheli Durum",   icon: "visibility",            bg: "bg-amber-100",   color: "text-amber-700"   },
+  maintenance:         { label: "Teknik Arıza",    icon: "build",                 bg: "bg-emerald-100", color: "text-emerald-700" },
+  form:                { label: "Form Bildir",     icon: "description",           bg: "bg-blue-100",    color: "text-blue-700"    },
+  other:               { label: "Diğer",           icon: "more_horiz",            bg: "bg-purple-100",  color: "text-purple-700"  },
 };
 
 const severityConfig = {
