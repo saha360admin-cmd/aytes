@@ -43,9 +43,7 @@ function Sidebar() {
   // dönüş linki ekleniyor.
   const links = isGuvenlikSection
     ? (isIdari ? [{ href: "/web/dashboard", label: "Ana Sayfa", icon: "home" }, ...GUVENLIK_LINKS] : GUVENLIK_LINKS)
-    : isIdari
-      ? [...TOP_LEVEL_LINKS, { href: "/web/idari/devriyeler", label: "Devriye Takip", icon: "route" }]
-      : TOP_LEVEL_LINKS;
+    : TOP_LEVEL_LINKS;
   const theme = getDepartmentHeaderTheme(isGuvenlikSection ? "guvenlik" : null);
 
   return (
