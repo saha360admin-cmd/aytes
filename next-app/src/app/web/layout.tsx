@@ -32,8 +32,16 @@ const GUVENLIK_LINKS = [
 
 function Sidebar() {
   const pathname = usePathname();
+  const { personnel } = useAuth();
   const isGuvenlikSection = pathname?.startsWith("/web/guvenlik");
-  const links = isGuvenlikSection ? GUVENLIK_LINKS : TOP_LEVEL_LINKS;
+  // İdari İşler, Güvenlik'in devriye verilerini salt okunur izlediği ayrı
+  // sayfaya (web/idari/devriyeler) buradan ulaşır — Güvenlik'in kendi
+  // sidebar'ı (GUVENLIK_LINKS) hiç değişmiyor.
+  const links = isGuvenlikSection
+    ? GUVENLIK_LINKS
+    : personnel?.departments?.slug === "idari"
+      ? [...TOP_LEVEL_LINKS, { href: "/web/idari/devriyeler", label: "Devriye Takip", icon: "route" }]
+      : TOP_LEVEL_LINKS;
   const theme = getDepartmentHeaderTheme(isGuvenlikSection ? "guvenlik" : null);
 
   return (
