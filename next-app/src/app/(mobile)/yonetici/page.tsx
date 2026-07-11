@@ -177,31 +177,33 @@ export default function YoneticiPage() {
     const deptId = personnel.department_id;
 
     const [
-      reqCount, incCount, patrolCount, shiftCount,
+      reqCount, incDeptsRes, patrolCount, shiftCount,
       personnelRes,
       pendingReqRes,
       activePatrolRes,
-      incidentRes,
       serviceReqCount,
       locationsRes,
       commsRes,
     ] = await Promise.all([
       supabase.from("requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "pending"),
-      supabase.from("incidents").select("id", { count: "exact", head: true }).eq("status", "open").eq("department_id", deptId),
+      // incidents.department_id her zaman olayı BİLDİREN departmanı gösterir —
+      // başka departmandan bildirilip bu departmana da atanan (incident_departments)
+      // olaylar bununla hiç yakalanmaz. web/guvenlik/page.tsx'teki aynı desen.
+      supabase.from("incident_departments").select("incident_id, status").eq("department_id", deptId),
       supabase.from("patrols").select("id", { count: "exact", head: true }).eq("department_id", deptId).eq("status", "active"),
       supabase.from("shifts").select("id", { count: "exact", head: true }).eq("department_id", deptId),
       supabase.from("personnel").select("id, full_name, status, position, role").eq("department_id", deptId).neq("status", "archived").order("full_name"),
       supabase.from("requests").select("*, requester:personnel_id(full_name)").eq("department_id", deptId).eq("status", "pending").order("created_at", { ascending: false }).limit(10),
       supabase.from("patrols").select("id, route_name, started_at, completed_checkpoints, total_checkpoints, officer:personnel_id(full_name)").eq("department_id", deptId).eq("status", "active").order("started_at", { ascending: false }) as unknown as Promise<{ data: ActivePatrol[] | null }>,
-      supabase.from("incidents").select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)").eq("status", "open").eq("department_id", deptId).order("created_at", { ascending: false }).limit(5),
       supabase.from("service_requests").select("id", { count: "exact", head: true }).eq("department_id", deptId).in("status", ["open", "in_progress"]),
       supabase.from("locations").select("id, name, target_count").gt("target_count", 0),
       supabase.from("communications").select("id, type, priority, title, content, created_at").eq("department_id", deptId).or(`expires_at.is.null,expires_at.gt.${new Date().toISOString()}`).order("created_at", { ascending: false }).limit(20),
     ]);
 
+    const incDepts = incDeptsRes.data || [];
     setStats({
       pendingRequests: reqCount.count || 0,
-      openIncidents: incCount.count || 0,
+      openIncidents: incDepts.filter(r => r.status === "open" || r.status === "in_progress").length,
       activePatrols: patrolCount.count || 0,
       todayShifts: shiftCount.count || 0,
     });
@@ -211,8 +213,23 @@ export default function YoneticiPage() {
     setPersonnelList(allP.filter((p) => p.status === "active") as PersonnelItem[]);
     setPendingRequestsList((pendingReqRes.data || []) as PendingRequest[]);
     setActivePatrolList(activePatrolRes.data || []);
-    setRecentIncidents((incidentRes.data || []) as unknown as Incident[]);
     setOpenServiceRequests(serviceReqCount.count || 0);
+
+    // Son Olaylar: incident_departments üzerinden bu departmana atanmış
+    // olaylar (web/guvenlik/page.tsx'teki aynı desen) — yukarıdaki bug'ın
+    // aynısı burada da vardı, çapraz departman olayları listeye hiç girmiyordu.
+    const incidentIds = incDepts.map(r => r.incident_id);
+    if (incidentIds.length > 0) {
+      const { data: incidents } = await supabase
+        .from("incidents")
+        .select("id, title, type, severity, description, location, status, created_at, reporter:reported_by(full_name)")
+        .in("id", incidentIds)
+        .order("created_at", { ascending: false })
+        .limit(5);
+      setRecentIncidents((incidents || []) as unknown as Incident[]);
+    } else {
+      setRecentIncidents([]);
+    }
 
     const latestByType: Record<string, CommSummary> = {};
     for (const c of (commsRes.data || []) as CommSummary[]) {
