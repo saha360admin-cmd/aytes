@@ -34,12 +34,16 @@ function Sidebar() {
   const pathname = usePathname();
   const { personnel } = useAuth();
   const isGuvenlikSection = pathname?.startsWith("/web/guvenlik");
+  const isIdari = personnel?.departments?.slug === "idari";
   // İdari İşler, Güvenlik'in devriye verilerini salt okunur izlediği ayrı
   // sayfaya (web/idari/devriyeler) buradan ulaşır — Güvenlik'in kendi
-  // sidebar'ı (GUVENLIK_LINKS) hiç değişmiyor.
+  // sidebar'ı (GUVENLIK_LINKS) hiç değişmiyor. Güvenlik bölümüne girince
+  // GUVENLIK_LINKS'te ana dashboard'a dönüş linki olmadığından, İdari
+  // buraya girdiğinde sıkışıp kalıyordu — sadece İdari için "Ana Sayfa"
+  // dönüş linki ekleniyor.
   const links = isGuvenlikSection
-    ? GUVENLIK_LINKS
-    : personnel?.departments?.slug === "idari"
+    ? (isIdari ? [{ href: "/web/dashboard", label: "Ana Sayfa", icon: "home" }, ...GUVENLIK_LINKS] : GUVENLIK_LINKS)
+    : isIdari
       ? [...TOP_LEVEL_LINKS, { href: "/web/idari/devriyeler", label: "Devriye Takip", icon: "route" }]
       : TOP_LEVEL_LINKS;
   const theme = getDepartmentHeaderTheme(isGuvenlikSection ? "guvenlik" : null);
