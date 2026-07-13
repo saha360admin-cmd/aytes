@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import DataTable, { DataTableCell, DataTableColumn } from "@/components/web/DataTable";
+import DataTable, { DataTableColumn } from "@/components/web/DataTable";
 
 // Rota/kontrol noktası/zaman planı iş mantığı mobildeki
 // (mobile)/yonetici/devriye-planlama/page.tsx ile birebir aynı — aynı
@@ -23,19 +23,6 @@ const SHIFT_CODES = ["", "1", "2", "3", "4", "5", "6", "7", "8"];
 const TR_MONTHS = [
   "Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara",
 ];
-
-function formatDateTime(dateStr: string | null) {
-  if (!dateStr) return "—";
-  const d = new Date(dateStr);
-  return `${d.getDate()} ${TR_MONTHS[d.getMonth()]}, ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatDuration(seconds: number | null) {
-  if (!seconds) return "—";
-  const h = Math.floor(seconds / 3600);
-  const m = Math.floor((seconds % 3600) / 60);
-  return h > 0 ? `${h}s ${m}dk` : `${m}dk`;
-}
 
 interface Location { id: string; name: string; }
 interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null; }
@@ -59,7 +46,7 @@ interface PatrolRoute {
 
 const TABS = [
   { key: "rotalar", label: "Devriye Rotaları", icon: "route" },
-  { key: "takip", label: "Devriye Takibi", icon: "monitoring" },
+  { key: "rapor", label: "Devriye Raporu", icon: "summarize" },
 ] as const;
 type TabKey = typeof TABS[number]["key"];
 
@@ -115,7 +102,7 @@ function GuvenlikDevriyelerView() {
         </div>
       </div>
 
-      {tab === "rotalar" ? <PatrolRoutesSection /> : <PatrolTrackingSection />}
+      {tab === "rotalar" ? <PatrolRoutesSection /> : <DevriyeRaporuSection />}
     </div>
   );
 }
@@ -683,171 +670,6 @@ function PatrolRoutesSection() {
   );
 }
 
-// ───────────────────────── Devriye Takibi (patrols/patrol_checkpoints monitoring) ─────────────────────────
-
-interface PatrolRecord {
-  id: string;
-  personnel_id: string;
-  route_name: string | null;
-  status: string;
-  total_checkpoints: number;
-  completed_checkpoints: number;
-  started_at: string;
-  completed_at: string | null;
-  duration_seconds: number | null;
-}
-
-const STATUS_BADGE: Record<string, { label: string; className: string }> = {
-  active: { label: "Aktif", className: "bg-primary/10 text-primary" },
-  paused: { label: "Duraklatıldı", className: "bg-amber-100 text-amber-700" },
-  completed: { label: "Tamamlandı", className: "bg-emerald-100 text-emerald-700" },
-  cancelled: { label: "İptal", className: "bg-gray-100 text-gray-500" },
-};
-
-const STATUS_TABS = [
-  { key: "all", label: "Hepsi" },
-  { key: "active", label: "Aktif" },
-  { key: "paused", label: "Duraklatıldı" },
-  { key: "completed", label: "Tamamlandı" },
-  { key: "cancelled", label: "İptal" },
-] as const;
-type StatusTabKey = typeof STATUS_TABS[number]["key"];
-
-function PatrolTrackingSection() {
-  const [records, setRecords] = useState<PatrolRecord[]>([]);
-  const [nameById, setNameById] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(false);
-  const [statusTab, setStatusTab] = useState<StatusTabKey>("all");
-
-  useEffect(() => {
-    load();
-  }, []);
-
-  async function load() {
-    setLoading(true);
-    setError(false);
-    try {
-      const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
-      if (!dept) throw new Error("dept not found");
-
-      const { data, error: qError } = await supabase
-        .from("patrols")
-        .select("id, personnel_id, route_name, status, total_checkpoints, completed_checkpoints, started_at, completed_at, duration_seconds")
-        .eq("department_id", dept.id)
-        .order("started_at", { ascending: false })
-        .limit(300);
-      if (qError) throw qError;
-
-      const rows = (data || []) as PatrolRecord[];
-      setRecords(rows);
-
-      const ids = [...new Set(rows.map(r => r.personnel_id).filter(Boolean))];
-      if (ids.length > 0) {
-        const { data: people } = await supabase.from("personnel").select("id, full_name").in("id", ids);
-        const map: Record<string, string> = {};
-        for (const p of people || []) map[p.id] = p.full_name;
-        setNameById(map);
-      }
-    } catch {
-      setError(true);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  const filtered = records.filter(r => statusTab === "all" || r.status === statusTab);
-  const activeNow = records.filter(r => r.status === "active" || r.status === "paused").length;
-  const completedCount = records.filter(r => r.status === "completed").length;
-  const avgCompletion = records.length > 0
-    ? Math.round((records.reduce((a, r) => a + (r.total_checkpoints > 0 ? r.completed_checkpoints / r.total_checkpoints : 0), 0) / records.length) * 100)
-    : 0;
-
-  const columns: DataTableColumn[] = [
-    { key: "personel", label: "Personel", sortable: true },
-    { key: "route", label: "Rota" },
-    { key: "statusBadge", label: "Durum" },
-    { key: "progress", label: "İlerleme" },
-    { key: "started", label: "Başlangıç", sortable: true },
-    { key: "completed", label: "Bitiş" },
-    { key: "duration", label: "Süre" },
-  ];
-
-  const tableData = filtered.map(r => {
-    const badge = STATUS_BADGE[r.status] ?? { label: r.status, className: "bg-gray-100 text-gray-500" };
-    const statusBadge: DataTableCell = {
-      csv: badge.label,
-      display: <span className={`px-2.5 py-1 rounded-full text-xs font-bold ${badge.className}`}>{badge.label}</span>,
-    };
-    return {
-      personel: nameById[r.personnel_id] ?? "Bilinmiyor",
-      route: r.route_name || "—",
-      statusBadge,
-      progress: `${r.completed_checkpoints}/${r.total_checkpoints}`,
-      started: formatDateTime(r.started_at),
-      completed: formatDateTime(r.completed_at),
-      duration: formatDuration(r.duration_seconds),
-    };
-  });
-
-  return (
-    <div className="space-y-6">
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
-            <span className="material-symbols-outlined text-[24px]">directions_walk</span>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant">Şu An Sahada</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{activeNow}</h3>
-          </div>
-        </div>
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-            <span className="material-symbols-outlined text-[24px]">check_circle</span>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant">Tamamlanan Devriye</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{completedCount}</h3>
-          </div>
-        </div>
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-tertiary/10 flex items-center justify-center text-tertiary flex-shrink-0">
-            <span className="material-symbols-outlined text-[24px]">percent</span>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant">Ort. Kontrol Noktası Tamamlama</p>
-            <h3 className="font-display text-headline-sm text-on-surface">%{avgCompletion}</h3>
-          </div>
-        </div>
-      </div>
-
-      <div className="flex gap-2 flex-wrap">
-        {STATUS_TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setStatusTab(t.key)}
-            className={`px-4 py-2 rounded-full text-sm font-bold transition-all ${
-              statusTab === t.key ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {error ? (
-        <p className="text-error font-semibold">Veriler yüklenemedi. Sayfayı yenileyin.</p>
-      ) : (
-        <>
-          <DataTable columns={columns} data={tableData} loading={loading} exportable />
-          <p className="text-sm text-on-surface-variant">Son {filtered.length} devriye kaydı gösteriliyor</p>
-        </>
-      )}
-    </div>
-  );
-}
-
 // ───────────────────────── İdari İşler: salt okunur devriye takibi ─────────────────────────
 // İdari devriye oluşturmaz/düzenlemez — sadece noktaları, atılmayan
 // devriyeleri ve türetilen ihlal kayıtlarını izler. Location/RoutePoint/
@@ -868,8 +690,7 @@ function formatDateOnly(dateStr: string) {
 
 const IDARI_TABS = [
   { key: "noktalar", label: "Devriye Noktaları" },
-  { key: "atilmayan", label: "Atılmayan Devriyeler" },
-  { key: "ihlaller", label: "İhlaller" },
+  { key: "rapor", label: "Devriye Raporu" },
 ] as const;
 type IdariTabKey = typeof IDARI_TABS[number]["key"];
 
@@ -880,7 +701,7 @@ function IdariDevriyeTakipView() {
     <div className="p-8 space-y-6">
       <div>
         <h1 className="font-display text-headline-lg text-on-background">Devriye Takibi</h1>
-        <p className="text-on-surface-variant">Güvenlik departmanının devriye noktalarını, atlanan devriyeleri ve ihlal kayıtlarını salt okunur görüntüleyin.</p>
+        <p className="text-on-surface-variant">Güvenlik departmanının devriye noktalarını ve devriye raporunu salt okunur görüntüleyin.</p>
       </div>
 
       <div className="flex gap-6 border-b border-outline-variant/20">
@@ -898,8 +719,7 @@ function IdariDevriyeTakipView() {
       </div>
 
       {tab === "noktalar" && <IdariDevriyeNoktalariSection />}
-      {tab === "atilmayan" && <AtilmayanDevriyelerSection />}
-      {tab === "ihlaller" && <IhlallerSection />}
+      {tab === "rapor" && <DevriyeRaporuSection />}
     </div>
   );
 }
@@ -1094,24 +914,30 @@ function DateRangeFilter({ start, end, onStartChange, onEndChange, onFilter }: {
 // patrol_assignments.status = "missed": (mobile)/devriye/page.tsx bir slotun
 // zamanı geçtiği halde devriye başlatılmadığında bu durumu ayarlıyor —
 // "planlanan ama gerçekleşmeyen devriye" için mevcut tablodaki tek karşılık bu.
+// route_id doğrudan bir FK olduğu için lokasyona patrols.route_name gibi
+// kırılgan metin eşleştirmesi olmadan, patrol_routes.location_id üzerinden
+// güvenilir şekilde ulaşılıyor.
 
-interface MissedAssignment {
+interface PatrolAssignmentRow {
   id: string;
   date: string;
   scheduled_time: string;
   personnel_id: string;
   route_id: string;
+  status: string;
 }
 
-function AtilmayanDevriyelerSection() {
+function DevriyeRaporuSection() {
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [locFilter, setLocFilter] = useState("all");
   const [start, setStart] = useState(toDateStr(new Date(Date.now() - 7 * 86400000)));
   const [end, setEnd] = useState(toDateStr(new Date()));
-  const [rows, setRows] = useState<MissedAssignment[]>([]);
+  const [rows, setRows] = useState<PatrolAssignmentRow[]>([]);
   const [nameById, setNameById] = useState<Record<string, string>>({});
-  const [routeInfoById, setRouteInfoById] = useState<Record<string, { name: string; location: string }>>({});
+  const [routeInfoById, setRouteInfoById] = useState<Record<string, { name: string; location: string; location_id: string | null }>>({});
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [locFilter]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function load() {
     setLoading(true);
@@ -1122,27 +948,29 @@ function AtilmayanDevriyelerSection() {
       supabase.from("patrol_routes").select("id, name, location_id").eq("department_id", dept.id),
       supabase.from("locations").select("id, name"),
     ]);
+    setLocations((locs || []) as Location[]);
     const locNameById: Record<string, string> = {};
     for (const l of (locs || []) as Location[]) locNameById[l.id] = l.name;
-    const routeMap: Record<string, { name: string; location: string }> = {};
-    const routeIds: string[] = [];
+    const routeMap: Record<string, { name: string; location: string; location_id: string | null }> = {};
+    const allRouteIds: string[] = [];
     for (const r of (routes || []) as { id: string; name: string; location_id: string | null }[]) {
-      routeIds.push(r.id);
-      routeMap[r.id] = { name: r.name, location: r.location_id ? (locNameById[r.location_id] ?? "—") : "—" };
+      allRouteIds.push(r.id);
+      routeMap[r.id] = { name: r.name, location: r.location_id ? (locNameById[r.location_id] ?? "—") : "—", location_id: r.location_id };
     }
     setRouteInfoById(routeMap);
 
+    const routeIds = locFilter === "all" ? allRouteIds : allRouteIds.filter(id => routeMap[id]?.location_id === locFilter);
     if (routeIds.length === 0) { setRows([]); setLoading(false); return; }
 
     const { data } = await supabase.from("patrol_assignments")
-      .select("id, date, scheduled_time, personnel_id, route_id")
-      .eq("status", "missed")
+      .select("id, date, scheduled_time, personnel_id, route_id, status")
+      .in("status", ["completed", "missed"])
       .in("route_id", routeIds)
       .gte("date", start)
       .lte("date", end)
       .order("date", { ascending: false });
 
-    const list = (data || []) as MissedAssignment[];
+    const list = (data || []) as PatrolAssignmentRow[];
     setRows(list);
 
     const ids = [...new Set(list.map(r => r.personnel_id).filter(Boolean))];
@@ -1157,6 +985,10 @@ function AtilmayanDevriyelerSection() {
     setLoading(false);
   }
 
+  const missedRows = rows.filter(r => r.status === "missed");
+  const completedCount = rows.length - missedRows.length;
+  const completionRate = rows.length > 0 ? Math.round((completedCount / rows.length) * 100) : null;
+
   const columns: DataTableColumn[] = [
     { key: "tarih", label: "Tarih", sortable: true },
     { key: "saat", label: "Saat" },
@@ -1165,7 +997,7 @@ function AtilmayanDevriyelerSection() {
     { key: "aciklama", label: "Açıklama" },
   ];
 
-  const tableData = rows.map(r => {
+  const tableData = missedRows.map(r => {
     const routeInfo = routeInfoById[r.route_id];
     return {
       tarih: formatDateOnly(r.date),
@@ -1178,13 +1010,52 @@ function AtilmayanDevriyelerSection() {
 
   return (
     <div className="space-y-6">
-      <DateRangeFilter start={start} end={end} onStartChange={setStart} onEndChange={setEnd} onFilter={load} />
-      {!loading && rows.length === 0 ? (
+      <section className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/10">
+        <div className="flex flex-col md:flex-row md:items-end gap-4">
+          <div className="space-y-1 flex-1 max-w-xs">
+            <label className="text-xs font-semibold text-on-surface-variant ml-1">Lokasyon</label>
+            <select
+              value={locFilter}
+              onChange={e => setLocFilter(e.target.value)}
+              className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
+            >
+              <option value="all">Tüm Lokasyonlar</option>
+              {locations.map(l => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+          <DateRangeFilter start={start} end={end} onStartChange={setStart} onEndChange={setEnd} onFilter={load} />
+        </div>
+      </section>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
+            <span className="material-symbols-outlined text-[24px]">percent</span>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-on-surface-variant">Tamamlanma Oranı</p>
+            <h3 className="font-display text-headline-sm text-on-surface">{completionRate === null ? "—" : `%${completionRate}`}</h3>
+          </div>
+        </div>
+        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center text-error flex-shrink-0">
+            <span className="material-symbols-outlined text-[24px]">event_busy</span>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-on-surface-variant">Kaçırılan Devriye</p>
+            <h3 className="font-display text-headline-sm text-on-surface">{missedRows.length}</h3>
+          </div>
+        </div>
+      </div>
+
+      {!loading && missedRows.length === 0 ? (
         <div className="bg-surface-container-lowest rounded-xl p-10 flex flex-col items-center gap-3 shadow-sm border border-outline-variant/10">
           <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center">
             <span className="material-symbols-outlined text-secondary text-[32px]">check_circle</span>
           </div>
-          <p className="font-bold text-on-surface">Seçili tarih aralığında atlanmış devriye yok</p>
+          <p className="font-bold text-on-surface">Seçili tarih aralığında ve lokasyonda atlanmış devriye yok</p>
         </div>
       ) : (
         <DataTable columns={columns} data={tableData} loading={loading} exportable rowClassName={() => "bg-error/10"} />
@@ -1193,174 +1064,3 @@ function AtilmayanDevriyelerSection() {
   );
 }
 
-// Şemada ayrı bir "ihlal" tablosu yok, "durum" (açık/inceleniyor/kapatıldı)
-// hiçbir yerde kalıcı tutulmuyor — bu yüzden tüm satırlar hesaplanan/türetilen
-// kayıtlar ve Durum her zaman "Açık" gösteriliyor (gerçek bir inceleme iş
-// akışı için yeni bir tablo gerekir). Süre aşımı ve geç imzalama eşikleri
-// departmanın kendi verisinden (medyan) türetilen istatistiksel sezgisel
-// değerlerdir, sabit kodlanmış bir kural değil.
-
-interface PatrolRow {
-  id: string;
-  personnel_id: string;
-  route_name: string | null;
-  status: string;
-  started_at: string;
-  completed_at: string | null;
-  total_checkpoints: number;
-  completed_checkpoints: number;
-  duration_seconds: number | null;
-}
-
-interface ViolationRow {
-  tarih: string;
-  lokasyon: string;
-  tur: string;
-  personel: string;
-  durum: DataTableCell;
-  aciklama: string;
-}
-
-function IhlallerSection() {
-  const [start, setStart] = useState(toDateStr(new Date(Date.now() - 30 * 86400000)));
-  const [end, setEnd] = useState(toDateStr(new Date()));
-  const [violations, setViolations] = useState<ViolationRow[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
-    setLoading(true);
-    const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
-    if (!dept) { setLoading(false); return; }
-
-    const [{ data: routes }, { data: locs }, { data: patrolsData }] = await Promise.all([
-      supabase.from("patrol_routes").select("name, location_id").eq("department_id", dept.id),
-      supabase.from("locations").select("id, name"),
-      supabase.from("patrols")
-        .select("id, personnel_id, route_name, status, started_at, completed_at, total_checkpoints, completed_checkpoints, duration_seconds")
-        .eq("department_id", dept.id)
-        .gte("started_at", `${start}T00:00:00`)
-        .lte("started_at", `${end}T23:59:59`)
-        .order("started_at", { ascending: false }),
-    ]);
-
-    const locNameById: Record<string, string> = {};
-    for (const l of (locs || []) as Location[]) locNameById[l.id] = l.name;
-    // patrols.route_name düz metin bir kopya (route_id FK'si yok) — eşleştirme
-    // rota adı üzerinden, en iyi çaba (best-effort) esasıyla yapılıyor.
-    const locByRouteName: Record<string, string> = {};
-    for (const r of (routes || []) as { name: string; location_id: string | null }[]) {
-      locByRouteName[r.name] = r.location_id ? (locNameById[r.location_id] ?? "—") : "—";
-    }
-
-    const patrols = (patrolsData || []) as PatrolRow[];
-
-    const ids = [...new Set(patrols.map(p => p.personnel_id).filter(Boolean))];
-    const names: Record<string, string> = {};
-    if (ids.length > 0) {
-      const { data: people } = await supabase.from("personnel").select("id, full_name").in("id", ids);
-      for (const p of people || []) names[p.id] = p.full_name;
-    }
-
-    const patrolIds = patrols.map(p => p.id);
-    const checkpointsByPatrol: Record<string, { checkpoint_order: number; scanned_at: string }[]> = {};
-    if (patrolIds.length > 0) {
-      const { data: cps } = await supabase.from("patrol_checkpoints")
-        .select("patrol_id, checkpoint_order, scanned_at")
-        .in("patrol_id", patrolIds)
-        .not("scanned_at", "is", null)
-        .order("checkpoint_order");
-      for (const c of (cps || []) as { patrol_id: string; checkpoint_order: number; scanned_at: string }[]) {
-        (checkpointsByPatrol[c.patrol_id] ??= []).push(c);
-      }
-    }
-
-    // Süre aşımı eşiği: tamamlanan devriyelerin medyan süresi × 1.5
-    // (en az 5 örnek olmadan anlamlı bir medyan kurulamaz).
-    const completedDurations = patrols
-      .filter(p => p.status === "completed" && p.duration_seconds)
-      .map(p => p.duration_seconds as number)
-      .sort((a, b) => a - b);
-    const medianDuration = completedDurations.length >= 5 ? completedDurations[Math.floor(completedDurations.length / 2)] : null;
-
-    const rows: ViolationRow[] = [];
-    const durumAcik: DataTableCell = {
-      csv: "Açık",
-      display: <span className="px-2.5 py-1 rounded-full text-xs font-bold bg-error/10 text-error">Açık</span>,
-    };
-
-    for (const p of patrols) {
-      const lokasyon = (p.route_name && locByRouteName[p.route_name]) ?? "—";
-      const personel = names[p.personnel_id] ?? "Bilinmiyor";
-      const tarih = formatDateOnly(p.started_at.slice(0, 10));
-
-      if ((p.status === "completed" || p.status === "cancelled") && p.completed_checkpoints < p.total_checkpoints) {
-        rows.push({
-          tarih, lokasyon, tur: "Atlanan Nokta", personel, durum: durumAcik,
-          aciklama: `${p.completed_checkpoints}/${p.total_checkpoints} kontrol noktası tamamlandı`,
-        });
-      }
-
-      if (medianDuration && p.status === "completed" && p.duration_seconds && p.duration_seconds > medianDuration * 1.5) {
-        rows.push({
-          tarih, lokasyon, tur: "Süre Aşımı", personel, durum: durumAcik,
-          aciklama: `Devriye süresi ${formatDuration(p.duration_seconds)} — departman ortalamasının belirgin üzerinde`,
-        });
-      }
-
-      if (p.status === "cancelled") {
-        rows.push({
-          tarih, lokasyon, tur: "Diğer", personel, durum: durumAcik,
-          aciklama: "Devriye iptal edildi",
-        });
-      }
-
-      const cps = checkpointsByPatrol[p.id];
-      if (cps && cps.length >= 3) {
-        const gaps: number[] = [];
-        for (let i = 1; i < cps.length; i++) {
-          gaps.push((new Date(cps[i].scanned_at).getTime() - new Date(cps[i - 1].scanned_at).getTime()) / 60000);
-        }
-        const sortedGaps = [...gaps].sort((a, b) => a - b);
-        const medianGap = sortedGaps[Math.floor(sortedGaps.length / 2)];
-        gaps.forEach((gap, i) => {
-          if (medianGap > 0 && gap > medianGap * 2 && gap > 10) {
-            rows.push({
-              tarih, lokasyon, tur: "Geç İmzalama", personel, durum: durumAcik,
-              aciklama: `${i + 2}. kontrol noktası önceki noktadan ${Math.round(gap)} dk sonra imzalandı`,
-            });
-          }
-        });
-      }
-    }
-
-    setViolations(rows);
-    setLoading(false);
-  }
-
-  const columns: DataTableColumn[] = [
-    { key: "tarih", label: "Tarih", sortable: true },
-    { key: "lokasyon", label: "Lokasyon" },
-    { key: "tur", label: "İhlal Türü" },
-    { key: "personel", label: "Personel" },
-    { key: "durum", label: "Durum" },
-    { key: "aciklama", label: "Açıklama" },
-  ];
-
-  return (
-    <div className="space-y-6">
-      <DateRangeFilter start={start} end={end} onStartChange={setStart} onEndChange={setEnd} onFilter={load} />
-      {!loading && violations.length === 0 ? (
-        <div className="bg-surface-container-lowest rounded-xl p-10 flex flex-col items-center gap-3 shadow-sm border border-outline-variant/10">
-          <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center">
-            <span className="material-symbols-outlined text-secondary text-[32px]">verified</span>
-          </div>
-          <p className="font-bold text-on-surface">Seçili tarih aralığında ihlal kaydı yok</p>
-        </div>
-      ) : (
-        <DataTable columns={columns} data={violations as unknown as Record<string, unknown>[]} loading={loading} exportable />
-      )}
-    </div>
-  );
-}
