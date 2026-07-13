@@ -985,9 +985,25 @@ function DevriyeRaporuSection() {
     setLoading(false);
   }
 
-  const missedRows = rows.filter(r => r.status === "missed");
-  const completedCount = rows.length - missedRows.length;
-  const completionRate = rows.length > 0 ? Math.round((completedCount / rows.length) * 100) : null;
+  // Bir devriye turuna aynı saatte birden fazla personel atanmış olabilir
+  // (o vardiyadaki herkes için ayrı ayrı patrol_assignments satırı üretiliyor)
+  // ama fiilen sadece BİRİNİN çıkması yeterli — bu yüzden "kaç kişi kaçırdı"
+  // değil, "kaç FARKLI devriye turu (rota+tarih+saat) kaçırıldı" sayılıyor:
+  // gruptaki biri bile "completed" ise tur tamamlanmış sayılır, hepsi
+  // "missed" ise tur kaçırılmış sayılır.
+  interface SlotGroup { route_id: string; date: string; scheduled_time: string; personnelIds: string[]; completed: boolean; }
+  const groupsByKey = new Map<string, SlotGroup>();
+  for (const r of rows) {
+    const key = `${r.route_id}_${r.date}_${r.scheduled_time}`;
+    const g = groupsByKey.get(key) ?? { route_id: r.route_id, date: r.date, scheduled_time: r.scheduled_time, personnelIds: [], completed: false };
+    g.personnelIds.push(r.personnel_id);
+    if (r.status === "completed") g.completed = true;
+    groupsByKey.set(key, g);
+  }
+  const groups = [...groupsByKey.values()];
+  const missedGroups = groups.filter(g => !g.completed);
+  const completedGroupsCount = groups.length - missedGroups.length;
+  const completionRate = groups.length > 0 ? Math.round((completedGroupsCount / groups.length) * 100) : null;
 
   const columns: DataTableColumn[] = [
     { key: "tarih", label: "Tarih", sortable: true },
@@ -997,16 +1013,19 @@ function DevriyeRaporuSection() {
     { key: "aciklama", label: "Açıklama" },
   ];
 
-  const tableData = missedRows.map(r => {
-    const routeInfo = routeInfoById[r.route_id];
-    return {
-      tarih: formatDateOnly(r.date),
-      saat: r.scheduled_time.slice(0, 5),
-      lokasyon: routeInfo?.location ?? "—",
-      personel: nameById[r.personnel_id] ?? "Bilinmiyor",
-      aciklama: `${routeInfo?.name ?? "Rota"} rotasında planlanan devriye başlatılmadı`,
-    };
-  });
+  const tableData = missedGroups
+    .sort((a, b) => (a.date === b.date ? a.scheduled_time.localeCompare(b.scheduled_time) : b.date.localeCompare(a.date)))
+    .map(g => {
+      const routeInfo = routeInfoById[g.route_id];
+      const personelNames = g.personnelIds.map(id => nameById[id] ?? "Bilinmiyor").join(", ");
+      return {
+        tarih: formatDateOnly(g.date),
+        saat: g.scheduled_time.slice(0, 5),
+        lokasyon: routeInfo?.location ?? "—",
+        personel: personelNames,
+        aciklama: `${routeInfo?.name ?? "Rota"} rotasında planlanan devriye başlatılmadı`,
+      };
+    });
 
   return (
     <div className="space-y-6">
@@ -1045,12 +1064,12 @@ function DevriyeRaporuSection() {
           </div>
           <div>
             <p className="text-xs font-semibold text-on-surface-variant">Kaçırılan Devriye</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{missedRows.length}</h3>
+            <h3 className="font-display text-headline-sm text-on-surface">{missedGroups.length}</h3>
           </div>
         </div>
       </div>
 
-      {!loading && missedRows.length === 0 ? (
+      {!loading && missedGroups.length === 0 ? (
         <div className="bg-surface-container-lowest rounded-xl p-10 flex flex-col items-center gap-3 shadow-sm border border-outline-variant/10">
           <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center">
             <span className="material-symbols-outlined text-secondary text-[32px]">check_circle</span>
