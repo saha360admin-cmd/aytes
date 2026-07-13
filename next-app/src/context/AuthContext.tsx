@@ -1,7 +1,8 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, ReactNode } from "react";
 import { supabase } from "@/lib/supabase";
+import { registerPushNotifications } from "@/lib/pushRegister";
 import type { Session } from "@supabase/supabase-js";
 
 interface Personnel {
@@ -33,6 +34,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [personnel, setPersonnel] = useState<Personnel | null>(null);
   const [loading, setLoading] = useState(true);
+  const pushRegisteredFor = useRef<string | null>(null);
 
   async function fetchPersonnel(userId: string) {
     const { data } = await supabase
@@ -58,6 +60,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Personel giriş yaptıktan sonra bir kez push token kaydı yapılır — her
+  // personnel objesi yeniden fetch edildiğinde (ör. profil güncellemesi)
+  // tekrar tetiklenmesin diye pushRegisteredFor ref'i ile aynı kişi için
+  // sadece bir kez çalıştırılır.
+  useEffect(() => {
+    if (!personnel || pushRegisteredFor.current === personnel.id) return;
+    pushRegisteredFor.current = personnel.id;
+    registerPushNotifications(personnel.id);
+  }, [personnel]);
 
   async function signIn(email: string, password: string) {
     const { error } = await supabase.auth.signInWithPassword({ email, password });

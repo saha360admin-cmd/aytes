@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "891849112049",
+    "project_id": "saha-360aytes",
+    "storage_bucket": "saha-360aytes.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:891849112049:android:015197aee7b061ba3b6c50",
+        "android_client_info": {
+          "package_name": "com.aytes.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB7gIEWI7-NtrmbBea23nqPYsCb6lc7uxU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { EmergencyAlert } from "@/lib/types";
 import { getDepartmentHeaderTheme } from "@/lib/departmentTheme";
+import NotificationBell from "@/components/NotificationBell";
 interface GorevComm { id: string; title: string; content: string; priority: string; isRead: boolean }
 
 interface ActiveShift {
@@ -226,14 +227,17 @@ export default function DashboardPage() {
           </div>
           <h1 className="text-lg font-bold text-white">Güvenlik Paneli</h1>
         </div>
-        <Link href="/iletisim" className="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
-          <span className="material-symbols-outlined text-[20px]">forum</span>
-          {unreadComms > 0 && (
-            <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center px-1">
-              {unreadComms > 9 ? "9+" : unreadComms}
-            </span>
-          )}
-        </Link>
+        <div className="flex items-center gap-2">
+          <NotificationBell />
+          <Link href="/iletisim" className="relative w-9 h-9 flex items-center justify-center rounded-full bg-white/15 text-white hover:bg-white/25 transition-colors">
+            <span className="material-symbols-outlined text-[20px]">forum</span>
+            {unreadComms > 0 && (
+              <span className="absolute -top-0.5 -right-0.5 min-w-[16px] h-4 bg-red-500 rounded-full text-[10px] font-bold flex items-center justify-center px-1">
+                {unreadComms > 9 ? "9+" : unreadComms}
+              </span>
+            )}
+          </Link>
+        </div>
       </header>
 
       {/* Karşılama bandı */}

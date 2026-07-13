@@ -250,7 +250,12 @@ export default function VardiyalarPage() {
     if (!personnel || !personnel.location_id) return;
 
     const overlapMap: Record<string, string[]> = { "1": ["1", "5", "7"], "2": ["2", "5", "6", "7", "8"], "3": ["3", "6", "8"], "5": ["1", "2", "5"], "6": ["2", "3", "6"], "7": ["1", "2", "7"], "8": ["2", "3", "8"] };
-    const codesToQuery = overlapMap[code] ?? [code];
+    // 4 = gece vardiyası; saat 03:00'a kadar 1 vardiyasıyla, 03:00'dan sonra
+    // 2 vardiyasıyla aynı saatlerde çalışıyor. Sabit haritada karşılığı
+    // olmadığı için o anki saate göre ayrıca hesaplanır.
+    const codesToQuery = code === "4"
+      ? (new Date().getHours() < 3 ? ["1", "4"] : ["2", "4"])
+      : overlapMap[code] ?? [code];
 
     const [cwRes, shiftRes] = await Promise.all([
       // Aynı lokasyon + aynı tarih + örtüşen vardiya kodlarına sahip diğer personel

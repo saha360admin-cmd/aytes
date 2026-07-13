@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { scanNfcTagOnce } from "@/lib/nfc";
+import { generateTimeSlots } from "@/lib/patrolSlots";
 import type { Patrol, PatrolCheckpoint, PatrolAssignment } from "@/lib/types";
 
 function toDateStr(d: Date) {
@@ -135,23 +136,6 @@ export default function DevriyePage() {
       if (routes.length > 0) setSelectedRouteId(routes[0].id);
     }
   }, [personnel]);
-
-  function generateTimeSlots(startTime: string, intervalMinutes: number, endTime: string | null): string[] {
-    const slots: string[] = [];
-    const [sh, sm] = startTime.split(":").map(Number);
-    let cur = sh * 60 + sm;
-    let end = endTime
-      ? (() => { const [eh, em] = endTime.split(":").map(Number); return eh * 60 + em; })()
-      : cur;
-    // Gece geçişi: bitiş saati başlangıçtan küçükse (+24 saat)
-    if (endTime && end < cur) end += 24 * 60;
-    while (cur <= end) {
-      const wrapped = cur % (24 * 60);
-      slots.push(`${String(Math.floor(wrapped / 60)).padStart(2, "0")}:${String(wrapped % 60).padStart(2, "0")}`);
-      cur += intervalMinutes;
-    }
-    return slots;
-  }
 
   const loadTodayAssignments = useCallback(async () => {
     if (!personnel) return;

@@ -499,6 +499,23 @@ function ShiftScheduleSection({ canEdit }: { canEdit: boolean }) {
         ? ` — saat çakışması nedeniyle kaydedilmeyenler: ${conflictNames.join(", ")}`
         : "";
       showToast(base + suffix, conflictNames.length === 0);
+
+      // Sadece bu kaydetmede hücresi gerçekten değişen personele bildirim
+      // gönderilir — yayınlama tüm ayı "published" yaptığı için upserts
+      // listesindeki kişiler, o günkü değişikliğin asıl muhatabı.
+      if (status === "published" && upserts.length > 0) {
+        const changedPersonnelIds = [...new Set(upserts.map(u => u.personnel_id))];
+        fetch("/api/notifications/notify-internal", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            personnelIds: changedPersonnelIds,
+            type: "vardiya",
+            title: "Vardiyan güncellendi",
+            body: "Vardiya programında değişiklik yapıldı — yeni vardiyanı kontrol et.",
+          }),
+        }).catch(() => {});
+      }
     }
   }
 

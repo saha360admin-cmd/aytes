@@ -92,6 +92,20 @@ function OlayBildirForm() {
         depts.map(dept_id => ({ incident_id: inc.id, department_id: dept_id, status: "open" }))
       );
 
+      // Hedef departmanların admin/supervisor'larına bildirim — kişi
+      // listesini client bilmiyor (RLS kendi departmanıyla sınırlı),
+      // bu yüzden departmentIds ile sunucuya bırakılıyor.
+      fetch("/api/notifications/notify-internal", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          departmentIds: depts,
+          type: "olay",
+          title: "Yeni olay bildirildi",
+          body: `${incidentTypes.find(t => t.id === selectedType)?.label || selectedType}${location ? " — " + location : ""}`,
+        }),
+      }).catch(() => {});
+
       if (photos.length > 0) {
         const urls: string[] = [];
         for (const p of photos) {
