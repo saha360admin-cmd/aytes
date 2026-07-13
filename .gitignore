@@ -10,3 +10,6 @@ next-app/*.tsbuildinfo
 
 # Supabase CLI local state
 supabase/.temp/
+
+.vercel
+.env*

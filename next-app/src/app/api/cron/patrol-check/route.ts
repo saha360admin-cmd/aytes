@@ -15,6 +15,7 @@ function toDateStr(d: Date) {
 
 const REMINDER_WINDOW_MIN = 15;
 const DEFAULT_INTERVAL_MIN = 60;
+const NOTIFICATION_RETENTION_DAYS = 15;
 
 // Vercel Cron tarafından her 5-10 dakikada bir çağrılır (vercel.json).
 // Basitleştirme: gece yarısını aşan devriye planlarında saat hesabı burada
@@ -86,9 +87,20 @@ export async function GET(request: Request) {
     });
   }
 
+  // Okunmuş bildirimler zil listesinde sonsuza kadar birikmesin diye
+  // NOTIFICATION_RETENTION_DAYS'ten eski, okunmuş satırlar silinir.
+  // Okunmamışlar hiç silinmiyor — kullanıcı görmeden kaybolmasın diye.
+  const retentionCutoff = new Date(now.getTime() - NOTIFICATION_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
+  const { count: deletedNotifications } = await supabaseAdmin
+    .from("notifications")
+    .delete({ count: "exact" })
+    .not("read_at", "is", null)
+    .lt("read_at", retentionCutoff);
+
   return NextResponse.json({
     checked: pending?.length ?? 0,
     reminded: dueSoonPersonnel.size,
     missed: missedPersonnel.size,
+    notificationsCleaned: deletedNotifications ?? 0,
   });
 }

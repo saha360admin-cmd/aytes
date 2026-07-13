@@ -55,13 +55,30 @@ export default function BildirimlerPage() {
     await supabase.from("notifications").update({ read_at: new Date().toISOString() }).eq("id", id);
   }
 
+  const unreadCount = items.filter(n => !n.read_at).length;
+
+  async function markAllRead() {
+    if (!personnel || unreadCount === 0) return;
+    const now = new Date().toISOString();
+    setItems(prev => prev.map(n => (n.read_at ? n : { ...n, read_at: now })));
+    await supabase.from("notifications").update({ read_at: now }).eq("personnel_id", personnel.id).is("read_at", null);
+  }
+
   return (
     <div className="bg-background text-on-background min-h-screen flex flex-col">
       <header className="w-full sticky top-0 z-40 bg-surface shadow-sm px-6 h-16 flex items-center gap-4">
         <button onClick={() => router.back()} className="active:scale-95 transition-transform p-2 -ml-2 rounded-full hover:bg-surface-container-high">
           <span className="material-symbols-outlined text-primary">arrow_back</span>
         </button>
-        <h1 className="text-headline-md font-bold text-primary">Bildirimler</h1>
+        <h1 className="text-headline-md font-bold text-primary flex-1">Bildirimler</h1>
+        {unreadCount > 0 && (
+          <button
+            onClick={markAllRead}
+            className="text-label-md font-bold text-primary px-3 py-1.5 rounded-full hover:bg-primary-container/40 active:scale-95 transition-all whitespace-nowrap"
+          >
+            Tümünü Okundu İşaretle
+          </button>
+        )}
       </header>
 
       <main className="flex-1 px-4 pb-28 pt-4">
