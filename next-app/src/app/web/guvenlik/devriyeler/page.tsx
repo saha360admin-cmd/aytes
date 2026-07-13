@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
-import DataTable, { DataTableColumn } from "@/components/web/DataTable";
 
 // Rota/kontrol noktası/zaman planı iş mantığı mobildeki
 // (mobile)/yonetici/devriye-planlama/page.tsx ile birebir aynı — aynı
@@ -19,10 +18,6 @@ const DAY_TYPES = [
 const DAY_LABEL: Record<string, string> = { weekday: "Hafta İçi", weekend: "Hafta Sonu", everyday: "Her Gün" };
 const INTERVALS = [30, 60, 90, 120, 180, 240];
 const SHIFT_CODES = ["", "1", "2", "3", "4", "5", "6", "7", "8"];
-
-const TR_MONTHS = [
-  "Oca", "Şub", "Mar", "Nis", "May", "Haz", "Tem", "Ağu", "Eyl", "Eki", "Kas", "Ara",
-];
 
 interface Location { id: string; name: string; }
 interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null; }
@@ -43,12 +38,6 @@ interface PatrolRoute {
   points: RoutePoint[];
   schedules: Schedule[];
 }
-
-const TABS = [
-  { key: "rotalar", label: "Devriye Rotaları", icon: "route" },
-  { key: "rapor", label: "Devriye Raporu", icon: "summarize" },
-] as const;
-type TabKey = typeof TABS[number]["key"];
 
 export default function WebGuvenlikDevriyelerPage() {
   const { personnel, loading } = useAuth();
@@ -77,32 +66,14 @@ export default function WebGuvenlikDevriyelerPage() {
 }
 
 function GuvenlikDevriyelerView() {
-  const [tab, setTab] = useState<TabKey>("rotalar");
-
   return (
     <div className="p-8 space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="font-display text-headline-lg text-on-background">Devriye Yönetimi</h1>
-          <p className="text-on-surface-variant">Güvenlik departmanının devriye rotalarını tanımlayın ve devriye kayıtlarını izleyin.</p>
-        </div>
-        <div className="flex gap-2 flex-shrink-0">
-          {TABS.map(t => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-4 py-2.5 rounded-full text-sm font-bold transition-all ${
-                tab === t.key ? "bg-primary text-on-primary" : "bg-surface-container-lowest text-on-surface-variant border border-outline-variant/30"
-              }`}
-            >
-              <span className="material-symbols-outlined text-[18px]">{t.icon}</span>
-              {t.label}
-            </button>
-          ))}
-        </div>
+      <div>
+        <h1 className="font-display text-headline-lg text-on-background">Devriye Yönetimi</h1>
+        <p className="text-on-surface-variant">Güvenlik departmanının devriye rotalarını tanımlayın. Devriye raporu için Raporlama sayfasına bakın.</p>
       </div>
 
-      {tab === "rotalar" ? <PatrolRoutesSection /> : <DevriyeRaporuSection />}
+      <PatrolRoutesSection />
     </div>
   );
 }
@@ -670,56 +641,15 @@ function PatrolRoutesSection() {
   );
 }
 
-// ───────────────────────── İdari İşler: salt okunur devriye takibi ─────────────────────────
-// İdari devriye oluşturmaz/düzenlemez — sadece noktaları, atılmayan
-// devriyeleri ve türetilen ihlal kayıtlarını izler. Location/RoutePoint/
-// Schedule/PatrolRoute/DAY_LABEL/TR_MONTHS/formatDuration yukarıdaki
-// Güvenlik bölümüyle paylaşılıyor.
-
-function toDateStr(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-function formatDateOnly(dateStr: string) {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  return `${d} ${TR_MONTHS[m - 1]} ${y}`;
-}
-
-const IDARI_TABS = [
-  { key: "noktalar", label: "Devriye Noktaları" },
-  { key: "rapor", label: "Devriye Raporu" },
-] as const;
-type IdariTabKey = typeof IDARI_TABS[number]["key"];
-
 function IdariDevriyeTakipView() {
-  const [tab, setTab] = useState<IdariTabKey>("noktalar");
-
   return (
     <div className="p-8 space-y-6">
       <div>
         <h1 className="font-display text-headline-lg text-on-background">Devriye Takibi</h1>
-        <p className="text-on-surface-variant">Güvenlik departmanının devriye noktalarını ve devriye raporunu salt okunur görüntüleyin.</p>
+        <p className="text-on-surface-variant">Güvenlik departmanının devriye noktalarını salt okunur görüntüleyin. Devriye raporu için Raporlama sayfasına bakın.</p>
       </div>
 
-      <div className="flex gap-6 border-b border-outline-variant/20">
-        {IDARI_TABS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTab(t.key)}
-            className={`pb-3 text-sm font-bold transition-all border-b-2 -mb-px ${
-              tab === t.key ? "border-primary text-primary" : "border-transparent text-on-surface-variant hover:text-on-surface"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "noktalar" && <IdariDevriyeNoktalariSection />}
-      {tab === "rapor" && <DevriyeRaporuSection />}
+      <IdariDevriyeNoktalariSection />
     </div>
   );
 }
@@ -874,212 +804,3 @@ function IdariDevriyeNoktalariSection() {
     </div>
   );
 }
-
-function DateRangeFilter({ start, end, onStartChange, onEndChange, onFilter }: {
-  start: string; end: string; onStartChange: (v: string) => void; onEndChange: (v: string) => void; onFilter: () => void;
-}) {
-  return (
-    <section className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/10">
-      <div className="flex flex-col md:flex-row md:items-end gap-4">
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-on-surface-variant ml-1">Başlangıç Tarihi</label>
-          <input
-            type="date"
-            value={start}
-            onChange={e => onStartChange(e.target.value)}
-            className="bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <div className="space-y-1">
-          <label className="text-xs font-semibold text-on-surface-variant ml-1">Bitiş Tarihi</label>
-          <input
-            type="date"
-            value={end}
-            onChange={e => onEndChange(e.target.value)}
-            className="bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
-          />
-        </div>
-        <button
-          onClick={onFilter}
-          className="flex items-center gap-2 bg-primary text-on-primary py-2.5 px-5 rounded-full font-bold text-sm shadow-md hover:shadow-lg transition-all active:scale-95 flex-shrink-0"
-        >
-          <span className="material-symbols-outlined text-[18px]">filter_alt</span>
-          Filtrele
-        </button>
-      </div>
-    </section>
-  );
-}
-
-// patrol_assignments.status = "missed": (mobile)/devriye/page.tsx bir slotun
-// zamanı geçtiği halde devriye başlatılmadığında bu durumu ayarlıyor —
-// "planlanan ama gerçekleşmeyen devriye" için mevcut tablodaki tek karşılık bu.
-// route_id doğrudan bir FK olduğu için lokasyona patrols.route_name gibi
-// kırılgan metin eşleştirmesi olmadan, patrol_routes.location_id üzerinden
-// güvenilir şekilde ulaşılıyor.
-
-interface PatrolAssignmentRow {
-  id: string;
-  date: string;
-  scheduled_time: string;
-  personnel_id: string;
-  route_id: string;
-  status: string;
-}
-
-function DevriyeRaporuSection() {
-  const [locations, setLocations] = useState<Location[]>([]);
-  const [locFilter, setLocFilter] = useState("all");
-  const [start, setStart] = useState(toDateStr(new Date(Date.now() - 7 * 86400000)));
-  const [end, setEnd] = useState(toDateStr(new Date()));
-  const [rows, setRows] = useState<PatrolAssignmentRow[]>([]);
-  const [nameById, setNameById] = useState<Record<string, string>>({});
-  const [routeInfoById, setRouteInfoById] = useState<Record<string, { name: string; location: string; location_id: string | null }>>({});
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => { load(); }, [locFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
-    setLoading(true);
-    const { data: dept } = await supabase.from("departments").select("id").eq("slug", "guvenlik").single();
-    if (!dept) { setLoading(false); return; }
-
-    const [{ data: routes }, { data: locs }] = await Promise.all([
-      supabase.from("patrol_routes").select("id, name, location_id").eq("department_id", dept.id),
-      supabase.from("locations").select("id, name"),
-    ]);
-    setLocations((locs || []) as Location[]);
-    const locNameById: Record<string, string> = {};
-    for (const l of (locs || []) as Location[]) locNameById[l.id] = l.name;
-    const routeMap: Record<string, { name: string; location: string; location_id: string | null }> = {};
-    const allRouteIds: string[] = [];
-    for (const r of (routes || []) as { id: string; name: string; location_id: string | null }[]) {
-      allRouteIds.push(r.id);
-      routeMap[r.id] = { name: r.name, location: r.location_id ? (locNameById[r.location_id] ?? "—") : "—", location_id: r.location_id };
-    }
-    setRouteInfoById(routeMap);
-
-    const routeIds = locFilter === "all" ? allRouteIds : allRouteIds.filter(id => routeMap[id]?.location_id === locFilter);
-    if (routeIds.length === 0) { setRows([]); setLoading(false); return; }
-
-    const { data } = await supabase.from("patrol_assignments")
-      .select("id, date, scheduled_time, personnel_id, route_id, status")
-      .in("status", ["completed", "missed"])
-      .in("route_id", routeIds)
-      .gte("date", start)
-      .lte("date", end)
-      .order("date", { ascending: false });
-
-    const list = (data || []) as PatrolAssignmentRow[];
-    setRows(list);
-
-    const ids = [...new Set(list.map(r => r.personnel_id).filter(Boolean))];
-    if (ids.length > 0) {
-      const { data: people } = await supabase.from("personnel").select("id, full_name").in("id", ids);
-      const map: Record<string, string> = {};
-      for (const p of people || []) map[p.id] = p.full_name;
-      setNameById(map);
-    } else {
-      setNameById({});
-    }
-    setLoading(false);
-  }
-
-  // Bir devriye turuna aynı saatte birden fazla personel atanmış olabilir
-  // (o vardiyadaki herkes için ayrı ayrı patrol_assignments satırı üretiliyor)
-  // ama fiilen sadece BİRİNİN çıkması yeterli — bu yüzden "kaç kişi kaçırdı"
-  // değil, "kaç FARKLI devriye turu (rota+tarih+saat) kaçırıldı" sayılıyor:
-  // gruptaki biri bile "completed" ise tur tamamlanmış sayılır, hepsi
-  // "missed" ise tur kaçırılmış sayılır.
-  interface SlotGroup { route_id: string; date: string; scheduled_time: string; personnelIds: string[]; completed: boolean; }
-  const groupsByKey = new Map<string, SlotGroup>();
-  for (const r of rows) {
-    const key = `${r.route_id}_${r.date}_${r.scheduled_time}`;
-    const g = groupsByKey.get(key) ?? { route_id: r.route_id, date: r.date, scheduled_time: r.scheduled_time, personnelIds: [], completed: false };
-    g.personnelIds.push(r.personnel_id);
-    if (r.status === "completed") g.completed = true;
-    groupsByKey.set(key, g);
-  }
-  const groups = [...groupsByKey.values()];
-  const missedGroups = groups.filter(g => !g.completed);
-  const completedGroupsCount = groups.length - missedGroups.length;
-  const completionRate = groups.length > 0 ? Math.round((completedGroupsCount / groups.length) * 100) : null;
-
-  const columns: DataTableColumn[] = [
-    { key: "tarih", label: "Tarih", sortable: true },
-    { key: "saat", label: "Saat" },
-    { key: "lokasyon", label: "Lokasyon" },
-    { key: "personel", label: "Planlanan Personel" },
-    { key: "aciklama", label: "Açıklama" },
-  ];
-
-  const tableData = missedGroups
-    .sort((a, b) => (a.date === b.date ? a.scheduled_time.localeCompare(b.scheduled_time) : b.date.localeCompare(a.date)))
-    .map(g => {
-      const routeInfo = routeInfoById[g.route_id];
-      const personelNames = g.personnelIds.map(id => nameById[id] ?? "Bilinmiyor").join(", ");
-      return {
-        tarih: formatDateOnly(g.date),
-        saat: g.scheduled_time.slice(0, 5),
-        lokasyon: routeInfo?.location ?? "—",
-        personel: personelNames,
-        aciklama: `${routeInfo?.name ?? "Rota"} rotasında planlanan devriye başlatılmadı`,
-      };
-    });
-
-  return (
-    <div className="space-y-6">
-      <section className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-outline-variant/10">
-        <div className="flex flex-col md:flex-row md:items-end gap-4">
-          <div className="space-y-1 flex-1 max-w-xs">
-            <label className="text-xs font-semibold text-on-surface-variant ml-1">Lokasyon</label>
-            <select
-              value={locFilter}
-              onChange={e => setLocFilter(e.target.value)}
-              className="w-full bg-surface-container-low border-none rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-primary outline-none"
-            >
-              <option value="all">Tüm Lokasyonlar</option>
-              {locations.map(l => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-          </div>
-          <DateRangeFilter start={start} end={end} onStartChange={setStart} onEndChange={setEnd} onFilter={load} />
-        </div>
-      </section>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-secondary/10 flex items-center justify-center text-secondary flex-shrink-0">
-            <span className="material-symbols-outlined text-[24px]">percent</span>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant">Tamamlanma Oranı</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{completionRate === null ? "—" : `%${completionRate}`}</h3>
-          </div>
-        </div>
-        <div className="bg-surface-container-lowest p-5 rounded-xl shadow-sm border border-outline-variant/10 flex items-center gap-4">
-          <div className="w-12 h-12 rounded-2xl bg-error/10 flex items-center justify-center text-error flex-shrink-0">
-            <span className="material-symbols-outlined text-[24px]">event_busy</span>
-          </div>
-          <div>
-            <p className="text-xs font-semibold text-on-surface-variant">Kaçırılan Devriye</p>
-            <h3 className="font-display text-headline-sm text-on-surface">{missedGroups.length}</h3>
-          </div>
-        </div>
-      </div>
-
-      {!loading && missedGroups.length === 0 ? (
-        <div className="bg-surface-container-lowest rounded-xl p-10 flex flex-col items-center gap-3 shadow-sm border border-outline-variant/10">
-          <div className="w-16 h-16 bg-secondary/10 rounded-2xl flex items-center justify-center">
-            <span className="material-symbols-outlined text-secondary text-[32px]">check_circle</span>
-          </div>
-          <p className="font-bold text-on-surface">Seçili tarih aralığında ve lokasyonda atlanmış devriye yok</p>
-        </div>
-      ) : (
-        <DataTable columns={columns} data={tableData} loading={loading} exportable rowClassName={() => "bg-error/10"} />
-      )}
-    </div>
-  );
-}
-
