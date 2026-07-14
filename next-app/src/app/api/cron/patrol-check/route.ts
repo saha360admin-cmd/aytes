@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { ensureTodayPatrolAssignments } from "@/lib/patrolSlots";
+import { ensureTodayPatrolAssignments, generateTimeSlots } from "@/lib/patrolSlots";
 import { notifyPersonnel } from "@/lib/pushNotify";
 
 const supabaseAdmin = createClient(
@@ -35,13 +35,19 @@ export async function GET(request: Request) {
 
   await ensureTodayPatrolAssignments(supabaseAdmin, dateStr, dayTypes);
 
+  // Aynı rotaya birden fazla plan bağlı olabilir (ör. farklı vardiyalar için
+  // farklı aralıklar) — bu yüzden eşik, sadece route_id değil, o rotanın
+  // ürettiği tam saat (route_id + HH:MM) bazında tutuluyor.
   const { data: scheds } = await supabaseAdmin
     .from("patrol_schedules")
-    .select("route_id, interval_minutes")
+    .select("route_id, interval_minutes, start_time, end_time")
     .eq("is_active", true);
-  const intervalByRoute = new Map<string, number>();
+  const intervalBySlot = new Map<string, number>();
   (scheds ?? []).forEach(s => {
-    if (!intervalByRoute.has(s.route_id)) intervalByRoute.set(s.route_id, s.interval_minutes);
+    for (const t of generateTimeSlots(s.start_time, s.interval_minutes, s.end_time)) {
+      const key = `${s.route_id}_${t}`;
+      if (!intervalBySlot.has(key)) intervalBySlot.set(key, s.interval_minutes);
+    }
   });
 
   const { data: pending } = await supabaseAdmin
@@ -56,9 +62,10 @@ export async function GET(request: Request) {
   const missedPersonnel = new Set<string>();
 
   for (const a of pending ?? []) {
-    const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
+    const timeStr = a.scheduled_time.slice(0, 5);
+    const [h, m] = timeStr.split(":").map(Number);
     const slotMin = h * 60 + m;
-    const interval = intervalByRoute.get(a.route_id) ?? DEFAULT_INTERVAL_MIN;
+    const interval = intervalBySlot.get(`${a.route_id}_${timeStr}`) ?? DEFAULT_INTERVAL_MIN;
 
     if (nowMin > slotMin + interval) {
       missedIds.push(a.id);

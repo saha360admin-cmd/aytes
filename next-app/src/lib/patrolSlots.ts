@@ -77,9 +77,14 @@ export async function ensureTodayPatrolAssignments(
     );
     if (!matchedRoute) continue;
 
-    const matchedSched = matchedScheds.find(s => s.route_id === matchedRoute.id) ?? matchedScheds[0];
-    const slots = generateTimeSlots(matchedSched.start_time, matchedSched.interval_minutes, matchedSched.end_time);
-    slots.forEach(time => upserts.push({ personnel_id: p.id, route_id: matchedRoute.id, date: dateStr, scheduled_time: time }));
+    // Aynı vardiya koduna ve rotaya birden fazla zaman planı bağlı olabilir
+    // (örn. "13:00-14:00" ve "19:00-20:00" ikisi de Vardiya 2) — hepsinin
+    // slotları üretilmeli, sadece ilk eşleşen değil.
+    const schedsForRoute = matchedScheds.filter(s => s.route_id === matchedRoute.id);
+    for (const sched of (schedsForRoute.length > 0 ? schedsForRoute : [matchedScheds[0]])) {
+      const slots = generateTimeSlots(sched.start_time, sched.interval_minutes, sched.end_time);
+      slots.forEach(time => upserts.push({ personnel_id: p.id, route_id: matchedRoute.id, date: dateStr, scheduled_time: time }));
+    }
   }
 
   if (upserts.length > 0) {

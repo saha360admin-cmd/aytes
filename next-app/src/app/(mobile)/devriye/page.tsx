@@ -108,7 +108,10 @@ export default function DevriyePage() {
   const [noPatrolDuty, setNoPatrolDuty] = useState(false);
   const [occupiedSlots, setOccupiedSlots] = useState<string[]>([]);
   const [slotBlockedMsg, setSlotBlockedMsg] = useState<string | null>(null);
-  const [schedMeta, setSchedMeta] = useState<{ startMin: number; endMin: number; crossMidnight: boolean } | null>(null);
+  // Saat dilimi (HH:MM) -> o slotu üreten planın gece-geçişi bilgisi. Aynı
+  // vardiyaya birden fazla plan bağlı olabileceği için tek bir global değer
+  // yerine slot bazlı tutuluyor.
+  const [schedMetaBySlot, setSchedMetaBySlot] = useState<Map<string, { startMin: number; endMin: number; crossMidnight: boolean }>>(new Map());
   const [scanningCheckpoint, setScanningCheckpoint] = useState(false);
   const [checkpointScanError, setCheckpointScanError] = useState<string | null>(null);
   const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
@@ -202,7 +205,11 @@ export default function DevriyePage() {
 
     type MatchedRoute = { id: string; name: string; patrol_route_points: { id: string; name: string; point_order: number; nfc_uid: string | null; qr_token: string | null }[] };
     const matchedRoute = routes[0] as unknown as MatchedRoute;
-    const matchedSched = scheds.find((s: { route_id: string }) => s.route_id === matchedRoute.id) ?? scheds[0];
+    // Aynı vardiya koduna ve rotaya birden fazla zaman planı bağlı olabilir
+    // (örn. "13:00-14:00" ve "19:00-20:00" ikisi de Vardiya 2) — hepsinin
+    // slotları üretilmeli, sadece ilk eşleşen değil.
+    const schedsForRoute = scheds.filter((s: { route_id: string }) => s.route_id === matchedRoute.id);
+    const matchedScheds = schedsForRoute.length > 0 ? schedsForRoute : [scheds[0]];
 
     setAssignmentRoute({
       id: matchedRoute.id,
@@ -218,7 +225,7 @@ export default function DevriyePage() {
       .in("status", ["pending", "missed"]);
 
     // Zaman dilimlerini oluştur ve upsert et
-    const slots = generateTimeSlots(matchedSched.start_time, matchedSched.interval_minutes, matchedSched.end_time);
+    const slots = matchedScheds.flatMap(sched => generateTimeSlots(sched.start_time, sched.interval_minutes, sched.end_time));
     if (slots.length > 0) {
       await supabase.from("patrol_assignments").upsert(
         slots.map(time => ({
@@ -242,22 +249,37 @@ export default function DevriyePage() {
     if (!existing) return;
 
     const nowMin = today.getHours() * 60 + today.getMinutes();
-    const [startH, startM] = matchedSched.start_time.slice(0, 5).split(":").map(Number);
-    const startMin = startH * 60 + startM;
-    const endMin = matchedSched.end_time
-      ? (() => { const [eh, em] = matchedSched.end_time.slice(0, 5).split(":").map(Number); return eh * 60 + em; })()
-      : startMin;
-    const isCrossMidnight = endMin < startMin;
-    setSchedMeta({ startMin, endMin, crossMidnight: isCrossMidnight });
-    // Gece geçişinde +24h sadece gece yarısı geçildikten sonra uygulanır (gündüz değil)
-    const isPostMidnight = isCrossMidnight && nowMin < startMin && nowMin <= endMin;
-    const adjustedNow = isPostMidnight ? nowMin + 24 * 60 : nowMin;
+
+    // Her plan için kendi slotlarını üretip "hangi slot hangi plandan geldi"
+    // eşlemesini kur — plan bazlı interval/gece-geçişi bilgisini doğru
+    // uygulayabilmek için (bkz. üstteki not: birden fazla plan olabilir).
+    const slotMetaMap = new Map<string, { startMin: number; endMin: number; crossMidnight: boolean; interval: number }>();
+    const newSchedMetaBySlot = new Map<string, { startMin: number; endMin: number; crossMidnight: boolean }>();
+    for (const sched of matchedScheds) {
+      const [sh2, sm2] = sched.start_time.slice(0, 5).split(":").map(Number);
+      const sStartMin = sh2 * 60 + sm2;
+      const sEndMin = sched.end_time
+        ? (() => { const [eh, em] = sched.end_time.slice(0, 5).split(":").map(Number); return eh * 60 + em; })()
+        : sStartMin;
+      const sCrossMidnight = sEndMin < sStartMin;
+      for (const t of generateTimeSlots(sched.start_time, sched.interval_minutes, sched.end_time)) {
+        slotMetaMap.set(t, { startMin: sStartMin, endMin: sEndMin, crossMidnight: sCrossMidnight, interval: sched.interval_minutes });
+        newSchedMetaBySlot.set(t, { startMin: sStartMin, endMin: sEndMin, crossMidnight: sCrossMidnight });
+      }
+    }
+    setSchedMetaBySlot(newSchedMetaBySlot);
+
     const missedIds = existing
       .filter(a => {
-        const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
+        const timeStr = a.scheduled_time.slice(0, 5);
+        const meta = slotMetaMap.get(timeStr);
+        if (!meta) return false;
+        const [h, m] = timeStr.split(":").map(Number);
         let slotMin = h * 60 + m;
-        if (isCrossMidnight && slotMin < startMin) slotMin += 24 * 60;
-        return a.status === "pending" && adjustedNow > slotMin + matchedSched.interval_minutes;
+        if (meta.crossMidnight && slotMin < meta.startMin) slotMin += 24 * 60;
+        const isPostMidnight = meta.crossMidnight && nowMin < meta.startMin && nowMin <= meta.endMin;
+        const adjustedNow = isPostMidnight ? nowMin + 24 * 60 : nowMin;
+        return a.status === "pending" && adjustedNow > slotMin + meta.interval;
       })
       .map(a => a.id);
 
@@ -616,14 +638,15 @@ export default function DevriyePage() {
 
           <div className="space-y-3">
             {assignments.map(a => {
-              const [h, m] = a.scheduled_time.slice(0, 5).split(":").map(Number);
+              const timeStr = a.scheduled_time.slice(0, 5);
+              const [h, m] = timeStr.split(":").map(Number);
               let slotMin = h * 60 + m;
               let adjustedNow = nowMin;
-              if (schedMeta?.crossMidnight && slotMin < schedMeta.startMin) {
+              const meta = schedMetaBySlot.get(timeStr);
+              if (meta?.crossMidnight && slotMin < meta.startMin) {
                 slotMin += 24 * 60;
-                if (nowMin < schedMeta.startMin && nowMin <= schedMeta.endMin) adjustedNow += 24 * 60;
+                if (nowMin < meta.startMin && nowMin <= meta.endMin) adjustedNow += 24 * 60;
               }
-              const timeStr = a.scheduled_time.slice(0, 5);
               const isOccupied = a.status === "pending" && occupiedSlots.includes(timeStr);
               const canStart = a.status === "pending" && !isOccupied && adjustedNow >= slotMin - 15;
               const cfg = isOccupied
