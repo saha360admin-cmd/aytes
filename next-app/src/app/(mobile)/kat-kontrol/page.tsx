@@ -381,6 +381,10 @@ export default function KatKontrolPage() {
     setCameraError(false);
     setScanError(null);
     runningRef.current = false;
+    // Bir önceki checkpoint'in başarılı okumasından kalan "true" değeri
+    // sıfırlanmazsa (aşağıdaki onDecode sadece başarısız okumada sıfırlıyor),
+    // bu yeni checkpoint'in taraması kamerada görünür ama sessizce yok sayılır.
+    processingRef.current = false;
 
     import("html5-qrcode").then(({ Html5Qrcode }) => {
       if (cancelled) return;

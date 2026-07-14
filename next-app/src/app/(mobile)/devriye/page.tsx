@@ -517,6 +517,10 @@ export default function DevriyePage() {
     let cancelled = false;
     setQrCameraError(false);
     setCheckpointScanError(null);
+    // Bir önceki checkpoint'in başarılı okumasından kalan "true" değeri
+    // sıfırlanmazsa (aşağıdaki onDecode sadece başarısız okumada sıfırlıyor),
+    // bu yeni checkpoint'in taraması kamerada görünür ama sessizce yok sayılır.
+    qrProcessingRef.current = false;
 
     startQrScan({
       regionId: "devriye-qr-reader",
