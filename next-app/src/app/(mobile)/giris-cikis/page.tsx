@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { scanNfcTagOnce, stopNfcScan } from "@/lib/nfc";
+import { startQrScan, type QrScanHandle } from "@/lib/qr";
 
-type ScanState = "idle" | "scanning" | "found" | "notfound" | "recording" | "success" | "error" | "unsupported";
+type ScanState = "idle" | "scanning" | "found" | "notfound" | "recording" | "success" | "error";
 
 interface AttendanceRecord {
   id: string;
@@ -20,6 +21,7 @@ interface TagConfig {
   id: string;
   uuid: string; // NFC etiket UID'si (örn. "04:a1:b2:c3:d4:e5:f6") — eski BLE alan adı korunuyor
   name: string;
+  qr_token: string | null;
 }
 
 export default function GirisCikisPage() {
@@ -32,7 +34,12 @@ export default function GirisCikisPage() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState("");
   const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
+  const [scanningQr, setScanningQr] = useState(false);
+  const [qrCameraError, setQrCameraError] = useState(false);
+  const [manualQrCode, setManualQrCode] = useState("");
   const scanningRef = useRef(false);
+  const qrHandleRef = useRef<QrScanHandle | null>(null);
+  const qrProcessingRef = useRef(false);
 
   useEffect(() => {
     import("@capgo/capacitor-nfc")
@@ -49,7 +56,7 @@ export default function GirisCikisPage() {
 
     const [bRes, rRes] = await Promise.all([
       supabase.from("beacons")
-        .select("id, uuid, name")
+        .select("id, uuid, name, qr_token")
         .eq("department_id", personnel.department_id)
         .eq("active", true),
       supabase.from("attendance_records")
@@ -67,10 +74,6 @@ export default function GirisCikisPage() {
 
   useEffect(() => { if (personnel) load(); }, [personnel, load]);
 
-  useEffect(() => {
-    if (nfcSupported === false) setScanState("unsupported");
-  }, [nfcSupported]);
-
   // Hard requirement: stop an in-progress scan if the user navigates away mid-scan.
   useEffect(() => {
     return () => {
@@ -80,6 +83,7 @@ export default function GirisCikisPage() {
 
   const lastRecord = todayRecords[0] ?? null;
   const nextAction: "entry" | "exit" = lastRecord?.type === "entry" ? "exit" : "entry";
+  const hasQrTags = tags.some(t => t.qr_token);
 
   async function startScan(type: "entry" | "exit") {
     if (!personnel || tags.length === 0) {
@@ -155,6 +159,50 @@ export default function GirisCikisPage() {
     }
   }
 
+  // NFC'nin kamera/QR karşılığı — iOS Safari dahil Web NFC desteklemeyen
+  // cihazlarda kullanılır. Eşleşen etiket bulunursa recordAttendance ile
+  // aynı doğrulanmış (verified: true) kayıt akışı çalışır.
+  async function confirmQrCode(rawCode: string): Promise<boolean> {
+    if (!personnel) return false;
+    const code = rawCode.trim();
+    const matched = tags.find(t => t.qr_token && t.qr_token === code);
+    if (!matched) { setErrorMsg("Bu QR kod tanımlı bir etikete ait değil"); return false; }
+    setScanningQr(false);
+    setManualQrCode("");
+    setPendingType(nextAction);
+    await recordAttendance(nextAction, matched);
+    return true;
+  }
+
+  useEffect(() => {
+    if (!scanningQr) return;
+    let cancelled = false;
+    setQrCameraError(false);
+    setErrorMsg("");
+
+    startQrScan({
+      regionId: "giris-cikis-qr-reader",
+      onDecode: (decodedText) => {
+        if (qrProcessingRef.current) return;
+        qrProcessingRef.current = true;
+        confirmQrCode(decodedText).then(ok => {
+          if (!ok) setTimeout(() => { qrProcessingRef.current = false; }, 1500);
+        });
+      },
+      onCameraError: () => { if (!cancelled) setQrCameraError(true); },
+    }).then(handle => {
+      if (cancelled) { handle.stop(); return; }
+      qrHandleRef.current = handle;
+    });
+
+    return () => {
+      cancelled = true;
+      const handle = qrHandleRef.current;
+      qrHandleRef.current = null;
+      handle?.stop();
+    };
+  }, [scanningQr]); // eslint-disable-line react-hooks/exhaustive-deps
+
   function formatTime(iso: string) {
     return new Date(iso).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
   }
@@ -175,7 +223,7 @@ export default function GirisCikisPage() {
         </button>
         <div className="flex-1">
           <h1 className="font-bold text-blue-800 text-lg">Giriş / Çıkış</h1>
-          <p className="text-xs text-gray-400">NFC ile doğrulamalı kayıt</p>
+          <p className="text-xs text-gray-400">NFC veya QR ile doğrulamalı kayıt</p>
         </div>
       </header>
 
@@ -207,25 +255,56 @@ export default function GirisCikisPage() {
               </div>
 
               {nfcSupported ? (
-                <button
-                  onClick={() => startScan(nextAction)}
-                  className={`w-full py-5 rounded-2xl text-white text-base font-bold flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg
-                    ${nextAction === "entry"
-                      ? "shadow-emerald-200"
-                      : "shadow-red-200"}`}
-                  style={{
-                    background: nextAction === "entry"
-                      ? "linear-gradient(135deg, #1B5E20, #2E7D32)"
-                      : "linear-gradient(135deg, #B71C1C, #C62828)"
-                  }}>
-                  <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>nfc</span>
-                  {nextAction === "entry" ? "Giriş Yap" : "Çıkış Yap"}
-                </button>
+                <div className="w-full space-y-2.5">
+                  <button
+                    onClick={() => startScan(nextAction)}
+                    className={`w-full py-5 rounded-2xl text-white text-base font-bold flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg
+                      ${nextAction === "entry"
+                        ? "shadow-emerald-200"
+                        : "shadow-red-200"}`}
+                    style={{
+                      background: nextAction === "entry"
+                        ? "linear-gradient(135deg, #1B5E20, #2E7D32)"
+                        : "linear-gradient(135deg, #B71C1C, #C62828)"
+                    }}>
+                    <span className="material-symbols-outlined text-[24px]" style={{ fontVariationSettings: "'FILL' 1" }}>nfc</span>
+                    {nextAction === "entry" ? "Giriş Yap" : "Çıkış Yap"}
+                  </button>
+                  {hasQrTags && (
+                    <button
+                      onClick={() => setScanningQr(true)}
+                      className="w-full py-4 rounded-2xl border-2 text-base font-bold flex items-center justify-center gap-3 active:scale-95 transition-all"
+                      style={{ borderColor: "#3949AB", color: "#3949AB" }}>
+                      <span className="material-symbols-outlined text-[22px]">qr_code_scanner</span>
+                      QR ile {nextAction === "entry" ? "Giriş" : "Çıkış"}
+                    </button>
+                  )}
+                </div>
+              ) : hasQrTags ? (
+                <div className="w-full space-y-2.5">
+                  <button
+                    onClick={() => setScanningQr(true)}
+                    className={`w-full py-5 rounded-2xl text-white text-base font-bold flex items-center justify-center gap-3 active:scale-95 transition-all shadow-lg
+                      ${nextAction === "entry" ? "shadow-emerald-200" : "shadow-red-200"}`}
+                    style={{
+                      background: nextAction === "entry"
+                        ? "linear-gradient(135deg, #1B5E20, #2E7D32)"
+                        : "linear-gradient(135deg, #B71C1C, #C62828)"
+                    }}>
+                    <span className="material-symbols-outlined text-[24px]">qr_code_scanner</span>
+                    QR ile {nextAction === "entry" ? "Giriş Yap" : "Çıkış Yap"}
+                  </button>
+                  <button
+                    onClick={() => recordManual(nextAction)}
+                    className="w-full py-2.5 rounded-2xl text-gray-400 text-xs font-semibold active:scale-95 transition-all">
+                    Kamera çalışmıyor mu? Doğrulamasız kaydet
+                  </button>
+                </div>
               ) : (
                 <div className="w-full space-y-3">
                   <div className="bg-amber-50 rounded-xl p-3 flex items-start gap-2">
                     <span className="material-symbols-outlined text-amber-500 text-[18px] flex-shrink-0 mt-0.5">warning</span>
-                    <p className="text-xs text-amber-700">NFC taraması yalnızca NFC destekli mobil cihazlarda çalışır. Manuel kayıt yapılacak, doğrulamasız işaretlenecek.</p>
+                    <p className="text-xs text-amber-700">Bu cihaz NFC desteklemiyor ve tanımlı bir QR etiketi de yok. Manuel kayıt yapılacak, doğrulamasız işaretlenecek.</p>
                   </div>
                   <button
                     onClick={() => recordManual(nextAction)}
@@ -321,23 +400,6 @@ export default function GirisCikisPage() {
             </div>
           )}
 
-          {/* Desteklenmiyor */}
-          {scanState === "unsupported" && (
-            <div className="flex flex-col items-center gap-5 py-4 w-full">
-              <div className="w-24 h-24 rounded-full bg-gray-100 flex items-center justify-center">
-                <span className="material-symbols-outlined text-gray-400 text-[48px]">nfc</span>
-              </div>
-              <div className="text-center">
-                <p className="text-lg font-bold text-gray-800">NFC Kullanılamıyor</p>
-                <p className="text-sm text-gray-400 mt-1">Bu cihazda NFC donanımı bulunmuyor.</p>
-              </div>
-              <button onClick={() => recordManual(nextAction)}
-                className="w-full py-4 rounded-2xl font-bold text-white active:scale-95 transition-all"
-                style={{ background: "linear-gradient(135deg, #455A64, #607D8B)" }}>
-                Manuel Kayıt Yap
-              </button>
-            </div>
-          )}
         </div>
 
         {/* Bugünkü kayıtlar */}
@@ -387,6 +449,36 @@ export default function GirisCikisPage() {
           )}
         </section>
       </main>
+
+      {scanningQr && (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center px-6">
+          <button onClick={() => setScanningQr(false)}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all">
+            <span className="material-symbols-outlined text-white">close</span>
+          </button>
+          <p className="text-white font-bold mb-4">Etiketin QR Kodunu Kameraya Gösterin</p>
+          {!qrCameraError ? (
+            <div id="giris-cikis-qr-reader" className="w-full max-w-[320px] rounded-2xl overflow-hidden" />
+          ) : (
+            <div className="w-full max-w-[320px] bg-white/10 rounded-2xl p-6 text-center">
+              <span className="material-symbols-outlined text-white/60 text-[36px] block mb-2">videocam_off</span>
+              <p className="text-white/70 text-sm">Kameraya erişilemedi. Kodu manuel girin.</p>
+            </div>
+          )}
+          {errorMsg && (
+            <p className="text-red-400 text-sm font-semibold mt-4 text-center">{errorMsg}</p>
+          )}
+          <div className="w-full max-w-[320px] flex gap-2 mt-6">
+            <input value={manualQrCode} onChange={e => setManualQrCode(e.target.value)}
+              placeholder="Kodu elle gir"
+              className="flex-1 h-12 bg-white/10 text-white placeholder-white/40 rounded-xl px-4 text-sm outline-none focus:ring-2 focus:ring-white/40" />
+            <button onClick={() => confirmQrCode(manualQrCode)} disabled={!manualQrCode.trim()}
+              className="h-12 px-5 rounded-xl bg-white text-black font-bold text-sm disabled:opacity-40 active:scale-95 transition-all">
+              Doğrula
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

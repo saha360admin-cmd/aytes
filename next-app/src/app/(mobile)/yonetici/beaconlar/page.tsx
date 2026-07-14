@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { scanNfcTagOnce } from "@/lib/nfc";
+import QRCode from "qrcode";
 
 interface Beacon {
   id: string;
@@ -15,6 +16,7 @@ interface Beacon {
   min_rssi: number;
   active: boolean;
   location_id: string | null;
+  qr_token: string | null;
   location?: { name: string } | null;
 }
 
@@ -37,6 +39,47 @@ export default function BeaconlarPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState("");
   const [scanningTag, setScanningTag] = useState(false);
+  const [qrModal, setQrModal] = useState<Beacon | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+
+  useEffect(() => {
+    if (!qrModal?.qr_token) { setQrDataUrl(""); return; }
+    QRCode.toDataURL(qrModal.qr_token, { width: 280, margin: 1 }).then(setQrDataUrl).catch(() => setQrDataUrl(""));
+  }, [qrModal]);
+
+  async function ensureQrAndOpen(b: Beacon) {
+    if (b.qr_token) { setQrModal(b); return; }
+    const token = crypto.randomUUID();
+    const { error } = await supabase.from("beacons").update({ qr_token: token }).eq("id", b.id);
+    if (error) { setToast("QR kod oluşturulamadı: " + error.message); setTimeout(() => setToast(""), 3000); return; }
+    const updated = { ...b, qr_token: token };
+    setBeacons(prev => prev.map(x => x.id === b.id ? updated : x));
+    setQrModal(updated);
+  }
+
+  function printQr(b: Beacon) {
+    if (!qrDataUrl) return;
+    const win = window.open("", "_blank", "width=420,height=560");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>${b.name}</title></head>
+      <body style="text-align:center;font-family:sans-serif;padding:32px;">
+        <h2 style="margin-bottom:4px;">${b.name}</h2>
+        <img src="${qrDataUrl}" style="width:260px;height:260px;margin-top:16px;" />
+      </body></html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
+  function downloadQr(b: Beacon) {
+    if (!qrDataUrl) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `qr-${b.name.replace(/\s+/g, "-").toLowerCase()}.png`;
+    a.click();
+  }
 
   async function scanTag() {
     setScanningTag(true);
@@ -50,7 +93,7 @@ export default function BeaconlarPage() {
     if (!personnel) return;
     const [bRes, lRes] = await Promise.all([
       supabase.from("beacons")
-        .select("id, name, uuid, major, minor, min_rssi, active, location_id, location:locations(name)")
+        .select("id, name, uuid, major, minor, min_rssi, active, location_id, qr_token, location:locations(name)")
         .eq("department_id", personnel.department_id)
         .order("created_at", { ascending: false }),
       supabase.from("locations")
@@ -186,6 +229,10 @@ export default function BeaconlarPage() {
                 className={`flex-1 py-2 rounded-xl text-xs font-bold active:scale-95 transition-all ${b.active ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"}`}>
                 {b.active ? "Devre Dışı" : "Aktif Et"}
               </button>
+              <button onClick={() => ensureQrAndOpen(b)} title={b.qr_token ? "QR Kodu Görüntüle" : "QR Kod Oluştur"}
+                className="w-9 h-9 flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-600 active:scale-95 transition-all">
+                <span className="material-symbols-outlined text-[18px]">qr_code_2</span>
+              </button>
               <button onClick={() => deleteBeacon(b.id)}
                 className="w-9 h-9 flex items-center justify-center rounded-xl bg-red-50 text-red-500 active:scale-95 transition-all">
                 <span className="material-symbols-outlined text-[18px]">delete</span>
@@ -263,6 +310,38 @@ export default function BeaconlarPage() {
                   ? <span className="material-symbols-outlined animate-spin text-[18px]">progress_activity</span>
                   : <span className="material-symbols-outlined text-[18px]">save</span>}
                 {saving ? "Kaydediliyor..." : "Kaydet"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {qrModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setQrModal(null)} />
+          <div className="relative w-full max-w-[340px] bg-white rounded-3xl shadow-2xl p-6 space-y-4 text-center">
+            <button onClick={() => setQrModal(null)}
+              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-gray-100 flex items-center justify-center active:scale-90 transition-all">
+              <span className="material-symbols-outlined text-gray-500 text-[18px]">close</span>
+            </button>
+            <h3 className="text-lg font-bold text-gray-800">{qrModal.name}</h3>
+            <div className="flex items-center justify-center py-2">
+              {qrDataUrl
+                ? <img src={qrDataUrl} alt="QR Kod" className="w-56 h-56 rounded-xl border border-gray-100" />
+                : <span className="material-symbols-outlined animate-spin text-[#3949AB] text-[32px]">progress_activity</span>}
+            </div>
+            <p className="text-xs text-gray-400">Bu QR kodu yazdırıp lokasyona yapıştırın. Personel giriş/çıkışta bu kodu okutarak doğrular — NFC etiketi de aynı noktada ayrıca kullanılabilir.</p>
+            <div className="flex gap-2">
+              <button onClick={() => printQr(qrModal)} disabled={!qrDataUrl}
+                className="flex-1 h-11 rounded-xl text-white text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 transition-all"
+                style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                <span className="material-symbols-outlined text-[16px]">print</span>
+                Yazdır
+              </button>
+              <button onClick={() => downloadQr(qrModal)} disabled={!qrDataUrl}
+                className="flex-1 h-11 rounded-xl bg-gray-100 text-gray-700 text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 transition-all">
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                İndir
               </button>
             </div>
           </div>
