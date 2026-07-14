@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
+import QRCode from "qrcode";
 
 // Rota/kontrol noktası/zaman planı iş mantığı mobildeki
 // (mobile)/yonetici/devriye-planlama/page.tsx ile birebir aynı — aynı
@@ -20,7 +21,7 @@ const INTERVALS = [30, 60, 90, 120, 180, 240];
 const SHIFT_CODES = ["", "1", "2", "3", "4", "5", "6", "7", "8"];
 
 interface Location { id: string; name: string; }
-interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null; }
+interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null; qr_token: string | null; }
 interface Schedule {
   id: string;
   day_type: "weekday" | "weekend" | "everyday";
@@ -108,11 +109,19 @@ function PatrolRoutesSection() {
   const [deleteRouteConfirm, setDeleteRouteConfirm] = useState<PatrolRoute | null>(null);
   const [deletingRoute, setDeletingRoute] = useState(false);
 
+  const [qrModal, setQrModal] = useState<RoutePoint | null>(null);
+  const [qrDataUrl, setQrDataUrl] = useState("");
+
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
 
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    if (!qrModal?.qr_token) { setQrDataUrl(""); return; }
+    QRCode.toDataURL(qrModal.qr_token, { width: 280, margin: 1 }).then(setQrDataUrl).catch(() => setQrDataUrl(""));
+  }, [qrModal]);
 
   function flash(msg: string, ok: boolean) {
     setToast({ msg, ok });
@@ -129,7 +138,7 @@ function PatrolRoutesSection() {
       supabase.from("locations").select("id, name").order("name"),
       supabase.from("patrol_routes").select(`
         id, name, location_id, is_active,
-        points:patrol_route_points(id, name, point_order, nfc_uid),
+        points:patrol_route_points(id, name, point_order, nfc_uid, qr_token),
         schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active, shift_code)
       `).eq("department_id", dept.id).order("created_at", { ascending: false }),
     ]);
@@ -165,7 +174,7 @@ function PatrolRoutesSection() {
     const route = routes.find(r => r.id === routeId);
     const { data, error } = await supabase.from("patrol_route_points")
       .insert({ route_id: routeId, name: newPointName.trim(), point_order: (route?.points.length ?? 0) + 1 })
-      .select("id, name, point_order, nfc_uid").single();
+      .select("id, name, point_order, nfc_uid, qr_token").single();
     if (!error && data) {
       setRoutes(p => p.map(r => r.id === routeId ? { ...r, points: [...r.points, data] } : r));
       setNewPointName("");
@@ -180,6 +189,47 @@ function PatrolRoutesSection() {
     setRoutes(p => p.map(r => r.id === routeId
       ? { ...r, points: r.points.filter(pt => pt.id !== pointId).map((pt, i) => ({ ...pt, point_order: i + 1 })) }
       : r));
+  }
+
+  // NFC ataması fiziksel bir etikete dokunmayı gerektirdiği için mobilden
+  // yapılıyor; QR token ise sadece bir metin üretip görsele çevirmek, bu
+  // yüzden web'den de üretilebiliyor — nokta ilk açıldığında yoksa oluşturulur.
+  async function ensureQrAndOpen(routeId: string, pt: RoutePoint) {
+    if (pt.qr_token) { setQrModal(pt); return; }
+    const token = crypto.randomUUID();
+    const { data, error } = await supabase.from("patrol_route_points")
+      .update({ qr_token: token }).eq("id", pt.id)
+      .select("id, name, point_order, nfc_uid, qr_token").single();
+    if (!error && data) {
+      setRoutes(p => p.map(r => r.id === routeId ? { ...r, points: r.points.map(x => x.id === pt.id ? data : x) } : r));
+      setQrModal(data);
+    } else {
+      flash(error?.message ?? "QR kod oluşturulamadı", false);
+    }
+  }
+
+  function printQr(point: RoutePoint) {
+    if (!qrDataUrl) return;
+    const win = window.open("", "_blank", "width=420,height=560");
+    if (!win) return;
+    win.document.write(`
+      <html><head><title>${point.name}</title></head>
+      <body style="text-align:center;font-family:sans-serif;padding:32px;">
+        <h2 style="margin-bottom:4px;">${point.name}</h2>
+        <img src="${qrDataUrl}" style="width:260px;height:260px;margin-top:16px;" />
+      </body></html>
+    `);
+    win.document.close();
+    win.focus();
+    win.print();
+  }
+
+  function downloadQr(point: RoutePoint) {
+    if (!qrDataUrl) return;
+    const a = document.createElement("a");
+    a.href = qrDataUrl;
+    a.download = `qr-${point.name.replace(/\s+/g, "-").toLowerCase()}.png`;
+    a.click();
   }
 
   function openSchedForm(routeId: string, sched: Schedule | null) {
@@ -348,6 +398,13 @@ function PatrolRoutesSection() {
                                 <span className="material-symbols-outlined text-[13px]">nfc</span>
                                 {pt.nfc_uid ? "Atandı" : "Atanmadı"}
                               </span>
+                              <button
+                                onClick={() => ensureQrAndOpen(route.id, pt)}
+                                title={pt.qr_token ? "QR Kodu Görüntüle" : "QR Kod Oluştur"}
+                                className="w-8 h-8 rounded-full bg-indigo-500/10 flex items-center justify-center transition-all flex-shrink-0"
+                              >
+                                <span className="material-symbols-outlined text-indigo-600 text-[16px]">qr_code_2</span>
+                              </button>
                               <button
                                 onClick={() => deletePoint(route.id, pt.id)}
                                 className="w-8 h-8 rounded-full bg-error/10 flex items-center justify-center transition-all"
@@ -631,6 +688,37 @@ function PatrolRoutesSection() {
         </div>
       )}
 
+      {qrModal && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center px-6">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setQrModal(null)} />
+          <div className="relative w-full max-w-[340px] bg-surface-container-lowest rounded-3xl shadow-2xl p-6 space-y-4 text-center">
+            <button onClick={() => setQrModal(null)}
+              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-surface-container-low flex items-center justify-center active:scale-90 transition-all">
+              <span className="material-symbols-outlined text-on-surface-variant text-[18px]">close</span>
+            </button>
+            <h3 className="text-lg font-bold text-on-surface">{qrModal.name}</h3>
+            <div className="flex items-center justify-center py-2">
+              {qrDataUrl
+                ? <img src={qrDataUrl} alt="QR Kod" className="w-56 h-56 rounded-xl border border-outline-variant/20" />
+                : <span className="material-symbols-outlined animate-spin text-primary text-[32px]">progress_activity</span>}
+            </div>
+            <p className="text-xs text-on-surface-variant">Bu QR kodu yazdırıp lokasyona yapıştırın. Personel devriyede bu kodu okutarak noktayı doğrular — NFC etiketi de aynı noktada ayrıca kullanılabilir.</p>
+            <div className="flex gap-2">
+              <button onClick={() => printQr(qrModal)} disabled={!qrDataUrl}
+                className="flex-1 h-11 rounded-xl bg-primary text-on-primary text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 transition-all">
+                <span className="material-symbols-outlined text-[16px]">print</span>
+                Yazdır
+              </button>
+              <button onClick={() => downloadQr(qrModal)} disabled={!qrDataUrl}
+                className="flex-1 h-11 rounded-xl bg-surface-container-low text-on-surface-variant text-sm font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 active:scale-95 transition-all">
+                <span className="material-symbols-outlined text-[16px]">download</span>
+                İndir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {toast && (
         <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-[100] px-5 py-3 rounded-full shadow-lg flex items-center gap-2 ${toast.ok ? "bg-on-surface text-surface" : "bg-error text-on-error"}`}>
           <span className="material-symbols-outlined text-[18px]">{toast.ok ? "check_circle" : "error"}</span>
@@ -672,7 +760,7 @@ function IdariDevriyeNoktalariSection() {
       supabase.from("locations").select("id, name").order("name"),
       supabase.from("patrol_routes").select(`
         id, name, location_id, is_active,
-        points:patrol_route_points(id, name, point_order, nfc_uid),
+        points:patrol_route_points(id, name, point_order, nfc_uid, qr_token),
         schedules:patrol_schedules(id, day_type, start_time, interval_minutes, end_time, is_active, shift_code)
       `).eq("department_id", dept.id).order("created_at", { ascending: false }),
     ]);
@@ -762,6 +850,12 @@ function IdariDevriyeNoktalariSection() {
                               }`}>
                                 <span className="material-symbols-outlined text-[13px]">nfc</span>
                                 {pt.nfc_uid ? "Atandı" : "Atanmadı"}
+                              </span>
+                              <span className={`px-2.5 h-7 rounded-full flex items-center gap-1 text-[10px] font-bold flex-shrink-0 ${
+                                pt.qr_token ? "bg-emerald-500/10 text-emerald-600" : "bg-on-surface-variant/10 text-on-surface-variant"
+                              }`}>
+                                <span className="material-symbols-outlined text-[13px]">qr_code_2</span>
+                                {pt.qr_token ? "Atandı" : "Atanmadı"}
                               </span>
                             </div>
                           ))}

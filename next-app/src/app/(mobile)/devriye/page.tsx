@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { supabase } from "@/lib/supabase";
 import { scanNfcTagOnce } from "@/lib/nfc";
+import { startQrScan, type QrScanHandle } from "@/lib/qr";
 import { generateTimeSlots } from "@/lib/patrolSlots";
 import type { Patrol, PatrolCheckpoint, PatrolAssignment } from "@/lib/types";
 
@@ -20,7 +21,7 @@ const defaultCheckpoints = [
 interface AvailableRoute {
   id: string;
   name: string;
-  points: { name: string; point_order: number; nfc_uid: string | null }[];
+  points: { name: string; point_order: number; nfc_uid: string | null; qr_token: string | null }[];
 }
 
 const patrolTips = [
@@ -110,6 +111,19 @@ export default function DevriyePage() {
   const [schedMeta, setSchedMeta] = useState<{ startMin: number; endMin: number; crossMidnight: boolean } | null>(null);
   const [scanningCheckpoint, setScanningCheckpoint] = useState(false);
   const [checkpointScanError, setCheckpointScanError] = useState<string | null>(null);
+  const [nfcSupported, setNfcSupported] = useState<boolean | null>(null);
+  const [scanningQr, setScanningQr] = useState(false);
+  const [qrCameraError, setQrCameraError] = useState(false);
+  const [manualQrCode, setManualQrCode] = useState("");
+  const qrHandleRef = useRef<QrScanHandle | null>(null);
+  const qrProcessingRef = useRef(false);
+
+  useEffect(() => {
+    import("@capgo/capacitor-nfc")
+      .then(({ CapacitorNfc }) => CapacitorNfc.isSupported())
+      .then(({ supported }) => setNfcSupported(supported))
+      .catch(() => setNfcSupported(false));
+  }, []);
 
   const completed = checkpoints.filter(c => c.status === "completed").length;
   const total = checkpoints.length || defaultCheckpoints.length;
@@ -121,14 +135,14 @@ export default function DevriyePage() {
     if (!personnel) return;
     const { data } = await supabase
       .from("patrol_routes")
-      .select("id, name, points:patrol_route_points(name, point_order, nfc_uid)")
+      .select("id, name, points:patrol_route_points(name, point_order, nfc_uid, qr_token)")
       .eq("is_active", true)
       .eq("department_id", personnel.department_id)
       .or(`location_id.eq.${personnel.location_id ?? "00000000-0000-0000-0000-000000000000"},location_id.is.null`)
       .order("created_at", { ascending: false });
 
     if (data) {
-      const routes = data.map((r: { id: string; name: string; points: { name: string; point_order: number; nfc_uid: string | null }[] }) => ({
+      const routes = data.map((r: { id: string; name: string; points: { name: string; point_order: number; nfc_uid: string | null; qr_token: string | null }[] }) => ({
         ...r,
         points: [...(r.points || [])].sort((a, b) => a.point_order - b.point_order),
       }));
@@ -178,7 +192,7 @@ export default function DevriyePage() {
 
     const { data: routes } = await supabase
       .from("patrol_routes")
-      .select("id, name, location_id, patrol_route_points(id, name, point_order, nfc_uid)")
+      .select("id, name, location_id, patrol_route_points(id, name, point_order, nfc_uid, qr_token)")
       .in("id", routeIds)
       .eq("is_active", true)
       .eq("department_id", personnel.department_id)
@@ -186,7 +200,7 @@ export default function DevriyePage() {
 
     if (!routes || routes.length === 0) return;
 
-    type MatchedRoute = { id: string; name: string; patrol_route_points: { id: string; name: string; point_order: number; nfc_uid: string | null }[] };
+    type MatchedRoute = { id: string; name: string; patrol_route_points: { id: string; name: string; point_order: number; nfc_uid: string | null; qr_token: string | null }[] };
     const matchedRoute = routes[0] as unknown as MatchedRoute;
     const matchedSched = scheds.find((s: { route_id: string }) => s.route_id === matchedRoute.id) ?? scheds[0];
 
@@ -291,9 +305,9 @@ export default function DevriyePage() {
       return;
     }
 
-    const cpSource: { name: string; nfc_uid: string | null }[] = assignmentRoute.points.length > 0
-      ? assignmentRoute.points.map(p => ({ name: p.name, nfc_uid: p.nfc_uid }))
-      : defaultCheckpoints.map(name => ({ name, nfc_uid: null }));
+    const cpSource: { name: string; nfc_uid: string | null; qr_token: string | null }[] = assignmentRoute.points.length > 0
+      ? assignmentRoute.points.map(p => ({ name: p.name, nfc_uid: p.nfc_uid, qr_token: p.qr_token }))
+      : defaultCheckpoints.map(name => ({ name, nfc_uid: null, qr_token: null }));
 
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
       department_id: personnel.department_id,
@@ -318,6 +332,7 @@ export default function DevriyePage() {
       checkpoint_order: i + 1,
       name: cp.name,
       nfc_uid: cp.nfc_uid,
+      qr_token: cp.qr_token,
       status: i === 0 ? "active" : "pending",
     }));
     await supabase.from("patrol_checkpoints").insert(cpInserts);
@@ -378,9 +393,9 @@ export default function DevriyePage() {
     if (!personnel) return;
 
     const route = availableRoutes.find(r => r.id === selectedRouteId);
-    const cpSource: { name: string; nfc_uid: string | null }[] = route && route.points.length > 0
-      ? route.points.map(p => ({ name: p.name, nfc_uid: p.nfc_uid }))
-      : defaultCheckpoints.map(name => ({ name, nfc_uid: null }));
+    const cpSource: { name: string; nfc_uid: string | null; qr_token: string | null }[] = route && route.points.length > 0
+      ? route.points.map(p => ({ name: p.name, nfc_uid: p.nfc_uid, qr_token: p.qr_token }))
+      : defaultCheckpoints.map(name => ({ name, nfc_uid: null, qr_token: null }));
     const routeName = route ? route.name : "Ana Bina Çevresi";
 
     const { data: newPatrol, error } = await supabase.from("patrols").insert({
@@ -399,6 +414,7 @@ export default function DevriyePage() {
       checkpoint_order: i + 1,
       name: cp.name,
       nfc_uid: cp.nfc_uid,
+      qr_token: cp.qr_token,
       status: i === 0 ? "active" : "pending",
     }));
 
@@ -455,6 +471,53 @@ export default function DevriyePage() {
     }
     await completeCheckpoint();
   }
+
+  // NFC'nin kamera/QR karşılığı — iOS Safari dahil Web NFC'yi desteklemeyen
+  // cihazlarda kullanılır. kat-kontrol/page.tsx'teki confirmCheckpoint ile
+  // aynı düz string eşitliği mantığı: activeCheckpoint.qr_token ile eşleşirse
+  // tamamlanır.
+  async function confirmCheckpointQr(rawCode: string): Promise<boolean> {
+    if (!activeCheckpoint) return false;
+    const code = rawCode.trim();
+    if (activeCheckpoint.qr_token && code !== activeCheckpoint.qr_token) {
+      setCheckpointScanError("Bu QR kod bu noktaya ait değil.");
+      return false;
+    }
+    setCheckpointScanError(null);
+    setScanningQr(false);
+    setManualQrCode("");
+    await completeCheckpoint();
+    return true;
+  }
+
+  useEffect(() => {
+    if (!scanningQr) return;
+    let cancelled = false;
+    setQrCameraError(false);
+    setCheckpointScanError(null);
+
+    startQrScan({
+      regionId: "devriye-qr-reader",
+      onDecode: (decodedText) => {
+        if (qrProcessingRef.current) return;
+        qrProcessingRef.current = true;
+        confirmCheckpointQr(decodedText).then(ok => {
+          if (!ok) setTimeout(() => { qrProcessingRef.current = false; }, 1500);
+        });
+      },
+      onCameraError: () => { if (!cancelled) setQrCameraError(true); },
+    }).then(handle => {
+      if (cancelled) { handle.stop(); return; }
+      qrHandleRef.current = handle;
+    });
+
+    return () => {
+      cancelled = true;
+      const handle = qrHandleRef.current;
+      qrHandleRef.current = null;
+      handle?.stop();
+    };
+  }, [scanningQr]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function togglePause() {
     if (!patrol) return;
@@ -811,19 +874,51 @@ export default function DevriyePage() {
                       <div className="flex-1">
                         <p className="text-base font-bold text-blue-800">Nokta {cp.checkpoint_order}: {cp.name}</p>
                         <p className="text-xs font-semibold text-gray-500">
-                          {cp.nfc_uid ? "Hedefe ulaşıldı, etiketi okutun" : "Hedefe ulaşıldı, lütfen okutun"}
+                          {cp.nfc_uid || cp.qr_token ? "Hedefe ulaşıldı, okutun" : "Hedefe ulaşıldı, lütfen okutun"}
                         </p>
                       </div>
                     </div>
                     {checkpointScanError && (
                       <p className="text-xs font-semibold text-red-600 -mt-2">{checkpointScanError}</p>
                     )}
-                    <button onClick={scanCheckpoint} disabled={scanningCheckpoint}
-                      className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200 disabled:opacity-60"
-                      style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                      <span className={`material-symbols-outlined ${scanningCheckpoint ? "animate-pulse" : ""}`}>nfc</span>
-                      {scanningCheckpoint ? "Taranıyor..." : cp.nfc_uid ? "OKUT (NFC)" : "OKUT"}
-                    </button>
+                    {(() => {
+                      const showNfcBtn = !!cp.nfc_uid && nfcSupported !== false;
+                      const showQrBtn = !!cp.qr_token;
+                      const showBypassBtn = !showNfcBtn && !showQrBtn;
+                      return (
+                        <div className="flex flex-col gap-2">
+                          {showNfcBtn && (
+                            <button onClick={scanCheckpoint} disabled={scanningCheckpoint}
+                              className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200 disabled:opacity-60"
+                              style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                              <span className={`material-symbols-outlined ${scanningCheckpoint ? "animate-pulse" : ""}`}>nfc</span>
+                              {scanningCheckpoint ? "Taranıyor..." : "OKUT (NFC)"}
+                            </button>
+                          )}
+                          {showQrBtn && (
+                            <button onClick={() => setScanningQr(true)}
+                              className={`w-full py-4 rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all ${
+                                showNfcBtn ? "bg-white text-[#3949AB] border-2 border-[#3949AB]" : "text-white shadow-lg shadow-indigo-200"
+                              }`}
+                              style={showNfcBtn ? undefined : { background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                              <span className="material-symbols-outlined">qr_code_scanner</span>
+                              QR ile Okut
+                            </button>
+                          )}
+                          {showBypassBtn && (
+                            <button onClick={scanCheckpoint}
+                              className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
+                              style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                              <span className="material-symbols-outlined">nfc</span>
+                              OKUT
+                            </button>
+                          )}
+                          {!!cp.nfc_uid && !cp.qr_token && nfcSupported === false && (
+                            <p className="text-[11px] text-amber-600 text-center">Bu cihaz NFC desteklemiyor ve noktada QR kod tanımlı değil — doğrulamasız kaydedilecek.</p>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
                 {cp.status === "pending" && (
@@ -856,6 +951,35 @@ export default function DevriyePage() {
         </button>
       </div>
 
+      {scanningQr && (
+        <div className="fixed inset-0 z-[60] bg-black/90 flex flex-col items-center justify-center px-6">
+          <button onClick={() => setScanningQr(false)}
+            className="absolute top-6 right-6 w-10 h-10 rounded-full bg-white/10 flex items-center justify-center active:scale-90 transition-all">
+            <span className="material-symbols-outlined text-white">close</span>
+          </button>
+          <p className="text-white font-bold mb-4">Nokta QR Kodunu Kameraya Gösterin</p>
+          {!qrCameraError ? (
+            <div id="devriye-qr-reader" className="w-full max-w-[320px] rounded-2xl overflow-hidden" />
+          ) : (
+            <div className="w-full max-w-[320px] bg-white/10 rounded-2xl p-6 text-center">
+              <span className="material-symbols-outlined text-white/60 text-[36px] block mb-2">videocam_off</span>
+              <p className="text-white/70 text-sm">Kameraya erişilemedi. Kodu manuel girin.</p>
+            </div>
+          )}
+          {checkpointScanError && (
+            <p className="text-red-400 text-sm font-semibold mt-4 text-center">{checkpointScanError}</p>
+          )}
+          <div className="w-full max-w-[320px] flex gap-2 mt-6">
+            <input value={manualQrCode} onChange={e => setManualQrCode(e.target.value)}
+              placeholder="Kodu elle gir"
+              className="flex-1 h-12 bg-white/10 text-white placeholder-white/40 rounded-xl px-4 text-sm outline-none focus:ring-2 focus:ring-white/40" />
+            <button onClick={() => confirmCheckpointQr(manualQrCode)} disabled={!manualQrCode.trim()}
+              className="h-12 px-5 rounded-xl bg-white text-black font-bold text-sm disabled:opacity-40 active:scale-95 transition-all">
+              Doğrula
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
