@@ -177,15 +177,18 @@ export default function DevriyePage() {
 
     if (!sa?.shift_code) return;
 
-    // Bu vardiyaya ait aktif planlar (vardiyaya özel + herkese açık "Hepsi" planlar)
-    const { data: scheds } = await supabase
+    // Bu vardiyaya ait aktif planlar (vardiyaya özel + herkese açık "Hepsi" planlar).
+    // shift_code null ise "Hepsi", değilse virgülle ayrılmış vardiya kodları listesi
+    // olabilir (örn. "1,3,5") — bu yüzden eşleşme istemci tarafında yapılıyor.
+    const { data: allScheds } = await supabase
       .from("patrol_schedules")
-      .select("id, start_time, interval_minutes, end_time, route_id")
-      .or(`shift_code.eq.${sa.shift_code},shift_code.is.null`)
+      .select("id, start_time, interval_minutes, end_time, route_id, shift_code")
       .in("day_type", dayTypes)
       .eq("is_active", true);
 
-    if (!scheds || scheds.length === 0) return;
+    const scheds = (allScheds ?? []).filter(s => s.shift_code === null || s.shift_code.split(",").includes(sa.shift_code));
+
+    if (scheds.length === 0) return;
 
     // Personelin lokasyonuyla eşleşen rota bul
     const routeIds = scheds.map((s: { route_id: string }) => s.route_id);
@@ -501,7 +504,7 @@ export default function DevriyePage() {
   async function confirmCheckpointQr(rawCode: string): Promise<boolean> {
     if (!activeCheckpoint) return false;
     const code = rawCode.trim();
-    if (activeCheckpoint.qr_token && code !== activeCheckpoint.qr_token) {
+    if (!activeCheckpoint.qr_token || code !== activeCheckpoint.qr_token) {
       setCheckpointScanError("Bu QR kod bu noktaya ait değil.");
       return false;
     }

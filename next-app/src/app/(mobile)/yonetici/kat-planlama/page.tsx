@@ -66,7 +66,7 @@ export default function KatPlanlama() {
   const [schedStart, setSchedStart]     = useState("08:00");
   const [schedInterval, setSchedInterval] = useState(60);
   const [schedEnd, setSchedEnd]         = useState("");
-  const [schedShiftCode, setSchedShiftCode] = useState("");
+  const [schedShiftCodes, setSchedShiftCodes] = useState<string[]>([]);
   const [savingSched, setSavingSched]   = useState(false);
 
   const [toast, setToast] = useState<{ msg: string; ok: boolean } | null>(null);
@@ -171,9 +171,9 @@ export default function KatPlanlama() {
       setSchedStart(sched.start_time.slice(0, 5));
       setSchedInterval(sched.interval_minutes);
       setSchedEnd(sched.end_time ? sched.end_time.slice(0, 5) : "");
-      setSchedShiftCode(sched.shift_code ?? "");
+      setSchedShiftCodes(sched.shift_code ? sched.shift_code.split(",") : []);
     } else {
-      setSchedDayType("weekday"); setSchedStart("08:00"); setSchedInterval(60); setSchedEnd(""); setSchedShiftCode("");
+      setSchedDayType("weekday"); setSchedStart("08:00"); setSchedInterval(60); setSchedEnd(""); setSchedShiftCodes([]);
     }
   }
 
@@ -181,7 +181,7 @@ export default function KatPlanlama() {
     if (!editingSched) return;
     const { routeId, sched } = editingSched;
     setSavingSched(true);
-    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true, shift_code: schedShiftCode || null };
+    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true, shift_code: schedShiftCodes.length > 0 ? schedShiftCodes.join(",") : null };
 
     if (sched) {
       const { data, error } = await supabase.from("patrol_schedules").update(payload).eq("id", sched.id).select("id, day_type, start_time, interval_minutes, end_time, is_active, shift_code").single();
@@ -415,7 +415,7 @@ export default function KatPlanlama() {
                                   {s.start_time.slice(0, 5)} başlar · her{" "}
                                   {s.interval_minutes >= 60 ? `${s.interval_minutes / 60} saat` : `${s.interval_minutes} dk`}
                                   {s.end_time ? ` · ${s.end_time.slice(0, 5)}'e kadar` : ""}
-                                  {s.shift_code ? ` · Vardiya ${s.shift_code}` : ""}
+                                  {s.shift_code ? ` · Vardiya ${s.shift_code.split(",").join(", ")}` : ""}
                                 </p>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -602,15 +602,23 @@ export default function KatPlanlama() {
 
               {/* Hedef Vardiya */}
               <div>
-                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Hedef Vardiya (isteğe bağlı)</label>
+                <label className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-2">Hedef Vardiya (isteğe bağlı, birden fazla seçilebilir)</label>
                 <div className="grid grid-cols-5 gap-2">
-                  {["", "1", "2", "3", "4", "5", "6", "7", "8"].map(v => (
-                    <button key={v} onClick={() => setSchedShiftCode(v)}
-                      className={`h-11 rounded-xl text-sm font-bold transition-all active:scale-95 ${schedShiftCode === v ? "text-white" : "bg-gray-100 text-gray-500"}`}
-                      style={schedShiftCode === v ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
-                      {v === "" ? "Hepsi" : v}
-                    </button>
-                  ))}
+                  <button onClick={() => setSchedShiftCodes([])}
+                    className={`h-11 rounded-xl text-sm font-bold transition-all active:scale-95 ${schedShiftCodes.length === 0 ? "text-white" : "bg-gray-100 text-gray-500"}`}
+                    style={schedShiftCodes.length === 0 ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                    Hepsi
+                  </button>
+                  {["1", "2", "3", "4", "5", "6", "7", "8"].map(v => {
+                    const selected = schedShiftCodes.includes(v);
+                    return (
+                      <button key={v} onClick={() => setSchedShiftCodes(p => selected ? p.filter(c => c !== v) : [...p, v])}
+                        className={`h-11 rounded-xl text-sm font-bold transition-all active:scale-95 ${selected ? "text-white" : "bg-gray-100 text-gray-500"}`}
+                        style={selected ? { background: "linear-gradient(135deg, #1A237E, #3949AB)" } : undefined}>
+                        {v}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -620,7 +628,7 @@ export default function KatPlanlama() {
                 <p className="text-xs text-[#3949AB] font-semibold leading-relaxed">
                   {DAY_LABEL[schedDayType]}, {schedStart} başlar · Her {schedInterval < 60 ? `${schedInterval} dk'da` : `${schedInterval / 60} saatte`} bir kontrol
                   {schedEnd ? ` · ${schedEnd}'e kadar` : ""}
-                  {schedShiftCode ? ` · Vardiya ${schedShiftCode}` : " · Tüm vardiyalar"}
+                  {schedShiftCodes.length > 0 ? ` · Vardiya ${schedShiftCodes.join(", ")}` : " · Tüm vardiyalar"}
                 </p>
               </div>
 

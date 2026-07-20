@@ -18,7 +18,7 @@ const DAY_TYPES = [
 ] as const;
 const DAY_LABEL: Record<string, string> = { weekday: "Hafta İçi", weekend: "Hafta Sonu", everyday: "Her Gün" };
 const INTERVALS = [30, 60, 90, 120, 180, 240];
-const SHIFT_CODES = ["", "1", "2", "3", "4", "5", "6", "7", "8"];
+const SHIFT_CODES = ["1", "2", "3", "4", "5", "6", "7", "8"];
 
 interface Location { id: string; name: string; }
 interface RoutePoint { id: string; name: string; point_order: number; nfc_uid: string | null; qr_token: string | null; }
@@ -103,7 +103,7 @@ function PatrolRoutesSection() {
   const [schedStart, setSchedStart] = useState("08:00");
   const [schedInterval, setSchedInterval] = useState(60);
   const [schedEnd, setSchedEnd] = useState("");
-  const [schedShiftCode, setSchedShiftCode] = useState("");
+  const [schedShiftCodes, setSchedShiftCodes] = useState<string[]>([]);
   const [savingSched, setSavingSched] = useState(false);
 
   const [deleteRouteConfirm, setDeleteRouteConfirm] = useState<PatrolRoute | null>(null);
@@ -239,13 +239,13 @@ function PatrolRoutesSection() {
       setSchedStart(sched.start_time.slice(0, 5));
       setSchedInterval(sched.interval_minutes);
       setSchedEnd(sched.end_time ? sched.end_time.slice(0, 5) : "");
-      setSchedShiftCode(sched.shift_code ?? "");
+      setSchedShiftCodes(sched.shift_code ? sched.shift_code.split(",") : []);
     } else {
       setSchedDayType("weekday");
       setSchedStart("08:00");
       setSchedInterval(60);
       setSchedEnd("");
-      setSchedShiftCode("");
+      setSchedShiftCodes([]);
     }
   }
 
@@ -253,7 +253,7 @@ function PatrolRoutesSection() {
     if (!editingSched) return;
     const { routeId, sched } = editingSched;
     setSavingSched(true);
-    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true, shift_code: schedShiftCode || null };
+    const payload = { day_type: schedDayType, start_time: schedStart, interval_minutes: schedInterval, end_time: schedEnd || null, is_active: true, shift_code: schedShiftCodes.length > 0 ? schedShiftCodes.join(",") : null };
 
     if (sched) {
       const { data, error } = await supabase.from("patrol_schedules").update(payload).eq("id", sched.id)
@@ -474,7 +474,7 @@ function PatrolRoutesSection() {
                                   {s.start_time.slice(0, 5)} başlar · her{" "}
                                   {s.interval_minutes >= 60 ? `${s.interval_minutes / 60} saat` : `${s.interval_minutes} dk`}
                                   {s.end_time ? ` · ${s.end_time.slice(0, 5)}'e kadar` : ""}
-                                  {s.shift_code ? ` · Vardiya ${s.shift_code}` : ""}
+                                  {s.shift_code ? ` · Vardiya ${s.shift_code.split(",").join(", ")}` : ""}
                                 </p>
                               </div>
                               <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -620,17 +620,26 @@ function PatrolRoutesSection() {
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-on-surface-variant ml-1">Hedef Vardiya (isteğe bağlı)</label>
+                <label className="text-xs font-semibold text-on-surface-variant ml-1">Hedef Vardiya (isteğe bağlı, birden fazla seçilebilir)</label>
                 <div className="grid grid-cols-5 gap-2">
-                  {SHIFT_CODES.map(v => (
-                    <button
-                      key={v}
-                      onClick={() => setSchedShiftCode(v)}
-                      className={`h-10 rounded-xl text-sm font-bold transition-all ${schedShiftCode === v ? "bg-primary text-on-primary" : "bg-surface-container-low text-on-surface-variant"}`}
-                    >
-                      {v === "" ? "Hepsi" : v}
-                    </button>
-                  ))}
+                  <button
+                    onClick={() => setSchedShiftCodes([])}
+                    className={`h-10 rounded-xl text-sm font-bold transition-all ${schedShiftCodes.length === 0 ? "bg-primary text-on-primary" : "bg-surface-container-low text-on-surface-variant"}`}
+                  >
+                    Hepsi
+                  </button>
+                  {SHIFT_CODES.map(v => {
+                    const selected = schedShiftCodes.includes(v);
+                    return (
+                      <button
+                        key={v}
+                        onClick={() => setSchedShiftCodes(p => selected ? p.filter(c => c !== v) : [...p, v])}
+                        className={`h-10 rounded-xl text-sm font-bold transition-all ${selected ? "bg-primary text-on-primary" : "bg-surface-container-low text-on-surface-variant"}`}
+                      >
+                        {v}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -639,7 +648,7 @@ function PatrolRoutesSection() {
                 <p className="text-xs text-primary font-semibold leading-relaxed">
                   {DAY_LABEL[schedDayType]}, {schedStart} başlar · Her {schedInterval < 60 ? `${schedInterval} dk'da` : `${schedInterval / 60} saatte`} bir devriye
                   {schedEnd ? ` · ${schedEnd}'e kadar` : ""}
-                  {schedShiftCode ? ` · Vardiya ${schedShiftCode}` : " · Tüm vardiyalar"}
+                  {schedShiftCodes.length > 0 ? ` · Vardiya ${schedShiftCodes.join(", ")}` : " · Tüm vardiyalar"}
                 </p>
               </div>
             </div>
@@ -880,7 +889,7 @@ function IdariDevriyeNoktalariSection() {
                                   {s.start_time.slice(0, 5)} başlar · her{" "}
                                   {s.interval_minutes >= 60 ? `${s.interval_minutes / 60} saat` : `${s.interval_minutes} dk`}
                                   {s.end_time ? ` · ${s.end_time.slice(0, 5)}'e kadar` : ""}
-                                  {s.shift_code ? ` · Vardiya ${s.shift_code}` : ""}
+                                  {s.shift_code ? ` · Vardiya ${s.shift_code.split(",").join(", ")}` : ""}
                                 </p>
                               </div>
                             </div>

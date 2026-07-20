@@ -68,7 +68,7 @@ export async function ensureTodayPatrolAssignments(
     const p = row.personnel;
     if (!p) continue;
 
-    const matchedScheds = scheds.filter(s => s.shift_code === row.shift_code || s.shift_code === null);
+    const matchedScheds = scheds.filter(s => s.shift_code === null || s.shift_code.split(",").includes(row.shift_code));
     if (matchedScheds.length === 0) continue;
 
     const candidateRouteIds = new Set(matchedScheds.map(s => s.route_id));
