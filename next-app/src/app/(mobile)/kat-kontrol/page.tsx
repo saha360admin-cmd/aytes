@@ -347,15 +347,8 @@ export default function KatKontrolPage() {
     setCheckpoints(cps || []);
   }
 
-  const confirmCheckpoint = useCallback(async (rawCode: string): Promise<boolean> => {
-    if (!patrol || !activeCheckpoint) return false;
-    const code = rawCode.trim();
-
-    if (activeCheckpoint.qr_token && code !== activeCheckpoint.qr_token) {
-      setScanError("Bu QR kod bu noktaya ait değil.");
-      return false;
-    }
-
+  const completeCheckpoint = useCallback(async () => {
+    if (!patrol || !activeCheckpoint) return;
     setScanError(null);
     const now = new Date().toISOString();
     await supabase.from("patrol_checkpoints").update({ status: "completed", scanned_at: now }).eq("id", activeCheckpoint.id);
@@ -372,8 +365,20 @@ export default function KatKontrolPage() {
     setCheckpoints(cps || []);
     setScanning(false);
     setManualCode("");
-    return true;
   }, [patrol, activeCheckpoint, checkpoints, completed]);
+
+  const confirmCheckpoint = useCallback(async (rawCode: string): Promise<boolean> => {
+    if (!patrol || !activeCheckpoint) return false;
+    const code = rawCode.trim();
+
+    if (!activeCheckpoint.qr_token || code !== activeCheckpoint.qr_token) {
+      setScanError("Bu QR kod bu noktaya ait değil.");
+      return false;
+    }
+
+    await completeCheckpoint();
+    return true;
+  }, [patrol, activeCheckpoint, completeCheckpoint]);
 
   useEffect(() => {
     if (!scanning) return;
@@ -747,12 +752,21 @@ export default function KatKontrolPage() {
                         <p className="text-xs font-semibold text-gray-500">{cp.detail ? `${cp.detail} · ` : ""}Hedefe ulaşıldı, QR kodu okutun</p>
                       </div>
                     </div>
-                    <button onClick={() => { setScanning(true); setScanError(null); }}
-                      className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
-                      style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
-                      <span className="material-symbols-outlined">qr_code_scanner</span>
-                      QR Kodu Okut
-                    </button>
+                    {cp.qr_token ? (
+                      <button onClick={() => { setScanning(true); setScanError(null); }}
+                        className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
+                        style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                        <span className="material-symbols-outlined">qr_code_scanner</span>
+                        QR Kodu Okut
+                      </button>
+                    ) : (
+                      <button onClick={completeCheckpoint}
+                        className="w-full py-4 text-white rounded-full font-bold flex items-center justify-center gap-2 active:scale-95 transition-all shadow-lg shadow-indigo-200"
+                        style={{ background: "linear-gradient(135deg, #1A237E, #3949AB)" }}>
+                        <span className="material-symbols-outlined">task_alt</span>
+                        Tamamla
+                      </button>
+                    )}
                   </div>
                 )}
                 {cp.status === "pending" && (
