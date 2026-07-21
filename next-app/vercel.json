@@ -1,8 +1,1 @@
-{
-  "crons": [
-    {
-      "path": "/api/cron/patrol-check",
-      "schedule": "0 3 * * *"
-    }
-  ]
-}
+{}

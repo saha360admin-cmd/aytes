@@ -17,7 +17,11 @@ const REMINDER_WINDOW_MIN = 15;
 const DEFAULT_INTERVAL_MIN = 60;
 const NOTIFICATION_RETENTION_DAYS = 15;
 
-// Vercel Cron tarafından her 5-10 dakikada bir çağrılır (vercel.json).
+// Harici bir scheduler (ör. cron-job.org) tarafından her 5-10 dakikada bir
+// çağrılır — Vercel'in kendi Cron Jobs özelliği Hobby planda günde bir kez ile
+// sınırlı olduğu için buraya taşındı (vercel.json artık cron tanımlamıyor).
+// Authorization: Bearer <CRON_SECRET> header'ı zorunlu, aşağıdaki kontrol bunu
+// doğruluyor.
 // Basitleştirme: gece yarısını aşan devriye planlarında saat hesabı burada
 // (mobile)/devriye/page.tsx'teki kadar titiz değil — cross-midnight kenar
 // durumu bilinen bir sınırlama, takip eden bir iyileştirme konusu.
